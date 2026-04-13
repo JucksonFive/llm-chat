@@ -4,7 +4,7 @@ export const PROVIDERS: Record<ProviderId, ProviderMeta> = {
   openai: {
     id: 'openai',
     name: 'OpenAI',
-    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1', 'o1-mini', 'o3-mini'],
+    models: ['gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-nano', 'gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'o3', 'o4-mini', 'o3-mini'],
     icon: 'Brain',
     color: '#10a37f',
     requiresApiKey: true,
@@ -12,7 +12,7 @@ export const PROVIDERS: Record<ProviderId, ProviderMeta> = {
   anthropic: {
     id: 'anthropic',
     name: 'Anthropic',
-    models: ['claude-sonnet-4-20250514', 'claude-haiku-4-5-20251001', 'claude-opus-4-20250514'],
+    models: ['claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5', 'claude-opus-4-20250514', 'claude-sonnet-4-20250514'],
     icon: 'Sparkles',
     color: '#d4a574',
     requiresApiKey: true,
@@ -20,7 +20,7 @@ export const PROVIDERS: Record<ProviderId, ProviderMeta> = {
   google: {
     id: 'google',
     name: 'Google Gemini',
-    models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'],
+    models: ['gemini-3.1-pro-preview', 'gemini-3-flash', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'],
     icon: 'Gem',
     color: '#4285f4',
     requiresApiKey: true,
