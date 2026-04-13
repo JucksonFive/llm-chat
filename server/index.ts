@@ -268,7 +268,7 @@ app.post('/api/mcp/prompts/get', async (req, res) => {
 // SPA fallback for Electron production (must come after API routes)
 if (process.env.ELECTRON_DIST_PATH) {
   const indexPath = `${process.env.ELECTRON_DIST_PATH}/index.html`
-  app.get('*', (req, res, next) => {
+  app.get('{*path}', (req, res, next) => {
     if (req.path.startsWith('/api')) return next()
     res.sendFile(indexPath)
   })
