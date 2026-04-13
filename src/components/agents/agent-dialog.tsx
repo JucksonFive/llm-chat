@@ -139,6 +139,8 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="My Assistant"
+              autoComplete="off"
+              data-form-type="other"
             />
           </div>
 
@@ -182,6 +184,9 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
                   onChange={(e) => setApiKey(e.target.value)}
                   placeholder="sk-..."
                   className="pr-10"
+                  autoComplete="off"
+                  data-form-type="other"
+                  data-lpignore="true"
                 />
                 <Button
                   type="button"
