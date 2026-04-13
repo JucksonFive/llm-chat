@@ -1,5 +1,7 @@
 export type ProviderId = 'openai' | 'anthropic' | 'google' | 'ollama' | 'deepseek'
 
+export type BuiltInToolId = 'web-fetch' | 'web-search' | 'code-executor' | 'file-reader'
+
 export interface ProviderMeta {
   id: ProviderId
   name: string
@@ -20,6 +22,7 @@ export interface Agent {
   createdAt: number
   avatarColor: string
   mcpServerIds: string[]
+  builtInToolIds: BuiltInToolId[]
 }
 
 export interface ToolCallInfo {
@@ -43,12 +46,27 @@ export interface Message {
 export interface McpServerConfig {
   id: string
   name: string
-  transport: 'stdio' | 'sse'
+  transport: 'stdio' | 'sse' | 'streamable-http'
   command?: string
   args?: string[]
   env?: Record<string, string>
   url?: string
   createdAt: number
+  presetId?: string
+}
+
+export interface McpPreset {
+  id: string
+  name: string
+  description: string
+  category: string
+  transport: 'stdio' | 'sse' | 'streamable-http'
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  url?: string
+  envPlaceholders?: { key: string; label: string; description: string; required: boolean }[]
+  homepage?: string
 }
 
 export interface Conversation {
@@ -65,4 +83,28 @@ export interface Memory {
   agentId: string
   content: string
   createdAt: number
+}
+
+export interface McpResource {
+  uri: string
+  name?: string
+  description?: string
+  mimeType?: string
+  serverId: string
+  serverName: string
+}
+
+export interface McpPrompt {
+  name: string
+  description?: string
+  arguments?: { name: string; description?: string; required?: boolean }[]
+  serverId: string
+  serverName: string
+}
+
+export interface McpResourceContent {
+  uri: string
+  text?: string
+  blob?: string
+  mimeType?: string
 }

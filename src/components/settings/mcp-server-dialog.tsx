@@ -33,7 +33,7 @@ export function McpServerDialog({ open, onOpenChange, editServerId }: McpServerD
   const editingServer = editServerId ? servers.find((s) => s.id === editServerId) : null
 
   const [name, setName] = useState('')
-  const [transport, setTransport] = useState<'stdio' | 'sse'>('stdio')
+  const [transport, setTransport] = useState<'stdio' | 'sse' | 'streamable-http'>('stdio')
   const [command, setCommand] = useState('')
   const [args, setArgs] = useState('')
   const [envVars, setEnvVars] = useState('')
@@ -93,7 +93,7 @@ export function McpServerDialog({ open, onOpenChange, editServerId }: McpServerD
   const handleSave = () => {
     if (!name.trim()) return
     if (transport === 'stdio' && !command.trim()) return
-    if (transport === 'sse' && !url.trim()) return
+    if (transport !== 'stdio' && !url.trim()) return
 
     const config = buildConfig()
 
@@ -122,7 +122,10 @@ export function McpServerDialog({ open, onOpenChange, editServerId }: McpServerD
       const data = await res.json()
       if (data.success) {
         setTestStatus('success')
-        setTestResult(`Found ${data.toolCount} tool${data.toolCount !== 1 ? 's' : ''}: ${data.tools.map((t: { name: string }) => t.name).join(', ')}`)
+        const parts = [`${data.toolCount} tool${data.toolCount !== 1 ? 's' : ''}`]
+        if (data.resourceCount > 0) parts.push(`${data.resourceCount} resource${data.resourceCount !== 1 ? 's' : ''}`)
+        if (data.promptCount > 0) parts.push(`${data.promptCount} prompt${data.promptCount !== 1 ? 's' : ''}`)
+        setTestResult(`Found ${parts.join(', ')}${data.toolCount > 0 ? ': ' + data.tools.map((t: { name: string }) => t.name).join(', ') : ''}`)
       } else {
         setTestStatus('error')
         setTestResult(data.error)
@@ -152,13 +155,14 @@ export function McpServerDialog({ open, onOpenChange, editServerId }: McpServerD
 
           <div className="space-y-2">
             <Label>Transport</Label>
-            <Select value={transport} onValueChange={(v) => setTransport(v as 'stdio' | 'sse')}>
+            <Select value={transport} onValueChange={(v) => setTransport(v as 'stdio' | 'sse' | 'streamable-http')}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="stdio">Stdio (local process)</SelectItem>
                 <SelectItem value="sse">SSE (remote server)</SelectItem>
+                <SelectItem value="streamable-http">Streamable HTTP (remote server)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -200,7 +204,7 @@ export function McpServerDialog({ open, onOpenChange, editServerId }: McpServerD
               <Input
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="http://localhost:3002/sse"
+                placeholder={transport === 'sse' ? 'http://localhost:3002/sse' : 'http://localhost:3002/mcp'}
                 className="font-mono text-sm"
               />
             </div>
@@ -213,6 +217,7 @@ export function McpServerDialog({ open, onOpenChange, editServerId }: McpServerD
               size="sm"
               onClick={handleTest}
               disabled={testStatus === 'testing' || !name.trim() || (transport === 'stdio' ? !command.trim() : !url.trim())}
+
             >
               {testStatus === 'testing' && <Loader2 className="h-3 w-3 mr-2 animate-spin" />}
               Test Connection

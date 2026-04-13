@@ -18,12 +18,19 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { Eye, EyeOff, Trash2, Server } from 'lucide-react'
+import { Eye, EyeOff, Trash2, Server, Wrench } from 'lucide-react'
 import { ProviderSelect } from '@/components/agents/provider-select'
 import { useAgentStore } from '@/stores/agent-store'
 import { useMcpStore } from '@/stores/mcp-store'
 import { PROVIDERS } from '@/lib/providers'
-import type { ProviderId } from '@/types'
+import type { ProviderId, BuiltInToolId } from '@/types'
+
+const BUILT_IN_TOOL_LIST: { id: BuiltInToolId; name: string; description: string }[] = [
+  { id: 'web-fetch', name: 'Fetch URL', description: 'Fetch content from a URL' },
+  { id: 'web-search', name: 'Web Search', description: 'Search the web for information' },
+  { id: 'code-executor', name: 'Code Executor', description: 'Execute JavaScript, Python, or shell code' },
+  { id: 'file-reader', name: 'File Reader', description: 'Read files from the local filesystem' },
+]
 
 interface AgentDialogProps {
   open: boolean
@@ -43,6 +50,7 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
   const [systemPrompt, setSystemPrompt] = useState('You are a helpful assistant.')
   const [showApiKey, setShowApiKey] = useState(false)
   const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>([])
+  const [selectedBuiltInTools, setSelectedBuiltInTools] = useState<BuiltInToolId[]>([])
 
   const mcpServers = useMcpStore((s) => s.servers)
   const provider = PROVIDERS[providerId]
@@ -58,6 +66,7 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
       setApiKey(editingAgent.apiKey)
       setSystemPrompt(editingAgent.systemPrompt)
       setSelectedMcpIds(editingAgent.mcpServerIds ?? [])
+      setSelectedBuiltInTools((editingAgent.builtInToolIds ?? []) as BuiltInToolId[])
     } else {
       setName('')
       setProviderId('openai')
@@ -66,6 +75,7 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
       setApiKey('')
       setSystemPrompt('You are a helpful assistant.')
       setSelectedMcpIds([])
+      setSelectedBuiltInTools([])
     }
     setShowApiKey(false)
   }, [editingAgent, open])
@@ -89,6 +99,7 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
         apiKey: apiKey.trim(),
         systemPrompt: systemPrompt.trim(),
         mcpServerIds: selectedMcpIds,
+        builtInToolIds: selectedBuiltInTools,
       })
     } else {
       addAgent({
@@ -98,6 +109,7 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
         apiKey: apiKey.trim(),
         systemPrompt: systemPrompt.trim(),
         mcpServerIds: selectedMcpIds,
+        builtInToolIds: selectedBuiltInTools,
       })
     }
     onOpenChange(false)
@@ -197,6 +209,35 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
               placeholder="You are a helpful assistant..."
               className="min-h-[100px]"
             />
+          </div>
+
+          <div className="grid gap-2">
+            <Label className="flex items-center gap-1.5">
+              <Wrench className="h-3.5 w-3.5" />
+              Built-in Tools
+            </Label>
+            <div className="space-y-2 rounded-lg border border-border/50 p-3">
+              {BUILT_IN_TOOL_LIST.map((tool) => (
+                <div key={tool.id} className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-sm">{tool.name}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {tool.description}
+                    </span>
+                  </div>
+                  <Switch
+                    checked={selectedBuiltInTools.includes(tool.id)}
+                    onCheckedChange={(checked) => {
+                      setSelectedBuiltInTools((prev) =>
+                        checked
+                          ? [...prev, tool.id]
+                          : prev.filter((id) => id !== tool.id)
+                      )
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
 
           {mcpServers.length > 0 && (

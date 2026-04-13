@@ -7,6 +7,7 @@ interface StreamChatParams {
   systemPrompt: string
   messages: { role: string; content: string }[]
   mcpServers?: McpServerConfig[]
+  builtInToolIds?: string[]
   signal?: AbortSignal
   onToken: (token: string) => void
   onToolCall: (data: { toolCallId: string; toolName: string; args: Record<string, unknown> }) => void
@@ -23,6 +24,7 @@ export async function streamChat({
   systemPrompt,
   messages,
   mcpServers,
+  builtInToolIds,
   signal,
   onToken,
   onToolCall,
@@ -51,7 +53,7 @@ export async function streamChat({
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ providerId, model, apiKey, systemPrompt, messages, mcpServers }),
+      body: JSON.stringify({ providerId, model, apiKey, systemPrompt, messages, mcpServers, builtInToolIds }),
       signal,
     })
 

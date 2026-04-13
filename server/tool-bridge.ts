@@ -4,7 +4,7 @@ import * as mcpManager from './mcp-manager.js'
 interface McpServerConfig {
   id: string
   name: string
-  transport: 'stdio' | 'sse'
+  transport: 'stdio' | 'sse' | 'streamable-http'
   command?: string
   args?: string[]
   env?: Record<string, string>

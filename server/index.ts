@@ -6,6 +6,9 @@ import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { buildToolsFromMcpServers } from './tool-bridge.js'
 import * as mcpManager from './mcp-manager.js'
+import { getBuiltInTools, getBuiltInToolList } from './tools/index.js'
+import type { BuiltInToolId } from './tools/index.js'
+import { MCP_PRESETS } from './mcp-presets.js'
 
 const app = express()
 app.use(cors())
@@ -19,7 +22,7 @@ if (process.env.ELECTRON_DIST_PATH) {
 
 app.post('/api/chat', async (req, res) => {
   try {
-    const { providerId, model, apiKey, messages, systemPrompt, mcpServers } = req.body
+    const { providerId, model, apiKey, messages, systemPrompt, mcpServers, builtInToolIds } = req.body
 
     let llmModel
     switch (providerId) {
@@ -51,10 +54,17 @@ app.post('/api/chat', async (req, res) => {
         return
     }
 
-    // Build MCP tools if servers are configured
-    const tools = mcpServers?.length
+    // Build tools from MCP servers and built-in tools
+    const mcpTools = mcpServers?.length
       ? await buildToolsFromMcpServers(mcpServers)
-      : undefined
+      : {}
+
+    const builtIn = builtInToolIds?.length
+      ? getBuiltInTools(builtInToolIds as BuiltInToolId[])
+      : {}
+
+    const tools = { ...builtIn, ...mcpTools }
+    const hasTools = Object.keys(tools).length > 0
 
     console.log(`[chat] provider=${providerId} model=${model} messages=${messages.length}`)
 
@@ -68,8 +78,8 @@ app.post('/api/chat', async (req, res) => {
       model: llmModel,
       system: systemPrompt || undefined,
       messages,
-      tools,
-      maxSteps: tools ? 10 : 1,
+      tools: hasTools ? tools : undefined,
+      maxSteps: hasTools ? 10 : 1,
       abortSignal: abortController.signal,
     })
 
@@ -142,19 +152,116 @@ app.post('/api/chat', async (req, res) => {
   }
 })
 
+app.get('/api/tools/built-in', (_req, res) => {
+  res.json({ tools: getBuiltInToolList() })
+})
+
+app.get('/api/mcp/presets', (_req, res) => {
+  res.json({ presets: MCP_PRESETS })
+})
+
 app.post('/api/mcp/test', async (req, res) => {
   try {
     const config = req.body
     const tools = await mcpManager.getTools(config)
+    const capabilities = await mcpManager.getServerCapabilities(config)
+
+    let resources: { uri: string; name?: string; mimeType?: string }[] = []
+    let prompts: { name: string; description?: string }[] = []
+
+    try {
+      const r = await mcpManager.getResources(config)
+      resources = r.map((r) => ({ uri: r.uri, name: r.name, mimeType: r.mimeType }))
+    } catch { /* server may not support resources */ }
+
+    try {
+      const p = await mcpManager.getPrompts(config)
+      prompts = p.map((p) => ({ name: p.name, description: p.description }))
+    } catch { /* server may not support prompts */ }
+
     await mcpManager.disconnect(config.id)
     res.json({
       success: true,
+      capabilities,
       toolCount: tools.length,
       tools: tools.map((t) => ({ name: t.name, description: t.description })),
+      resourceCount: resources.length,
+      resources,
+      promptCount: prompts.length,
+      prompts,
     })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Connection failed'
     res.status(400).json({ success: false, error: message })
+  }
+})
+
+app.post('/api/mcp/resources', async (req, res) => {
+  try {
+    const { servers } = req.body
+    const allResources: { uri: string; name?: string; description?: string; mimeType?: string; serverId: string; serverName: string }[] = []
+    for (const config of servers) {
+      try {
+        const resources = await mcpManager.getResources(config)
+        allResources.push(...resources.map((r) => ({
+          uri: r.uri,
+          name: r.name,
+          description: r.description,
+          mimeType: r.mimeType,
+          serverId: config.id,
+          serverName: config.name,
+        })))
+      } catch (err) {
+        console.error(`Failed to get resources from "${config.name}":`, err)
+      }
+    }
+    res.json({ resources: allResources })
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to list resources' })
+  }
+})
+
+app.post('/api/mcp/resources/read', async (req, res) => {
+  try {
+    const { serverId, uri } = req.body
+    const contents = await mcpManager.readResource(serverId, uri)
+    res.json({ contents })
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to read resource' })
+  }
+})
+
+app.post('/api/mcp/prompts', async (req, res) => {
+  try {
+    const { servers } = req.body
+    const allPrompts: { name: string; description?: string; arguments?: { name: string; description?: string; required?: boolean }[]; serverId: string; serverName: string }[] = []
+    for (const config of servers) {
+      try {
+        const prompts = await mcpManager.getPrompts(config)
+        allPrompts.push(...prompts.map((p) => ({
+          name: p.name,
+          description: p.description,
+          arguments: p.arguments,
+          serverId: config.id,
+          serverName: config.name,
+        })))
+      } catch (err) {
+        console.error(`Failed to get prompts from "${config.name}":`, err)
+      }
+    }
+    res.json({ prompts: allPrompts })
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to list prompts' })
+  }
+})
+
+app.post('/api/mcp/prompts/get', async (req, res) => {
+  try {
+    const { serverId, name, arguments: args } = req.body
+    const prompt = await mcpManager.getPrompt(serverId, name, args)
+    res.json(prompt)
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to get prompt' })
   }
 })
 

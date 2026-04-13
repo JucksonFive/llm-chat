@@ -6,7 +6,7 @@ import { AVATAR_COLORS } from '@/lib/providers'
 interface AgentState {
   agents: Agent[]
   activeAgentId: string | null
-  addAgent: (agent: Omit<Agent, 'id' | 'createdAt' | 'avatarColor' | 'mcpServerIds'> & { mcpServerIds?: string[] }) => Agent
+  addAgent: (agent: Omit<Agent, 'id' | 'createdAt' | 'avatarColor' | 'mcpServerIds' | 'builtInToolIds'> & { mcpServerIds?: string[]; builtInToolIds?: string[] }) => Agent
   updateAgent: (id: string, updates: Partial<Agent>) => void
   deleteAgent: (id: string) => void
   setActiveAgent: (id: string | null) => void
@@ -25,6 +25,7 @@ export const useAgentStore = create<AgentState>()(
           createdAt: Date.now(),
           avatarColor: AVATAR_COLORS[get().agents.length % AVATAR_COLORS.length],
           mcpServerIds: data.mcpServerIds ?? [],
+          builtInToolIds: (data.builtInToolIds ?? []) as Agent['builtInToolIds'],
         }
         set((state) => ({
           agents: [...state.agents, agent],

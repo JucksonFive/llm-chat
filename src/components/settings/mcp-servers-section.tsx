@@ -1,14 +1,16 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Pencil, Trash2, Server } from 'lucide-react'
+import { Plus, Pencil, Trash2, Server, Package } from 'lucide-react'
 import { useMcpStore } from '@/stores/mcp-store'
 import { McpServerDialog } from '@/components/settings/mcp-server-dialog'
+import { McpPresetsDialog } from '@/components/settings/mcp-presets-dialog'
 
 export function McpServersSection() {
   const servers = useMcpStore((s) => s.servers)
   const deleteServer = useMcpStore((s) => s.deleteServer)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [presetsOpen, setPresetsOpen] = useState(false)
   const [editingServerId, setEditingServerId] = useState<string | null>(null)
 
   const handleAdd = () => {
@@ -29,9 +31,15 @@ export function McpServersSection() {
             <Server className="h-4 w-4 text-muted-foreground" />
             <h3 className="text-sm font-medium">MCP Servers</h3>
           </div>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleAdd}>
-            <Plus className="h-3.5 w-3.5" />
-          </Button>
+          <div className="flex gap-1">
+            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setPresetsOpen(true)}>
+              <Package className="h-3.5 w-3.5 mr-1" />
+              Presets
+            </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleAdd}>
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
         <p className="text-xs text-muted-foreground">
           Connect MCP servers to give agents access to external tools.
@@ -87,6 +95,10 @@ export function McpServersSection() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         editServerId={editingServerId}
+      />
+      <McpPresetsDialog
+        open={presetsOpen}
+        onOpenChange={setPresetsOpen}
       />
     </>
   )

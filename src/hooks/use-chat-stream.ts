@@ -44,6 +44,8 @@ export function useChatStream() {
       .map((id) => mcpStore.getServer(id))
       .filter((s): s is McpServerConfig => s !== undefined)
 
+    const builtInToolIds = agent.builtInToolIds ?? []
+
     // Build message history (exclude the streaming placeholder)
     const conv = useChatStore.getState().conversations[conversationId]
     const historyMessages = conv.messages
@@ -60,6 +62,7 @@ export function useChatStream() {
       systemPrompt,
       messages: historyMessages,
       mcpServers: mcpServers.length > 0 ? mcpServers : undefined,
+      builtInToolIds: builtInToolIds.length > 0 ? builtInToolIds : undefined,
       signal: controller.signal,
       onToken: (token) => {
         useChatStore.getState().appendToLastMessage(conversationId!, token)
