@@ -8,6 +8,7 @@ import { pdfReaderTool } from './pdf-reader.js'
 import { datetimeTool } from './datetime.js'
 import { createImageGeneratorTool } from './image-generator.js'
 import { deepResearchTool } from './deep-research.js'
+import type { Tool } from 'ai'
 
 export type BuiltInToolId =
   | 'web-fetch'
@@ -27,7 +28,7 @@ export interface BuiltInToolMeta {
   description: string
 }
 
-type ToolEntry = { name: string; description: string; tool?: typeof webFetchTool; factory?: (apiKey: string) => typeof webFetchTool }
+type ToolEntry = { name: string; description: string; tool?: Tool<any, any>; factory?: (apiKey: string) => Tool<any, any> }
 
 const BUILT_IN_TOOLS: Record<BuiltInToolId, ToolEntry> = {
   'web-fetch': {
@@ -90,8 +91,8 @@ export function getBuiltInToolList(): BuiltInToolMeta[] {
   }))
 }
 
-export function getBuiltInTools(enabledIds: BuiltInToolId[], apiKey?: string): Record<string, typeof webFetchTool> {
-  const result: Record<string, typeof webFetchTool> = {}
+export function getBuiltInTools(enabledIds: BuiltInToolId[], apiKey?: string): Record<string, Tool<any, any>> {
+  const result: Record<string, Tool<any, any>> = {}
   for (const id of enabledIds) {
     const entry = BUILT_IN_TOOLS[id]
     if (entry) {

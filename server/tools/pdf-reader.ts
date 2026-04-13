@@ -4,7 +4,7 @@ import path from 'node:path'
 
 export const pdfReaderTool = tool({
   description: 'Read and extract text content from a PDF file. Returns the text content of the PDF.',
-  parameters: jsonSchema({
+  inputSchema: jsonSchema<{ path: string; maxPages?: number }>({
     type: 'object',
     properties: {
       path: { type: 'string', description: 'Absolute path to the PDF file' },
@@ -12,7 +12,7 @@ export const pdfReaderTool = tool({
     },
     required: ['path'],
   }),
-  execute: async ({ path: filePath, maxPages }: { path: string; maxPages?: number }) => {
+  execute: async ({ path: filePath, maxPages }) => {
     try {
       const resolved = path.resolve(filePath)
 
@@ -25,20 +25,19 @@ export const pdfReaderTool = tool({
       }
 
       const buffer = await readFile(resolved)
-      const pdfParse = (await import('pdf-parse')).default
-      const data = await pdfParse(buffer, {
-        max: maxPages ?? 0,
-      })
+      const { PDFParse } = await import('pdf-parse')
+      const parser = new PDFParse({ data: new Uint8Array(buffer) })
+      const textResult = await parser.getText()
+      await parser.destroy()
 
-      let content = data.text
+      let content = textResult.text
       if (content.length > 200000) {
         content = content.slice(0, 200000) + '\n\n[Truncated: content exceeds 200k characters]'
       }
 
       return {
         path: resolved,
-        pages: data.numpages,
-        pagesRead: maxPages ? Math.min(maxPages, data.numpages) : data.numpages,
+        pages: textResult.pages.length,
         size: stats.size,
         content,
       }

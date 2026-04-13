@@ -4,7 +4,7 @@ import path from 'node:path'
 
 export const fileWriterTool = tool({
   description: 'Write content to a file on the local filesystem. Creates parent directories if they do not exist. Can create new files or overwrite/append to existing ones.',
-  parameters: jsonSchema({
+  inputSchema: jsonSchema<{ path: string; content: string; append?: boolean }>({
     type: 'object',
     properties: {
       path: { type: 'string', description: 'Absolute path to the file to write' },
@@ -13,7 +13,7 @@ export const fileWriterTool = tool({
     },
     required: ['path', 'content'],
   }),
-  execute: async ({ path: filePath, content, append = false }: { path: string; content: string; append?: boolean }) => {
+  execute: async ({ path: filePath, content, append = false }) => {
     try {
       const resolved = path.resolve(filePath)
 

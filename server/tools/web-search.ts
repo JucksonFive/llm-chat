@@ -8,7 +8,7 @@ interface SearchResult {
 
 export const webSearchTool = tool({
   description: 'Search the web using DuckDuckGo. Returns a list of search results with titles, URLs, and snippets.',
-  parameters: jsonSchema({
+  inputSchema: jsonSchema<{ query: string; numResults?: number }>({
     type: 'object',
     properties: {
       query: { type: 'string', description: 'The search query' },
@@ -16,7 +16,7 @@ export const webSearchTool = tool({
     },
     required: ['query'],
   }),
-  execute: async ({ query, numResults = 5 }: { query: string; numResults?: number }) => {
+  execute: async ({ query, numResults = 5 }) => {
     const maxResults = Math.min(numResults, 10)
 
     try {

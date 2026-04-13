@@ -3,7 +3,7 @@ import { tool, jsonSchema } from 'ai'
 export function createImageGeneratorTool(apiKey: string) {
   return tool({
     description: 'Generate an image using OpenAI DALL-E / gpt-image-1. Returns a base64-encoded image. Requires an OpenAI API key.',
-    parameters: jsonSchema({
+    inputSchema: jsonSchema<{ prompt: string; size?: string; quality?: string }>({
       type: 'object',
       properties: {
         prompt: { type: 'string', description: 'A detailed description of the image to generate' },
@@ -24,10 +24,6 @@ export function createImageGeneratorTool(apiKey: string) {
       prompt,
       size = '1024x1024',
       quality = 'medium',
-    }: {
-      prompt: string
-      size?: string
-      quality?: string
     }) => {
       if (!apiKey) {
         return { error: 'OpenAI API key is required for image generation' }

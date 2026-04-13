@@ -4,7 +4,7 @@ import { execFile } from 'node:child_process'
 
 export const codeExecutorTool = tool({
   description: 'Execute code snippets. Supports JavaScript (sandboxed), Python, and shell commands. Returns stdout, stderr, and exit code.',
-  parameters: jsonSchema({
+  inputSchema: jsonSchema<{ language: 'javascript' | 'python' | 'shell'; code: string }>({
     type: 'object',
     properties: {
       language: {
@@ -16,7 +16,7 @@ export const codeExecutorTool = tool({
     },
     required: ['language', 'code'],
   }),
-  execute: async ({ language, code }: { language: 'javascript' | 'python' | 'shell'; code: string }) => {
+  execute: async ({ language, code }) => {
     const TIMEOUT_MS = 5000
 
     try {

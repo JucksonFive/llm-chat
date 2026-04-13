@@ -2,7 +2,13 @@ import { tool, jsonSchema } from 'ai'
 
 export const datetimeTool = tool({
   description: 'Get current date and time, convert between timezones, or calculate differences between dates. The LLM does not know the current time without this tool.',
-  parameters: jsonSchema({
+  inputSchema: jsonSchema<{
+    operation: 'now' | 'convert' | 'diff'
+    timezone?: string
+    date1?: string
+    date2?: string
+    targetTimezone?: string
+  }>({
     type: 'object',
     properties: {
       operation: {
@@ -23,12 +29,6 @@ export const datetimeTool = tool({
     date1,
     date2,
     targetTimezone,
-  }: {
-    operation: 'now' | 'convert' | 'diff'
-    timezone?: string
-    date1?: string
-    date2?: string
-    targetTimezone?: string
   }) => {
     try {
       if (operation === 'now') {

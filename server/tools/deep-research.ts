@@ -88,7 +88,7 @@ async function fetchPageContent(url: string, maxLength = 30000): Promise<string>
 export const deepResearchTool = tool({
   description:
     'Perform deep research on a topic by executing multiple web searches with different angles, fetching and reading the most relevant pages, and compiling findings. Use this for comprehensive research that requires gathering information from many sources.',
-  parameters: jsonSchema({
+  inputSchema: jsonSchema<{ topic: string; searchQueries?: string[]; maxSources?: number }>({
     type: 'object',
     properties: {
       topic: { type: 'string', description: 'The research topic or question' },
@@ -105,10 +105,6 @@ export const deepResearchTool = tool({
     topic,
     searchQueries,
     maxSources = 8,
-  }: {
-    topic: string
-    searchQueries?: string[]
-    maxSources?: number
   }) => {
     const limit = Math.min(maxSources, 15)
 
