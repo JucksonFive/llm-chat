@@ -1,6 +1,16 @@
 export type ProviderId = 'openai' | 'anthropic' | 'google' | 'ollama' | 'deepseek'
 
-export type BuiltInToolId = 'web-fetch' | 'web-search' | 'code-executor' | 'file-reader'
+export type BuiltInToolId =
+  | 'web-fetch'
+  | 'web-search'
+  | 'code-executor'
+  | 'file-reader'
+  | 'file-writer'
+  | 'calculator'
+  | 'pdf-reader'
+  | 'datetime'
+  | 'image-generator'
+  | 'deep-research'
 
 export interface ProviderMeta {
   id: ProviderId

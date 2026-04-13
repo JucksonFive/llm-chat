@@ -30,6 +30,12 @@ const BUILT_IN_TOOL_LIST: { id: BuiltInToolId; name: string; description: string
   { id: 'web-search', name: 'Web Search', description: 'Search the web for information' },
   { id: 'code-executor', name: 'Code Executor', description: 'Execute JavaScript, Python, or shell code' },
   { id: 'file-reader', name: 'File Reader', description: 'Read files from the local filesystem' },
+  { id: 'file-writer', name: 'File Writer', description: 'Write or create files on the filesystem' },
+  { id: 'calculator', name: 'Calculator', description: 'Evaluate mathematical expressions' },
+  { id: 'pdf-reader', name: 'PDF Reader', description: 'Read and extract text from PDF files' },
+  { id: 'datetime', name: 'Date & Time', description: 'Get current time, convert timezones, date differences' },
+  { id: 'image-generator', name: 'Image Generator', description: 'Generate images with OpenAI DALL-E / gpt-image-1' },
+  { id: 'deep-research', name: 'Deep Research', description: 'Multi-step web research with source compilation' },
 ]
 
 interface AgentDialogProps {
