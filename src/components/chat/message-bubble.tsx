@@ -1,12 +1,23 @@
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import rehypeHighlight from 'rehype-highlight'
-import { motion } from 'motion/react'
 import { CodeBlock } from '@/components/chat/code-block'
 import { ToolCallBlock } from '@/components/chat/tool-call-block'
 import { TypingIndicator } from '@/components/chat/typing-indicator'
 import { cn } from '@/lib/utils'
 import type { Message } from '@/types'
+import { motion } from 'motion/react'
+import type { ReactNode } from 'react'
+import ReactMarkdown from 'react-markdown'
+import rehypeHighlight from 'rehype-highlight'
+import remarkGfm from 'remark-gfm'
+
+function extractText(node: ReactNode): string {
+  if (node == null || typeof node === 'boolean') return ''
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(extractText).join('')
+  if (typeof node === 'object' && 'props' in node) {
+    return extractText((node as React.ReactElement<{ children?: ReactNode }>).props.children)
+  }
+  return ''
+}
 
 interface MessageBubbleProps {
   message: Message
@@ -66,9 +77,10 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
                           </code>
                         )
                       }
+                      const text = extractText(children).replace(/\n$/, '')
                       return (
-                        <CodeBlock className={className}>
-                          {String(children).replace(/\n$/, '')}
+                        <CodeBlock className={className} rawText={text}>
+                          {children}
                         </CodeBlock>
                       )
                     },

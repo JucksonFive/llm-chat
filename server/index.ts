@@ -67,7 +67,7 @@ app.post('/api/chat', async (req, res) => {
     const tools = { ...builtIn, ...mcpTools }
     const hasTools = Object.keys(tools).length > 0
 
-    console.log(`[chat] provider=${providerId} model=${model} messages=${messages.length}`)
+    console.log(`[chat] provider=${providerId} model=${model} messages=${messages.length} tools=${Object.keys(tools).join(',') || 'none'} builtInToolIds=${JSON.stringify(builtInToolIds)}`)
 
     const abortController = new AbortController()
     serverTimeout = setTimeout(() => {
@@ -75,9 +75,16 @@ app.post('/api/chat', async (req, res) => {
       abortController.abort()
     }, 120_000)
 
+    // Augment system prompt with tool usage instructions when tools are available
+    let finalSystemPrompt = systemPrompt || undefined
+    if (hasTools && finalSystemPrompt) {
+      const toolNames = Object.keys(tools).map((n) => n.replace('builtin__', '').replace(/_/g, '-')).join(', ')
+      finalSystemPrompt += `\n\nYou have access to the following tools: ${toolNames}. Use them proactively when the user's question would benefit from real-time information, calculations, file operations, or web research. Do not hesitate to call tools — they are here to help you provide accurate and up-to-date answers.`
+    }
+
     const result = streamText({
       model: llmModel,
-      system: systemPrompt || undefined,
+      system: finalSystemPrompt,
       messages,
       tools: hasTools ? tools : undefined,
       stopWhen: hasTools ? stepCountIs(20) : stepCountIs(1),

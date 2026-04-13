@@ -1,18 +1,19 @@
-import { useState } from 'react'
-import { Check, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Check, Copy } from 'lucide-react'
+import { useState } from 'react'
 
 interface CodeBlockProps {
-  children: string
+  children: React.ReactNode
   className?: string
+  rawText?: string
 }
 
-export function CodeBlock({ children, className }: CodeBlockProps) {
+export function CodeBlock({ children, className, rawText }: CodeBlockProps) {
   const [copied, setCopied] = useState(false)
   const language = className?.replace('language-', '') || ''
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(children)
+    await navigator.clipboard.writeText(rawText ?? String(children))
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
