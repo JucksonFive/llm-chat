@@ -1,29 +1,29 @@
-import { useState, useEffect } from 'react'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog'
+import { ProviderSelect } from '@/components/agents/provider-select'
 import { Button } from '@/components/ui/button'
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { Eye, EyeOff, Trash2, Server, Wrench } from 'lucide-react'
-import { ProviderSelect } from '@/components/agents/provider-select'
+import { Textarea } from '@/components/ui/textarea'
+import { PROVIDERS } from '@/lib/providers'
 import { useAgentStore } from '@/stores/agent-store'
 import { useMcpStore } from '@/stores/mcp-store'
-import { PROVIDERS } from '@/lib/providers'
-import type { ProviderId, BuiltInToolId } from '@/types'
+import type { BuiltInToolId, ProviderId } from '@/types'
+import { Eye, EyeOff, Server, Trash2, Wrench } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 const BUILT_IN_TOOL_LIST: { id: BuiltInToolId; name: string; description: string }[] = [
   { id: 'web-fetch', name: 'Fetch URL', description: 'Fetch content from a URL' },
