@@ -1,0 +1,258 @@
+import { useState, useEffect } from 'react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import { Eye, EyeOff, Trash2, Server } from 'lucide-react'
+import { ProviderSelect } from '@/components/agents/provider-select'
+import { useAgentStore } from '@/stores/agent-store'
+import { useMcpStore } from '@/stores/mcp-store'
+import { PROVIDERS } from '@/lib/providers'
+import type { ProviderId } from '@/types'
+
+interface AgentDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  editAgentId: string | null
+}
+
+export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProps) {
+  const { agents, addAgent, updateAgent, deleteAgent } = useAgentStore()
+  const editingAgent = editAgentId ? agents.find((a) => a.id === editAgentId) : null
+
+  const [name, setName] = useState('')
+  const [providerId, setProviderId] = useState<ProviderId>('openai')
+  const [model, setModel] = useState('')
+  const [customModel, setCustomModel] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const [systemPrompt, setSystemPrompt] = useState('You are a helpful assistant.')
+  const [showApiKey, setShowApiKey] = useState(false)
+  const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>([])
+
+  const mcpServers = useMcpStore((s) => s.servers)
+  const provider = PROVIDERS[providerId]
+  const models = provider.models
+  const isCustomModel = provider.freeTextModel
+
+  useEffect(() => {
+    if (editingAgent) {
+      setName(editingAgent.name)
+      setProviderId(editingAgent.providerId)
+      setModel(editingAgent.model)
+      setCustomModel(editingAgent.model)
+      setApiKey(editingAgent.apiKey)
+      setSystemPrompt(editingAgent.systemPrompt)
+      setSelectedMcpIds(editingAgent.mcpServerIds ?? [])
+    } else {
+      setName('')
+      setProviderId('openai')
+      setModel('gpt-4o')
+      setCustomModel('')
+      setApiKey('')
+      setSystemPrompt('You are a helpful assistant.')
+      setSelectedMcpIds([])
+    }
+    setShowApiKey(false)
+  }, [editingAgent, open])
+
+  useEffect(() => {
+    if (!isCustomModel && models.length > 0 && !models.includes(model)) {
+      setModel(models[0])
+    }
+  }, [providerId, models, isCustomModel, model])
+
+  const handleSave = () => {
+    const finalModel = isCustomModel ? customModel : model
+    if (!name.trim() || !finalModel.trim()) return
+    if (provider.requiresApiKey && !apiKey.trim()) return
+
+    if (editingAgent) {
+      updateAgent(editingAgent.id, {
+        name: name.trim(),
+        providerId,
+        model: finalModel.trim(),
+        apiKey: apiKey.trim(),
+        systemPrompt: systemPrompt.trim(),
+        mcpServerIds: selectedMcpIds,
+      })
+    } else {
+      addAgent({
+        name: name.trim(),
+        providerId,
+        model: finalModel.trim(),
+        apiKey: apiKey.trim(),
+        systemPrompt: systemPrompt.trim(),
+        mcpServerIds: selectedMcpIds,
+      })
+    }
+    onOpenChange(false)
+  }
+
+  const handleDelete = () => {
+    if (editingAgent) {
+      deleteAgent(editingAgent.id)
+      onOpenChange(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>
+            {editingAgent ? 'Edit Agent' : 'Create Agent'}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="grid gap-4 py-4 overflow-y-auto">
+          <div className="grid gap-2">
+            <Label htmlFor="name">Name</Label>
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="My Assistant"
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label>Provider</Label>
+            <ProviderSelect value={providerId} onValueChange={setProviderId} />
+          </div>
+
+          <div className="grid gap-2">
+            <Label>Model</Label>
+            {isCustomModel ? (
+              <Input
+                value={customModel}
+                onChange={(e) => setCustomModel(e.target.value)}
+                placeholder="e.g. llama3.1, mistral, codellama"
+              />
+            ) : (
+              <Select value={model} onValueChange={setModel}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {models.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          {provider.requiresApiKey && (
+            <div className="grid gap-2">
+              <Label htmlFor="apiKey">API Key</Label>
+              <div className="relative">
+                <Input
+                  id="apiKey"
+                  type={showApiKey ? 'text' : 'password'}
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="sk-..."
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full w-10"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                >
+                  {showApiKey ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div className="grid gap-2">
+            <Label htmlFor="systemPrompt">System Prompt</Label>
+            <Textarea
+              id="systemPrompt"
+              value={systemPrompt}
+              onChange={(e) => setSystemPrompt(e.target.value)}
+              placeholder="You are a helpful assistant..."
+              className="min-h-[100px]"
+            />
+          </div>
+
+          {mcpServers.length > 0 && (
+            <div className="grid gap-2">
+              <Label className="flex items-center gap-1.5">
+                <Server className="h-3.5 w-3.5" />
+                MCP Tools
+              </Label>
+              <div className="space-y-2 rounded-lg border border-border/50 p-3">
+                {mcpServers.map((server) => (
+                  <div key={server.id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">{server.name}</span>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        {server.transport}
+                      </span>
+                    </div>
+                    <Switch
+                      checked={selectedMcpIds.includes(server.id)}
+                      onCheckedChange={(checked) => {
+                        setSelectedMcpIds((prev) =>
+                          checked
+                            ? [...prev, server.id]
+                            : prev.filter((id) => id !== server.id)
+                        )
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="flex justify-between">
+          {editingAgent && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDelete}
+              className="mr-auto"
+            >
+              <Trash2 className="mr-1 h-3.5 w-3.5" />
+              Delete
+            </Button>
+          )}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave}>
+              {editingAgent ? 'Save' : 'Create'}
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
