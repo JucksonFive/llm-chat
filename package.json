@@ -18,6 +18,7 @@
     "dev:main": "pnpm run build:electron && wait-on http://localhost:5173 http://localhost:3001 && electron .",
     "searxng:start": "docker start searxng 2>/dev/null || docker run -d --name searxng -p 8888:8080 -v ./searxng/settings.yml:/etc/searxng/settings.yml:ro searxng/searxng:latest",
     "searxng:stop": "docker stop searxng",
+    "searxng:setup": "mkdir -p searxng && test -f searxng/settings.yml || node -e \"require('fs').writeFileSync('searxng/settings.yml','use_default_settings: true\\nsearch:\\n  formats:\\n    - html\\n    - json\\nserver:\\n  secret_key: llm-chat-searxng-'+(Date.now().toString(36))+'\\n  limiter: false\\n  image_proxy: false\\n')\" && docker pull searxng/searxng:latest && pnpm run searxng:start",
     "build": "tsc -b && vite build",
     "build:electron": "node scripts/build-electron.mjs",
     "dist": "pnpm run build && pnpm run build:electron && electron-builder",
