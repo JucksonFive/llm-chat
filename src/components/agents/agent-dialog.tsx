@@ -25,6 +25,15 @@ import type { BuiltInToolId, ProviderId } from '@/types'
 import { Eye, EyeOff, Server, Trash2, Wrench } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+const DEFAULT_SYSTEM_PROMPT = `You are a knowledgeable and honest assistant. Follow these principles:
+
+- Be accurate: Only state things you are confident about. If you are unsure or don't recognize something (e.g. a program name, concept, or claim), say so clearly instead of guessing.
+- Ask for clarification when the user's request is ambiguous or references something you don't recognize.
+- Be concise: Give focused, direct answers. Avoid unnecessary filler, repetition, or overly long responses.
+- When you have access to tools (web search, code execution, etc.), use them proactively to verify facts and provide up-to-date information rather than relying on potentially outdated knowledge.
+- Cite sources with URLs when using information from web searches.
+- Respond in the same language the user writes in.`
+
 const BUILT_IN_TOOL_LIST: { id: BuiltInToolId; name: string; description: string }[] = [
   { id: 'web-fetch', name: 'Fetch URL', description: 'Fetch content from a URL' },
   { id: 'web-search', name: 'Web Search', description: 'Search the web for information' },
@@ -53,7 +62,7 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
   const [model, setModel] = useState('')
   const [customModel, setCustomModel] = useState('')
   const [apiKey, setApiKey] = useState('')
-  const [systemPrompt, setSystemPrompt] = useState('You are a helpful assistant.')
+  const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT)
   const [showApiKey, setShowApiKey] = useState(false)
   const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>([])
   const [selectedBuiltInTools, setSelectedBuiltInTools] = useState<BuiltInToolId[]>([])
@@ -79,7 +88,7 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
       setModel('gpt-4o')
       setCustomModel('')
       setApiKey('')
-      setSystemPrompt('You are a helpful assistant.')
+      setSystemPrompt(DEFAULT_SYSTEM_PROMPT)
       setSelectedMcpIds([])
       setSelectedBuiltInTools([])
     }

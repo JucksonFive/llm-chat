@@ -46,10 +46,10 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
 
       <div
         className={cn(
-          'max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed',
+          'rounded-2xl px-4 text-sm leading-relaxed',
           isUser
-            ? 'bg-primary text-primary-foreground rounded-br-md'
-            : 'bg-muted/50 text-foreground rounded-bl-md',
+            ? 'max-w-[75%] py-2.5 bg-primary text-primary-foreground rounded-br-md'
+            : 'max-w-[85%] py-4 bg-muted/50 text-foreground rounded-bl-md',
         )}
       >
         {message.isStreaming && !message.content && !message.toolCalls?.length ? (
@@ -57,11 +57,21 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
         ) : (
           <>
             {message.content && (
-              <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+              <div
+                className={cn(
+                  'prose dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
+                  isUser
+                    ? 'prose-sm'
+                    : 'prose-lg leading-8 prose-p:my-4 prose-headings:mt-8 prose-headings:mb-4 prose-headings:font-semibold prose-li:my-1.5 prose-ul:my-4 prose-ol:my-4 prose-blockquote:border-l-2 prose-blockquote:border-muted-foreground/30 prose-blockquote:pl-4 prose-blockquote:italic',
+                )}
+              >
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   rehypePlugins={[rehypeHighlight]}
                   components={{
+                    hr() {
+                      return <div className="my-6" />
+                    },
                     pre({ children }) {
                       return <>{children}</>
                     },
