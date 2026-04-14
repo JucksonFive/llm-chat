@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { DEFAULT_SYSTEM_PROMPT, SYSTEM_PROMPT_PRESETS } from '@/lib/default-system-prompt'
 import { PROVIDERS } from '@/lib/providers'
 import { useAgentStore } from '@/stores/agent-store'
 import { useMcpStore } from '@/stores/mcp-store'
@@ -71,6 +72,7 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
   const provider = PROVIDERS[providerId]
   const models = provider.models
   const isCustomModel = provider.freeTextModel
+  const matchedPreset = SYSTEM_PROMPT_PRESETS.find((preset) => preset.prompt === systemPrompt)
 
   useEffect(() => {
     if (editingAgent) {
@@ -139,7 +141,7 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col">
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>
             {editingAgent ? 'Edit Agent' : 'Create Agent'}
@@ -222,12 +224,30 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
 
           <div className="grid gap-2">
             <Label htmlFor="systemPrompt">System Prompt</Label>
+            <div className="flex flex-wrap gap-2">
+              {SYSTEM_PROMPT_PRESETS.map((preset) => (
+                <Button
+                  key={preset.id}
+                  type="button"
+                  size="sm"
+                  variant={matchedPreset?.id === preset.id ? 'default' : 'outline'}
+                  onClick={() => setSystemPrompt(preset.prompt)}
+                >
+                  {preset.name}
+                </Button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {matchedPreset
+                ? matchedPreset.description
+                : 'Custom prompt in use. Selecting a preset will replace the current text.'}
+            </p>
             <Textarea
               id="systemPrompt"
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
-              placeholder="You are a helpful assistant..."
-              className="min-h-[100px]"
+              placeholder="Define the agent's behavior, depth, and quality bar..."
+              className="min-h-[220px]"
             />
           </div>
 

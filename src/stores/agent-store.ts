@@ -1,4 +1,6 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+import { DEFAULT_SYSTEM_PROMPT, LEGACY_DEFAULT_SYSTEM_PROMPT } from '@/lib/default-system-prompt'
 import type { Agent } from '@/types'
 import { AVATAR_COLORS } from '@/lib/providers'
 
@@ -13,66 +15,95 @@ interface AgentState {
   setActiveAgent: (id: string | null) => void
 }
 
-export const useAgentStore = create<AgentState>()((set, get) => ({
-  agents: [],
-  activeAgentId: null,
-  loaded: false,
+export const useAgentStore = create<AgentState>()(
+  persist(
+    (set, get) => ({
+      agents: [],
+      activeAgentId: null,
+      loaded: false,
 
-  loadAgents: async () => {
-    const res = await fetch('/api/db/agents')
-    const agents = await res.json()
-    set({ agents, loaded: true })
-  },
+      loadAgents: async () => {
+        const res = await fetch('/api/db/agents')
+        const agents = await res.json()
+        set({ agents, loaded: true })
+      },
 
-  addAgent: async (data) => {
-    const avatarColor = AVATAR_COLORS[get().agents.length % AVATAR_COLORS.length]
-    const res = await fetch('/api/db/agents', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...data,
-        avatarColor,
-        mcpServerIds: data.mcpServerIds ?? [],
-        builtInToolIds: data.builtInToolIds ?? [],
-      }),
-    })
-    const { id } = await res.json()
-    const agent: Agent = {
-      ...data,
-      id,
-      createdAt: Date.now(),
-      avatarColor,
-      mcpServerIds: data.mcpServerIds ?? [],
-      builtInToolIds: (data.builtInToolIds ?? []) as Agent['builtInToolIds'],
+      addAgent: async (data) => {
+        const avatarColor = AVATAR_COLORS[get().agents.length % AVATAR_COLORS.length]
+        const res = await fetch('/api/db/agents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...data,
+            avatarColor,
+            mcpServerIds: data.mcpServerIds ?? [],
+            builtInToolIds: data.builtInToolIds ?? [],
+          }),
+        })
+        const { id } = await res.json()
+        const agent: Agent = {
+          ...data,
+          id,
+          createdAt: Date.now(),
+          avatarColor,
+          mcpServerIds: data.mcpServerIds ?? [],
+          builtInToolIds: (data.builtInToolIds ?? []) as Agent['builtInToolIds'],
+        }
+        set((state) => ({
+          agents: [...state.agents, agent],
+          activeAgentId: agent.id,
+        }))
+        return agent
+      },
+
+      updateAgent: async (id, updates) => {
+        const agent = get().agents.find((a) => a.id === id)
+        if (!agent) return
+        const merged = { ...agent, ...updates }
+        await fetch(`/api/db/agents/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(merged),
+        })
+        set((state) => ({
+          agents: state.agents.map((a) => (a.id === id ? { ...a, ...updates } : a)),
+        }))
+      },
+
+      deleteAgent: async (id) => {
+        await fetch(`/api/db/agents/${id}`, { method: 'DELETE' })
+        set((state) => ({
+          agents: state.agents.filter((a) => a.id !== id),
+          activeAgentId: state.activeAgentId === id ? null : state.activeAgentId,
+        }))
+      },
+
+      setActiveAgent: (id) => set({ activeAgentId: id }),
+    }),
+    {
+      name: 'llm-chat-agents',
+      version: 2,
+      migrate: (persistedState: unknown, version) => {
+        if (!persistedState || typeof persistedState !== 'object') return persistedState as AgentState
+
+        const state = persistedState as AgentState
+
+        if (version < 2 && Array.isArray(state.agents)) {
+          return {
+            ...state,
+            agents: state.agents.map((agent) => ({
+              ...agent,
+              systemPrompt:
+                !agent.systemPrompt || agent.systemPrompt === LEGACY_DEFAULT_SYSTEM_PROMPT
+                  ? DEFAULT_SYSTEM_PROMPT
+                  : agent.systemPrompt,
+            })),
+          }
+        }
+
+        return state
+      },
     }
-    set((state) => ({
-      agents: [...state.agents, agent],
-      activeAgentId: agent.id,
-    }))
-    return agent
-  },
+  )
+)
 
-  updateAgent: async (id, updates) => {
-    const agent = get().agents.find((a) => a.id === id)
-    if (!agent) return
-    const merged = { ...agent, ...updates }
-    await fetch(`/api/db/agents/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(merged),
-    })
-    set((state) => ({
-      agents: state.agents.map((a) => (a.id === id ? { ...a, ...updates } : a)),
-    }))
-  },
-
-  deleteAgent: async (id) => {
-    await fetch(`/api/db/agents/${id}`, { method: 'DELETE' })
-    set((state) => ({
-      agents: state.agents.filter((a) => a.id !== id),
-      activeAgentId: state.activeAgentId === id ? null : state.activeAgentId,
-    }))
-  },
-
-  setActiveAgent: (id) => set({ activeAgentId: id }),
-}))
