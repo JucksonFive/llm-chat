@@ -1,11 +1,13 @@
-import type { ProviderId, McpServerConfig } from '@/types'
+import type { ProviderId, McpServerConfig, Attachment } from '@/types'
+
+type MessageContent = string | Array<{ type: 'text'; text: string } | { type: 'image'; image: string }>
 
 interface StreamChatParams {
   providerId: ProviderId
   model: string
   apiKey: string
   systemPrompt: string
-  messages: { role: string; content: string }[]
+  messages: { role: string; content: MessageContent }[]
   mcpServers?: McpServerConfig[]
   builtInToolIds?: string[]
   signal?: AbortSignal

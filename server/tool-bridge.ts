@@ -1,4 +1,5 @@
 import { tool, jsonSchema } from 'ai'
+import type { Tool } from 'ai'
 import * as mcpManager from './mcp-manager.js'
 
 interface McpServerConfig {
@@ -13,8 +14,8 @@ interface McpServerConfig {
 
 export async function buildToolsFromMcpServers(
   serverConfigs: McpServerConfig[]
-): Promise<Record<string, ReturnType<typeof tool>>> {
-  const allTools: Record<string, ReturnType<typeof tool>> = {}
+): Promise<Record<string, Tool<any, any>>> {
+  const allTools: Record<string, Tool<any, any>> = {}
   const toolNameCounts = new Map<string, number>()
 
   // First pass: collect all tools and detect name collisions
@@ -43,7 +44,7 @@ export async function buildToolsFromMcpServers(
 
       allTools[toolName] = tool({
         description: mcpTool.description ?? '',
-        parameters: jsonSchema(mcpTool.inputSchema as Parameters<typeof jsonSchema>[0]),
+        inputSchema: jsonSchema<Record<string, unknown>>(mcpTool.inputSchema as Parameters<typeof jsonSchema>[0]),
         execute: async (args) => {
           return await mcpManager.callTool(config.id, mcpTool.name, args as Record<string, unknown>)
         },

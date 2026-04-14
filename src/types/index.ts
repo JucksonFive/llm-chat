@@ -1,6 +1,16 @@
 export type ProviderId = 'openai' | 'anthropic' | 'google' | 'ollama' | 'deepseek'
 
-export type BuiltInToolId = 'web-fetch' | 'web-search' | 'code-executor' | 'file-reader'
+export type BuiltInToolId =
+  | 'web-fetch'
+  | 'web-search'
+  | 'code-executor'
+  | 'file-reader'
+  | 'file-writer'
+  | 'calculator'
+  | 'pdf-reader'
+  | 'datetime'
+  | 'image-generator'
+  | 'deep-research'
 
 export interface ProviderMeta {
   id: ProviderId
@@ -34,6 +44,14 @@ export interface ToolCallInfo {
   status: 'calling' | 'complete' | 'error'
 }
 
+export interface Attachment {
+  id: string
+  type: 'image' | 'pdf'
+  name: string
+  dataUrl: string
+  textContent?: string
+}
+
 export interface Message {
   id: string
   role: 'user' | 'assistant' | 'system'
@@ -41,6 +59,7 @@ export interface Message {
   createdAt: number
   isStreaming?: boolean
   toolCalls?: ToolCallInfo[]
+  attachments?: Attachment[]
 }
 
 export interface McpServerConfig {

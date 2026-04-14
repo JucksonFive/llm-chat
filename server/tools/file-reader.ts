@@ -4,7 +4,7 @@ import path from 'node:path'
 
 export const fileReaderTool = tool({
   description: 'Read a file from the local filesystem. Returns the text content of the file.',
-  parameters: jsonSchema({
+  inputSchema: jsonSchema<{ path: string; encoding?: string; maxLines?: number }>({
     type: 'object',
     properties: {
       path: { type: 'string', description: 'Absolute path to the file to read' },
@@ -17,7 +17,7 @@ export const fileReaderTool = tool({
     },
     required: ['path'],
   }),
-  execute: async ({ path: filePath, encoding = 'utf-8', maxLines }: { path: string; encoding?: string; maxLines?: number }) => {
+  execute: async ({ path: filePath, encoding = 'utf-8', maxLines }) => {
     try {
       const resolved = path.resolve(filePath)
 

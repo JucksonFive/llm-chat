@@ -1,6 +1,6 @@
 import express from 'express'
 import cors from 'cors'
-import { streamText } from 'ai'
+import { streamText, stepCountIs } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
@@ -12,7 +12,7 @@ import { MCP_PRESETS } from './mcp-presets.js'
 
 const app = express()
 app.use(cors())
-app.use(express.json())
+app.use(express.json({ limit: '50mb' }))
 
 // In Electron production, serve the built frontend
 // ELECTRON_DIST_PATH is set by the Electron main process
@@ -21,6 +21,7 @@ if (process.env.ELECTRON_DIST_PATH) {
 }
 
 app.post('/api/chat', async (req, res) => {
+  let serverTimeout: ReturnType<typeof setTimeout> | undefined
   try {
     const { providerId, model, apiKey, messages, systemPrompt, mcpServers, builtInToolIds } = req.body
 
@@ -39,14 +40,14 @@ app.post('/api/chat', async (req, res) => {
         llmModel = createOpenAI({
           baseURL: 'http://localhost:11434/v1',
           apiKey: 'ollama',
-          compatibility: 'compatible',
+          name: 'ollama',
         }).chat(model)
         break
       case 'deepseek':
         llmModel = createOpenAI({
           baseURL: 'https://api.deepseek.com',
           apiKey,
-          compatibility: 'compatible',
+          name: 'deepseek',
         }).chat(model)
         break
       default:
@@ -60,26 +61,40 @@ app.post('/api/chat', async (req, res) => {
       : {}
 
     const builtIn = builtInToolIds?.length
-      ? getBuiltInTools(builtInToolIds as BuiltInToolId[])
+      ? getBuiltInTools(builtInToolIds as BuiltInToolId[], apiKey)
       : {}
 
     const tools = { ...builtIn, ...mcpTools }
     const hasTools = Object.keys(tools).length > 0
 
-    console.log(`[chat] provider=${providerId} model=${model} messages=${messages.length}`)
+    console.log(`[chat] provider=${providerId} model=${model} messages=${messages.length} tools=${Object.keys(tools).join(',') || 'none'} builtInToolIds=${JSON.stringify(builtInToolIds)}`)
 
     const abortController = new AbortController()
-    const serverTimeout = setTimeout(() => {
-      console.error('[chat] Server-side timeout after 30s')
+    serverTimeout = setTimeout(() => {
+      console.error('[chat] Server-side timeout after 120s')
       abortController.abort()
-    }, 30_000)
+    }, 120_000)
+
+    // Augment system prompt with tool usage instructions when tools are available
+    let finalSystemPrompt = systemPrompt || undefined
+    if (hasTools && finalSystemPrompt) {
+      const toolNames = Object.keys(tools).map((n) => n.replace('builtin__', '').replace(/_/g, '-')).join(', ')
+      finalSystemPrompt += `\n\nYou have access to the following tools: ${toolNames}.
+
+Tool usage guidelines:
+- Use tools proactively when the user's question would benefit from real-time data, verification, calculations, or file operations.
+- ALWAYS prefer using web-search to verify claims rather than guessing. If you're not sure whether something exists or is correct, search for it first.
+- When you use web-search, read the fetched page content carefully and cite sources with URLs.
+- If a tool call fails, explain what happened and try an alternative approach.
+- Do not fabricate tool results — only report what the tools actually return.`
+    }
 
     const result = streamText({
       model: llmModel,
-      system: systemPrompt || undefined,
+      system: finalSystemPrompt,
       messages,
       tools: hasTools ? tools : undefined,
-      maxSteps: hasTools ? 10 : 1,
+      stopWhen: hasTools ? stepCountIs(20) : stepCountIs(1),
       abortSignal: abortController.signal,
     })
 
@@ -114,7 +129,7 @@ app.post('/api/chat', async (req, res) => {
             type: 'tool-call',
             toolCallId: part.toolCallId,
             toolName: part.toolName,
-            args: part.args,
+            args: part.input,
           }))
           break
         case 'tool-result':
@@ -122,10 +137,10 @@ app.post('/api/chat', async (req, res) => {
             type: 'tool-result',
             toolCallId: part.toolCallId,
             toolName: part.toolName,
-            result: part.result,
+            result: part.output,
           }))
           break
-        case 'step-finish':
+        case 'finish-step':
           writeSSE(JSON.stringify({ type: 'step-finish' }))
           break
       }
@@ -136,7 +151,7 @@ app.post('/api/chat', async (req, res) => {
     writeSSE('[DONE]')
     res.end()
   } catch (error: unknown) {
-    clearTimeout(serverTimeout)
+    if (serverTimeout) clearTimeout(serverTimeout)
     console.error('[chat] Error:', error)
     const message = error instanceof Error ? error.message : 'Internal server error'
     try {
@@ -262,6 +277,19 @@ app.post('/api/mcp/prompts/get', async (req, res) => {
     res.json(prompt)
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to get prompt' })
+  }
+})
+
+app.post('/api/extract-pdf', async (req, res) => {
+  try {
+    const { dataUrl } = req.body
+    const base64 = dataUrl.split(',')[1]
+    const buffer = Buffer.from(base64, 'base64')
+    const pdfParse = (await import('pdf-parse')).default
+    const data = await pdfParse(buffer)
+    res.json({ text: data.text })
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'PDF extraction failed' })
   }
 })
 

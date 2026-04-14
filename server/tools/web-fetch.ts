@@ -2,7 +2,7 @@ import { tool, jsonSchema } from 'ai'
 
 export const webFetchTool = tool({
   description: 'Fetch content from a URL. Returns the text content of the page with HTML tags stripped.',
-  parameters: jsonSchema({
+  inputSchema: jsonSchema<{ url: string; maxLength?: number }>({
     type: 'object',
     properties: {
       url: { type: 'string', description: 'The URL to fetch' },
@@ -10,7 +10,7 @@ export const webFetchTool = tool({
     },
     required: ['url'],
   }),
-  execute: async ({ url, maxLength = 50000 }: { url: string; maxLength?: number }) => {
+  execute: async ({ url, maxLength = 50000 }) => {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 15000)
 

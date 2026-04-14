@@ -1,12 +1,23 @@
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import rehypeHighlight from 'rehype-highlight'
-import { motion } from 'motion/react'
 import { CodeBlock } from '@/components/chat/code-block'
 import { ToolCallBlock } from '@/components/chat/tool-call-block'
 import { TypingIndicator } from '@/components/chat/typing-indicator'
 import { cn } from '@/lib/utils'
 import type { Message } from '@/types'
+import { motion } from 'motion/react'
+import type { ReactNode } from 'react'
+import ReactMarkdown from 'react-markdown'
+import rehypeHighlight from 'rehype-highlight'
+import remarkGfm from 'remark-gfm'
+
+function extractText(node: ReactNode): string {
+  if (node == null || typeof node === 'boolean') return ''
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(extractText).join('')
+  if (typeof node === 'object' && 'props' in node) {
+    return extractText((node as React.ReactElement<{ children?: ReactNode }>).props.children)
+  }
+  return ''
+}
 
 interface MessageBubbleProps {
   message: Message
@@ -35,22 +46,50 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
 
       <div
         className={cn(
-          'max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed',
+          'rounded-2xl px-4 text-sm leading-relaxed',
           isUser
-            ? 'bg-primary text-primary-foreground rounded-br-md'
-            : 'bg-muted/50 text-foreground rounded-bl-md',
+            ? 'max-w-[75%] py-2.5 bg-primary text-primary-foreground rounded-br-md'
+            : 'max-w-[85%] py-4 bg-muted/50 text-foreground rounded-bl-md',
         )}
       >
         {message.isStreaming && !message.content && !message.toolCalls?.length ? (
           <TypingIndicator />
         ) : (
           <>
+            {isUser && message.attachments?.map((att) => (
+              <div key={att.id} className="mb-2">
+                {att.type === 'image' ? (
+                  <img
+                    src={att.dataUrl}
+                    alt={att.name}
+                    className="max-w-[240px] rounded-lg"
+                  />
+                ) : (
+                  <div className="flex items-center gap-1.5 text-xs opacity-80">
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    {att.name}
+                  </div>
+                )}
+              </div>
+            ))}
             {message.content && (
-              <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+              <div
+                className={cn(
+                  'prose dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
+                  isUser
+                    ? 'prose-sm'
+                    : 'prose-lg leading-8 prose-p:my-4 prose-headings:mt-8 prose-headings:mb-4 prose-headings:font-semibold prose-li:my-1.5 prose-ul:my-4 prose-ol:my-4 prose-blockquote:border-l-2 prose-blockquote:border-muted-foreground/30 prose-blockquote:pl-4 prose-blockquote:italic',
+                )}
+              >
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   rehypePlugins={[rehypeHighlight]}
                   components={{
+                    hr() {
+                      return <div className="my-6" />
+                    },
                     pre({ children }) {
                       return <>{children}</>
                     },
@@ -66,9 +105,10 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
                           </code>
                         )
                       }
+                      const text = extractText(children).replace(/\n$/, '')
                       return (
-                        <CodeBlock className={className}>
-                          {String(children).replace(/\n$/, '')}
+                        <CodeBlock className={className} rawText={text}>
+                          {children}
                         </CodeBlock>
                       )
                     },
