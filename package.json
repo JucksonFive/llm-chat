@@ -16,6 +16,8 @@
     "dev:server": "tsx watch server/index.ts",
     "dev:electron": "concurrently \"pnpm run dev:server\" \"pnpm run dev:client\" \"pnpm run dev:main\"",
     "dev:main": "pnpm run build:electron && wait-on http://localhost:5173 http://localhost:3001 && electron .",
+    "searxng:start": "docker start searxng 2>/dev/null || docker run -d --name searxng -p 8888:8080 -v ./searxng/settings.yml:/etc/searxng/settings.yml:ro searxng/searxng:latest",
+    "searxng:stop": "docker stop searxng",
     "build": "tsc -b && vite build",
     "build:electron": "node scripts/build-electron.mjs",
     "dist": "pnpm run build && pnpm run build:electron && electron-builder",

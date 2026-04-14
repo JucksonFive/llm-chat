@@ -1,5 +1,7 @@
 import { tool, jsonSchema } from 'ai'
 
+const SEARXNG_URL = process.env.SEARXNG_URL || 'http://localhost:8888'
+
 interface SearchResult {
   title: string
   url: string
@@ -12,38 +14,16 @@ interface Source {
   content: string
 }
 
-async function searchDuckDuckGo(query: string, numResults: number): Promise<SearchResult[]> {
-  const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`
-  const response = await fetch(searchUrl, {
-    headers: {
-      'User-Agent': 'LLM-Chat/1.0 (Desktop App)',
-      Accept: 'text/html',
-    },
-  })
-
+async function searchSearXNG(query: string, numResults: number): Promise<SearchResult[]> {
+  const url = `${SEARXNG_URL}/search?q=${encodeURIComponent(query)}&format=json&categories=general`
+  const response = await fetch(url, { headers: { Accept: 'application/json' } })
   if (!response.ok) return []
-
-  const html = await response.text()
-  const results: SearchResult[] = []
-
-  const resultBlocks = html.split('class="result__body"')
-  for (let i = 1; i < resultBlocks.length && results.length < numResults; i++) {
-    const block = resultBlocks[i]
-
-    const titleMatch = block.match(/class="result__a"[^>]*>([\s\S]*?)<\/a>/)
-    const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : ''
-
-    const urlMatch = block.match(/class="result__url"[^>]*>([\s\S]*?)<\/a>/)
-    let url = urlMatch ? urlMatch[1].replace(/<[^>]+>/g, '').trim() : ''
-    if (url && !url.startsWith('http')) url = 'https://' + url
-
-    const snippetMatch = block.match(/class="result__snippet"[^>]*>([\s\S]*?)<\//)
-    const snippet = snippetMatch ? snippetMatch[1].replace(/<[^>]+>/g, '').trim() : ''
-
-    if (title && url) results.push({ title, url, snippet })
-  }
-
-  return results
+  const data = (await response.json()) as { results: { title: string; url: string; content?: string }[] }
+  return (data.results || []).slice(0, numResults).map((r) => ({
+    title: r.title || '',
+    url: r.url || '',
+    snippet: r.content || '',
+  }))
 }
 
 async function fetchPageContent(url: string, maxLength = 30000): Promise<string> {
@@ -121,7 +101,7 @@ export const deepResearchTool = tool({
       const seenUrls = new Set<string>()
 
       for (const query of queries) {
-        const results = await searchDuckDuckGo(query, 5)
+        const results = await searchSearXNG(query, 5)
         for (const result of results) {
           if (!seenUrls.has(result.url)) {
             seenUrls.add(result.url)

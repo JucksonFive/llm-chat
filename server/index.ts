@@ -79,7 +79,7 @@ app.post('/api/chat', async (req, res) => {
     let finalSystemPrompt = systemPrompt || undefined
     if (hasTools && finalSystemPrompt) {
       const toolNames = Object.keys(tools).map((n) => n.replace('builtin__', '').replace(/_/g, '-')).join(', ')
-      finalSystemPrompt += `\n\nYou have access to the following tools: ${toolNames}. Use them proactively when the user's question would benefit from real-time information, calculations, file operations, or web research. Do not hesitate to call tools — they are here to help you provide accurate and up-to-date answers.`
+      finalSystemPrompt += `\n\nYou have access to the following tools: ${toolNames}. Use them proactively when the user's question would benefit from real-time information, calculations, file operations, or web research. Do not hesitate to call tools — they are here to help you provide accurate and up-to-date answers. When you use web-search, read the fetched page content carefully to give detailed, well-sourced answers. Always cite your sources with URLs when using information from web searches.`
     }
 
     const result = streamText({

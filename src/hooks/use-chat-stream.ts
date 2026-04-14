@@ -47,10 +47,34 @@ export function useChatStream() {
     const builtInToolIds = agent.builtInToolIds ?? []
 
     // Build message history (exclude the streaming placeholder)
+    // Include tool results as text context in assistant messages
     const conv = useChatStore.getState().conversations[conversationId]
-    const historyMessages = conv.messages
-      .filter((m) => m.role !== 'system' && !m.isStreaming)
-      .map((m) => ({ role: m.role, content: m.content }))
+    const historyMessages: { role: string; content: string }[] = []
+    for (const m of conv.messages) {
+      if (m.role === 'system' || m.isStreaming) continue
+
+      if (m.role === 'assistant' && m.toolCalls && m.toolCalls.length > 0) {
+        // Build assistant content that includes tool call context
+        let content = m.content || ''
+        const toolContext = m.toolCalls
+          .filter((tc) => tc.status === 'complete' && tc.result !== undefined)
+          .map((tc) => {
+            const resultStr = typeof tc.result === 'string' ? tc.result : JSON.stringify(tc.result)
+            // Truncate very large results to avoid token overflow
+            const truncated = resultStr.length > 5000 ? resultStr.slice(0, 5000) + '... [truncated]' : resultStr
+            return `[Tool: ${tc.toolName}] ${truncated}`
+          })
+          .join('\n')
+        if (toolContext) {
+          content = content ? `${content}\n\n${toolContext}` : toolContext
+        }
+        if (content) {
+          historyMessages.push({ role: 'assistant', content })
+        }
+      } else {
+        historyMessages.push({ role: m.role, content: m.content })
+      }
+    }
 
     const controller = new AbortController()
     abortRef.current = controller
