@@ -9,10 +9,15 @@ import * as mcpManager from './mcp-manager.js'
 import { getBuiltInTools, getBuiltInToolList } from './tools/index.js'
 import type { BuiltInToolId } from './tools/index.js'
 import { MCP_PRESETS } from './mcp-presets.js'
+import { initDb, closeDb, flush } from './db.js'
+import { registerDbRoutes } from './db-routes.js'
 
 const app = express()
 app.use(cors())
 app.use(express.json({ limit: '50mb' }))
+
+// DB REST API routes
+registerDbRoutes(app)
 
 // In Electron production, serve the built frontend
 // ELECTRON_DIST_PATH is set by the Electron main process
@@ -302,7 +307,8 @@ if (process.env.ELECTRON_DIST_PATH) {
   })
 }
 
-export function startServer(port = 3001): Promise<number> {
+export async function startServer(port = 3001): Promise<number> {
+  await initDb()
   return new Promise((resolve, reject) => {
     const server = app.listen(port, () => {
       const addr = server.address()
@@ -320,7 +326,13 @@ if (!process.env.ELECTRON) {
   startServer(PORT)
 }
 
-process.on('SIGTERM', () => mcpManager.disconnectAll())
+process.on('SIGTERM', () => {
+  flush()
+  closeDb()
+  mcpManager.disconnectAll()
+})
 process.on('SIGINT', () => {
+  flush()
+  closeDb()
   mcpManager.disconnectAll().then(() => process.exit(0))
 })

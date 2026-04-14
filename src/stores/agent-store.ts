@@ -1,57 +1,78 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 import type { Agent } from '@/types'
 import { AVATAR_COLORS } from '@/lib/providers'
 
 interface AgentState {
   agents: Agent[]
   activeAgentId: string | null
-  addAgent: (agent: Omit<Agent, 'id' | 'createdAt' | 'avatarColor' | 'mcpServerIds' | 'builtInToolIds'> & { mcpServerIds?: string[]; builtInToolIds?: string[] }) => Agent
-  updateAgent: (id: string, updates: Partial<Agent>) => void
-  deleteAgent: (id: string) => void
+  loaded: boolean
+  loadAgents: () => Promise<void>
+  addAgent: (agent: Omit<Agent, 'id' | 'createdAt' | 'avatarColor' | 'mcpServerIds' | 'builtInToolIds'> & { mcpServerIds?: string[]; builtInToolIds?: string[] }) => Promise<Agent>
+  updateAgent: (id: string, updates: Partial<Agent>) => Promise<void>
+  deleteAgent: (id: string) => Promise<void>
   setActiveAgent: (id: string | null) => void
 }
 
-export const useAgentStore = create<AgentState>()(
-  persist(
-    (set, get) => ({
-      agents: [],
-      activeAgentId: null,
+export const useAgentStore = create<AgentState>()((set, get) => ({
+  agents: [],
+  activeAgentId: null,
+  loaded: false,
 
-      addAgent: (data) => {
-        const agent: Agent = {
-          ...data,
-          id: crypto.randomUUID(),
-          createdAt: Date.now(),
-          avatarColor: AVATAR_COLORS[get().agents.length % AVATAR_COLORS.length],
-          mcpServerIds: data.mcpServerIds ?? [],
-          builtInToolIds: (data.builtInToolIds ?? []) as Agent['builtInToolIds'],
-        }
-        set((state) => ({
-          agents: [...state.agents, agent],
-          activeAgentId: agent.id,
-        }))
-        return agent
-      },
+  loadAgents: async () => {
+    const res = await fetch('/api/db/agents')
+    const agents = await res.json()
+    set({ agents, loaded: true })
+  },
 
-      updateAgent: (id, updates) => {
-        set((state) => ({
-          agents: state.agents.map((a) =>
-            a.id === id ? { ...a, ...updates } : a
-          ),
-        }))
-      },
+  addAgent: async (data) => {
+    const avatarColor = AVATAR_COLORS[get().agents.length % AVATAR_COLORS.length]
+    const res = await fetch('/api/db/agents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...data,
+        avatarColor,
+        mcpServerIds: data.mcpServerIds ?? [],
+        builtInToolIds: data.builtInToolIds ?? [],
+      }),
+    })
+    const { id } = await res.json()
+    const agent: Agent = {
+      ...data,
+      id,
+      createdAt: Date.now(),
+      avatarColor,
+      mcpServerIds: data.mcpServerIds ?? [],
+      builtInToolIds: (data.builtInToolIds ?? []) as Agent['builtInToolIds'],
+    }
+    set((state) => ({
+      agents: [...state.agents, agent],
+      activeAgentId: agent.id,
+    }))
+    return agent
+  },
 
-      deleteAgent: (id) => {
-        set((state) => ({
-          agents: state.agents.filter((a) => a.id !== id),
-          activeAgentId:
-            state.activeAgentId === id ? null : state.activeAgentId,
-        }))
-      },
+  updateAgent: async (id, updates) => {
+    const agent = get().agents.find((a) => a.id === id)
+    if (!agent) return
+    const merged = { ...agent, ...updates }
+    await fetch(`/api/db/agents/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(merged),
+    })
+    set((state) => ({
+      agents: state.agents.map((a) => (a.id === id ? { ...a, ...updates } : a)),
+    }))
+  },
 
-      setActiveAgent: (id) => set({ activeAgentId: id }),
-    }),
-    { name: 'llm-chat-agents' }
-  )
-)
+  deleteAgent: async (id) => {
+    await fetch(`/api/db/agents/${id}`, { method: 'DELETE' })
+    set((state) => ({
+      agents: state.agents.filter((a) => a.id !== id),
+      activeAgentId: state.activeAgentId === id ? null : state.activeAgentId,
+    }))
+  },
+
+  setActiveAgent: (id) => set({ activeAgentId: id }),
+}))

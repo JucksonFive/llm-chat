@@ -1,5 +1,7 @@
-import { app, BrowserWindow, Menu, shell } from 'electron'
+import { app, BrowserWindow, Menu, shell, dialog } from 'electron'
+import { execSync, spawn } from 'child_process'
 import path from 'path'
+import fs from 'fs'
 
 let mainWindow: BrowserWindow | null = null
 let serverPort = 3001
@@ -17,6 +19,57 @@ if (process.platform === 'darwin') {
     '/sbin',
     process.env.PATH,
   ].join(':')
+}
+
+function findDocker(): string | null {
+  const candidates = process.platform === 'win32'
+    ? ['docker', 'C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe']
+    : ['docker', '/usr/local/bin/docker', '/usr/bin/docker', '/opt/homebrew/bin/docker']
+  for (const cmd of candidates) {
+    try {
+      execSync(`"${cmd}" --version`, { stdio: 'ignore' })
+      return cmd
+    } catch { /* not found */ }
+  }
+  return null
+}
+
+async function startSearXNG() {
+  const docker = findDocker()
+  if (!docker) {
+    console.warn('[searxng] Docker not found — web search will not be available')
+    return
+  }
+
+  // Find docker-compose.yml: in dev it's in project root, in production it's bundled
+  const composeFile = isDev
+    ? path.join(__dirname, '..', 'docker-compose.yml')
+    : path.join(process.resourcesPath, 'docker-compose.yml')
+
+  if (!fs.existsSync(composeFile)) {
+    console.warn('[searxng] docker-compose.yml not found — web search will not be available')
+    return
+  }
+
+  try {
+    // Check if container is already running
+    const running = execSync(`"${docker}" ps --filter name=llm-chat-searxng --format "{{.Names}}"`, { encoding: 'utf8' }).trim()
+    if (running) {
+      console.log('[searxng] Already running')
+      return
+    }
+
+    // Start with docker compose
+    const composeDir = path.dirname(composeFile)
+    execSync(`"${docker}" compose -f "${composeFile}" up -d`, {
+      cwd: composeDir,
+      stdio: 'inherit',
+      timeout: 30000,
+    })
+    console.log('[searxng] Started via docker compose')
+  } catch (err) {
+    console.error('[searxng] Failed to start:', err)
+  }
 }
 
 async function startExpressServer() {
@@ -118,6 +171,7 @@ function createMenu() {
 }
 
 app.whenReady().then(async () => {
+  await startSearXNG()
   await startExpressServer()
   createMenu()
   createWindow()

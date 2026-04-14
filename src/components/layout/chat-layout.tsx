@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { SidebarInset } from '@/components/ui/sidebar'
 import { Header } from '@/components/layout/header'
 import { ChatWindow } from '@/components/chat/chat-window'
@@ -10,9 +11,17 @@ export function ChatLayout() {
   const activeAgentId = useAgentStore((s) => s.activeAgentId)
   const activeConversationId = useChatStore((s) => s.activeConversationId)
   const conversations = useChatStore((s) => s.conversations)
+  const loadMessages = useChatStore((s) => s.loadMessages)
   const activeConversation = activeConversationId
     ? conversations[activeConversationId]
     : null
+
+  // Load messages when switching conversations
+  useEffect(() => {
+    if (activeConversationId && conversations[activeConversationId]?.messages.length === 0) {
+      loadMessages(activeConversationId)
+    }
+  }, [activeConversationId, loadMessages])
 
   return (
     <SidebarInset className="flex flex-col">

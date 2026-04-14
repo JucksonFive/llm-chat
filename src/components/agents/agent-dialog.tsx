@@ -101,13 +101,13 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
     }
   }, [providerId, models, isCustomModel, model])
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const finalModel = isCustomModel ? customModel : model
     if (!name.trim() || !finalModel.trim()) return
     if (provider.requiresApiKey && !apiKey.trim()) return
 
     if (editingAgent) {
-      updateAgent(editingAgent.id, {
+      await updateAgent(editingAgent.id, {
         name: name.trim(),
         providerId,
         model: finalModel.trim(),
@@ -117,7 +117,7 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
         builtInToolIds: selectedBuiltInTools,
       })
     } else {
-      addAgent({
+      await addAgent({
         name: name.trim(),
         providerId,
         model: finalModel.trim(),
@@ -130,9 +130,9 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
     onOpenChange(false)
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (editingAgent) {
-      deleteAgent(editingAgent.id)
+      await deleteAgent(editingAgent.id)
       onOpenChange(false)
     }
   }

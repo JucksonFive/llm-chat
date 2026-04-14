@@ -58,10 +58,9 @@ export function AppSidebar() {
     ? getConversationsForAgent(activeAgentId)
     : []
 
-  const handleNewChat = () => {
+  const handleNewChat = async () => {
     if (!activeAgentId) return
-    const id = createConversation(activeAgentId)
-    setActiveConversation(id)
+    await createConversation(activeAgentId)
   }
 
   const handleEditAgent = (agentId: string) => {

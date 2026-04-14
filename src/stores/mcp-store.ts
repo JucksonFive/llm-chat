@@ -1,48 +1,59 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 import type { McpServerConfig } from '@/types'
 
 interface McpState {
   servers: McpServerConfig[]
-  addServer: (config: Omit<McpServerConfig, 'id' | 'createdAt'>) => McpServerConfig
-  updateServer: (id: string, updates: Partial<McpServerConfig>) => void
-  deleteServer: (id: string) => void
+  loaded: boolean
+  loadServers: () => Promise<void>
+  addServer: (config: Omit<McpServerConfig, 'id' | 'createdAt'>) => Promise<McpServerConfig>
+  updateServer: (id: string, updates: Partial<McpServerConfig>) => Promise<void>
+  deleteServer: (id: string) => Promise<void>
   getServer: (id: string) => McpServerConfig | undefined
 }
 
-export const useMcpStore = create<McpState>()(
-  persist(
-    (set, get) => ({
-      servers: [],
+export const useMcpStore = create<McpState>()((set, get) => ({
+  servers: [],
+  loaded: false,
 
-      addServer: (data) => {
-        const server: McpServerConfig = {
-          ...data,
-          id: crypto.randomUUID(),
-          createdAt: Date.now(),
-        }
-        set((state) => ({ servers: [...state.servers, server] }))
-        return server
-      },
+  loadServers: async () => {
+    const res = await fetch('/api/db/mcp-servers')
+    const servers = await res.json()
+    set({ servers, loaded: true })
+  },
 
-      updateServer: (id, updates) => {
-        set((state) => ({
-          servers: state.servers.map((s) =>
-            s.id === id ? { ...s, ...updates } : s
-          ),
-        }))
-      },
+  addServer: async (data) => {
+    const res = await fetch('/api/db/mcp-servers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    const { id } = await res.json()
+    const server: McpServerConfig = { ...data, id, createdAt: Date.now() }
+    set((state) => ({ servers: [...state.servers, server] }))
+    return server
+  },
 
-      deleteServer: (id) => {
-        set((state) => ({
-          servers: state.servers.filter((s) => s.id !== id),
-        }))
-      },
+  updateServer: async (id, updates) => {
+    const server = get().servers.find((s) => s.id === id)
+    if (!server) return
+    await fetch(`/api/db/mcp-servers/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...server, ...updates }),
+    })
+    set((state) => ({
+      servers: state.servers.map((s) => (s.id === id ? { ...s, ...updates } : s)),
+    }))
+  },
 
-      getServer: (id) => {
-        return get().servers.find((s) => s.id === id)
-      },
-    }),
-    { name: 'llm-chat-mcp-servers' }
-  )
-)
+  deleteServer: async (id) => {
+    await fetch(`/api/db/mcp-servers/${id}`, { method: 'DELETE' })
+    set((state) => ({
+      servers: state.servers.filter((s) => s.id !== id),
+    }))
+  },
+
+  getServer: (id) => {
+    return get().servers.find((s) => s.id === id)
+  },
+}))

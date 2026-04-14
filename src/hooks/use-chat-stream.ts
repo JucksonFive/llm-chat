@@ -10,7 +10,7 @@ import type { McpServerConfig, Attachment } from '@/types'
 export function useChatStream() {
   const abortRef = useRef<AbortController | null>(null)
 
-  const sendMessage = useCallback((text: string, attachments?: Attachment[]) => {
+  const sendMessage = useCallback(async (text: string, attachments?: Attachment[]) => {
     const { activeAgentId, agents } = useAgentStore.getState()
     const agent = agents.find((a) => a.id === activeAgentId)
     if (!agent) return
@@ -19,11 +19,13 @@ export function useChatStream() {
     let conversationId = store.activeConversationId
 
     if (!conversationId) {
-      conversationId = store.createConversation(agent.id)
+      conversationId = await store.createConversation(agent.id)
     }
 
-    // Add user message
+    // Add user message (local) and persist to DB
     store.addMessage(conversationId, { role: 'user', content: text, attachments })
+    const userMsg = useChatStore.getState().conversations[conversationId]?.messages.slice(-1)[0]
+    if (userMsg) store.persistMessage(conversationId, userMsg)
 
     // Add empty assistant message placeholder
     store.addMessage(conversationId, {
@@ -127,8 +129,14 @@ export function useChatStream() {
         })
       },
       onDone: () => {
-        useChatStore.getState().finalizeLastMessage(conversationId!)
-        useChatStore.getState().setStreaming(false)
+        const s = useChatStore.getState()
+        s.finalizeLastMessage(conversationId!)
+        // Persist the completed assistant message to DB
+        const lastMsg = s.conversations[conversationId!]?.messages.slice(-1)[0]
+        if (lastMsg && lastMsg.role === 'assistant') {
+          s.persistMessage(conversationId!, lastMsg)
+        }
+        s.setStreaming(false)
         abortRef.current = null
       },
       onError: (error) => {

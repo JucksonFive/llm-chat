@@ -12,10 +12,9 @@ export function EmptyState({ hasAgent }: EmptyStateProps) {
   const createConversation = useChatStore((s) => s.createConversation)
   const setActiveConversation = useChatStore((s) => s.setActiveConversation)
 
-  const handleNewChat = () => {
+  const handleNewChat = async () => {
     if (!activeAgentId) return
-    const id = createConversation(activeAgentId)
-    setActiveConversation(id)
+    await createConversation(activeAgentId)
   }
 
   return (
