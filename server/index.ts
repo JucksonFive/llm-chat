@@ -290,7 +290,7 @@ app.post('/api/extract-pdf', async (req, res) => {
     const { dataUrl } = req.body
     const base64 = dataUrl.split(',')[1]
     const buffer = Buffer.from(base64, 'base64')
-    const pdfParse = (await import('pdf-parse')).default
+    const { default: pdfParse } = await import('pdf-parse') as any
     const data = await pdfParse(buffer)
     res.json({ text: data.text })
   } catch (error) {
