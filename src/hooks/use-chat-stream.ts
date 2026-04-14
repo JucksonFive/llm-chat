@@ -5,12 +5,12 @@ import { useAgentStore } from '@/stores/agent-store'
 import { useMemoryStore } from '@/stores/memory-store'
 import { useMcpStore } from '@/stores/mcp-store'
 import { streamChat } from '@/lib/llm-client'
-import type { McpServerConfig } from '@/types'
+import type { McpServerConfig, Attachment } from '@/types'
 
 export function useChatStream() {
   const abortRef = useRef<AbortController | null>(null)
 
-  const sendMessage = useCallback((text: string) => {
+  const sendMessage = useCallback((text: string, attachments?: Attachment[]) => {
     const { activeAgentId, agents } = useAgentStore.getState()
     const agent = agents.find((a) => a.id === activeAgentId)
     if (!agent) return
@@ -23,7 +23,7 @@ export function useChatStream() {
     }
 
     // Add user message
-    store.addMessage(conversationId, { role: 'user', content: text })
+    store.addMessage(conversationId, { role: 'user', content: text, attachments })
 
     // Add empty assistant message placeholder
     store.addMessage(conversationId, {
@@ -49,7 +49,8 @@ export function useChatStream() {
     // Build message history (exclude the streaming placeholder)
     // Include tool results as text context in assistant messages
     const conv = useChatStore.getState().conversations[conversationId]
-    const historyMessages: { role: string; content: string }[] = []
+    type MessageContent = string | Array<{ type: 'text'; text: string } | { type: 'image'; image: string }>
+    const historyMessages: { role: string; content: MessageContent }[] = []
     for (const m of conv.messages) {
       if (m.role === 'system' || m.isStreaming) continue
 
@@ -71,6 +72,20 @@ export function useChatStream() {
         if (content) {
           historyMessages.push({ role: 'assistant', content })
         }
+      } else if (m.role === 'user' && m.attachments?.length) {
+        // Build multimodal content for messages with attachments
+        const parts: Array<{ type: 'text'; text: string } | { type: 'image'; image: string }> = []
+        for (const att of m.attachments) {
+          if (att.type === 'image') {
+            parts.push({ type: 'image', image: att.dataUrl })
+          } else if (att.type === 'pdf' && att.textContent) {
+            parts.push({ type: 'text', text: `[PDF: ${att.name}]\n${att.textContent}` })
+          }
+        }
+        if (m.content) {
+          parts.push({ type: 'text', text: m.content })
+        }
+        historyMessages.push({ role: 'user', content: parts })
       } else {
         historyMessages.push({ role: m.role, content: m.content })
       }

@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
-import { Send, Square, Database, FileText } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Send, Square, Database, FileText, X, Image, FileIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Textarea } from '@/components/ui/textarea'
@@ -10,13 +10,16 @@ import { useChatStream } from '@/hooks/use-chat-stream'
 import { ResourcesPanel } from '@/components/mcp/resources-panel'
 import { PromptsPanel } from '@/components/mcp/prompts-panel'
 import { cn } from '@/lib/utils'
-import type { McpServerConfig } from '@/types'
+import type { McpServerConfig, Attachment } from '@/types'
 
 export function MessageInput() {
   const [input, setInput] = useState('')
+  const [attachments, setAttachments] = useState<Attachment[]>([])
+  const [isDragging, setIsDragging] = useState(false)
   const [resourcesOpen, setResourcesOpen] = useState(false)
   const [promptsOpen, setPromptsOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const dragCounterRef = useRef(0)
   const isStreaming = useChatStore((s) => s.isStreaming)
   const activeAgentId = useAgentStore((s) => s.activeAgentId)
   const agents = useAgentStore((s) => s.agents)
@@ -29,15 +32,90 @@ export function MessageInput() {
     .filter((s): s is McpServerConfig => s !== undefined)
     .length > 0
 
+  const processFiles = useCallback(async (files: FileList | File[]) => {
+    const newAttachments: Attachment[] = []
+    for (const file of Array.from(files)) {
+      const isImage = file.type.startsWith('image/')
+      const isPdf = file.type === 'application/pdf'
+      if (!isImage && !isPdf) continue
+
+      const dataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.readAsDataURL(file)
+      })
+
+      const attachment: Attachment = {
+        id: crypto.randomUUID(),
+        type: isImage ? 'image' : 'pdf',
+        name: file.name,
+        dataUrl,
+      }
+
+      if (isPdf) {
+        try {
+          const res = await fetch('/api/extract-pdf', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dataUrl }),
+          })
+          const data = await res.json()
+          attachment.textContent = data.text
+        } catch {
+          attachment.textContent = '[PDF text extraction failed]'
+        }
+      }
+
+      newAttachments.push(attachment)
+    }
+    if (newAttachments.length > 0) {
+      setAttachments((prev) => [...prev, ...newAttachments])
+    }
+  }, [])
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounterRef.current++
+    if (e.dataTransfer.types.includes('Files')) {
+      setIsDragging(true)
+    }
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounterRef.current--
+    if (dragCounterRef.current === 0) {
+      setIsDragging(false)
+    }
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounterRef.current = 0
+    setIsDragging(false)
+    if (e.dataTransfer.files.length > 0) {
+      processFiles(e.dataTransfer.files)
+    }
+  }, [processFiles])
+
+  const removeAttachment = useCallback((id: string) => {
+    setAttachments((prev) => prev.filter((a) => a.id !== id))
+  }, [])
+
   useEffect(() => {
     textareaRef.current?.focus()
   }, [])
 
   const handleSend = () => {
     const text = input.trim()
-    if (!text || !activeAgentId) return
+    if ((!text && attachments.length === 0) || !activeAgentId) return
     setInput('')
-    sendMessage(text)
+    sendMessage(text || '(attached files)', attachments.length > 0 ? attachments : undefined)
+    setAttachments([])
     // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
@@ -82,7 +160,23 @@ export function MessageInput() {
 
   return (
     <>
-      <div className="border-t border-border/50 bg-background/80 backdrop-blur-xl p-4">
+      <div
+        className={cn(
+          'border-t border-border/50 bg-background/80 backdrop-blur-xl p-4 relative',
+          isDragging && 'ring-2 ring-primary/50 ring-inset bg-primary/5',
+        )}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
+        {isDragging && (
+          <div className="absolute inset-0 flex items-center justify-center bg-primary/5 backdrop-blur-sm z-10 rounded-lg border-2 border-dashed border-primary/30 pointer-events-none">
+            <div className="text-sm font-medium text-primary">
+              Drop files here (images, PDFs)
+            </div>
+          </div>
+        )}
         <div className="max-w-3xl mx-auto space-y-2">
           {hasMcpServers && (
             <div className="flex gap-1">
@@ -116,12 +210,50 @@ export function MessageInput() {
               </Tooltip>
             </div>
           )}
+
+          {attachments.length > 0 && (
+            <div className="flex gap-2 flex-wrap">
+              {attachments.map((att) => (
+                <div
+                  key={att.id}
+                  className="relative group flex items-center gap-2 rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-xs"
+                >
+                  {att.type === 'image' ? (
+                    <img
+                      src={att.dataUrl}
+                      alt={att.name}
+                      className="h-10 w-10 rounded object-cover"
+                    />
+                  ) : (
+                    <FileIcon className="h-5 w-5 text-muted-foreground" />
+                  )}
+                  <span className="max-w-[120px] truncate text-muted-foreground">
+                    {att.name}
+                  </span>
+                  <button
+                    onClick={() => removeAttachment(att.id)}
+                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="relative flex items-end gap-2">
             <Textarea
               ref={textareaRef}
               value={input}
               onChange={handleInput}
               onKeyDown={handleKeyDown}
+              onPaste={(e) => {
+                const files = e.clipboardData.files
+                if (files.length > 0) {
+                  e.preventDefault()
+                  processFiles(files)
+                }
+              }}
               placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
               className={cn(
                 'min-h-[44px] max-h-[200px] resize-none pr-12',
@@ -134,7 +266,7 @@ export function MessageInput() {
               size="icon"
               className="h-[44px] w-[44px] shrink-0"
               onClick={isStreaming ? abort : handleSend}
-              disabled={!isStreaming && !input.trim()}
+              disabled={!isStreaming && (!input.trim() && attachments.length === 0)}
             >
               {isStreaming ? (
                 <Square className="h-4 w-4" />

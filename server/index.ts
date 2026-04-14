@@ -12,7 +12,7 @@ import { MCP_PRESETS } from './mcp-presets.js'
 
 const app = express()
 app.use(cors())
-app.use(express.json())
+app.use(express.json({ limit: '50mb' }))
 
 // In Electron production, serve the built frontend
 // ELECTRON_DIST_PATH is set by the Electron main process
@@ -277,6 +277,19 @@ app.post('/api/mcp/prompts/get', async (req, res) => {
     res.json(prompt)
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to get prompt' })
+  }
+})
+
+app.post('/api/extract-pdf', async (req, res) => {
+  try {
+    const { dataUrl } = req.body
+    const base64 = dataUrl.split(',')[1]
+    const buffer = Buffer.from(base64, 'base64')
+    const pdfParse = (await import('pdf-parse')).default
+    const data = await pdfParse(buffer)
+    res.json({ text: data.text })
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'PDF extraction failed' })
   }
 })
 
