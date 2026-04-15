@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Conversation, Message, ToolCallInfo, Attachment } from '@/types'
+import type { Conversation, Message, ToolCallInfo } from '@/types'
 
 interface ChatState {
   conversations: Record<string, Conversation>

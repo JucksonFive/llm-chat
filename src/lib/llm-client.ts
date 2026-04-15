@@ -1,4 +1,4 @@
-import type { ProviderId, McpServerConfig, Attachment } from '@/types'
+import type { ProviderId, McpServerConfig } from '@/types'
 
 type MessageContent = string | Array<{ type: 'text'; text: string } | { type: 'image'; image: string }>
 

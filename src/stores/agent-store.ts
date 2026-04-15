@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { DEFAULT_SYSTEM_PROMPT, LEGACY_DEFAULT_SYSTEM_PROMPT } from '@/lib/default-system-prompt'
+import { PROGRAMMER_AGENT_TEMPLATE } from '@/lib/agent-templates'
 import type { Agent } from '@/types'
 import { AVATAR_COLORS } from '@/lib/providers'
 
@@ -24,8 +25,28 @@ export const useAgentStore = create<AgentState>()(
 
       loadAgents: async () => {
         const res = await fetch('/api/db/agents')
-        const agents = await res.json()
-        set({ agents, loaded: true })
+        const agents: Agent[] = await res.json()
+
+        if (agents.length === 0) {
+          await get().addAgent({
+            name: PROGRAMMER_AGENT_TEMPLATE.name,
+            providerId: PROGRAMMER_AGENT_TEMPLATE.providerId,
+            model: PROGRAMMER_AGENT_TEMPLATE.model,
+            apiKey: '',
+            systemPrompt: PROGRAMMER_AGENT_TEMPLATE.systemPrompt,
+            mcpServerIds: [],
+            builtInToolIds: PROGRAMMER_AGENT_TEMPLATE.builtInToolIds,
+          })
+          set({ loaded: true })
+          return
+        }
+
+        const persistedActiveId = get().activeAgentId
+        const activeAgentId = persistedActiveId && agents.some((agent) => agent.id === persistedActiveId)
+          ? persistedActiveId
+          : agents[0]?.id ?? null
+
+        set({ agents, activeAgentId, loaded: true })
       },
 
       addAgent: async (data) => {
@@ -106,4 +127,3 @@ export const useAgentStore = create<AgentState>()(
     }
   )
 )
-

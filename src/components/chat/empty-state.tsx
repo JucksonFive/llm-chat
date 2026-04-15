@@ -10,7 +10,6 @@ interface EmptyStateProps {
 export function EmptyState({ hasAgent }: EmptyStateProps) {
   const activeAgentId = useAgentStore((s) => s.activeAgentId)
   const createConversation = useChatStore((s) => s.createConversation)
-  const setActiveConversation = useChatStore((s) => s.setActiveConversation)
 
   const handleNewChat = async () => {
     if (!activeAgentId) return

@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { AGENT_TEMPLATES } from '@/lib/agent-templates'
 import { DEFAULT_SYSTEM_PROMPT, SYSTEM_PROMPT_PRESETS } from '@/lib/default-system-prompt'
 import { PROVIDERS } from '@/lib/providers'
 import { useAgentStore } from '@/stores/agent-store'
@@ -94,6 +95,19 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
     }
   }, [providerId, models, isCustomModel, model])
 
+  const applyTemplate = (templateId: string) => {
+    const template = AGENT_TEMPLATES.find((item) => item.id === templateId)
+    if (!template) return
+
+    setName(template.name)
+    setProviderId(template.providerId)
+    setModel(template.model)
+    setCustomModel(template.model)
+    setSystemPrompt(template.systemPrompt)
+    setSelectedBuiltInTools(template.builtInToolIds)
+    setSelectedMcpIds([])
+  }
+
   const handleSave = async () => {
     const finalModel = isCustomModel ? customModel : model
     if (!name.trim() || !finalModel.trim()) return
@@ -140,6 +154,26 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
         </DialogHeader>
 
         <div className="grid gap-4 py-4 overflow-y-auto">
+          <div className="grid gap-2">
+            <Label>Templates</Label>
+            <div className="flex flex-wrap gap-2">
+              {AGENT_TEMPLATES.map((template) => (
+                <Button
+                  key={template.id}
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => applyTemplate(template.id)}
+                >
+                  {template.name}
+                </Button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Load a ready-made agent profile with prompt, model, and tool defaults.
+            </p>
+          </div>
+
           <div className="grid gap-2">
             <Label htmlFor="name">Name</Label>
             <Input

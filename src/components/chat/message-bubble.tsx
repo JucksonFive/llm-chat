@@ -46,10 +46,10 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
 
       <div
         className={cn(
-          'rounded-2xl px-4 text-sm leading-relaxed',
+          'rounded-2xl px-4 leading-relaxed',
           isUser
-            ? 'max-w-[75%] py-2.5 bg-primary text-primary-foreground rounded-br-md'
-            : 'max-w-[85%] py-4 bg-muted/50 text-foreground rounded-bl-md',
+            ? 'max-w-[75%] py-2.5 text-sm bg-primary text-primary-foreground rounded-br-md'
+            : 'min-w-0 flex-1 py-4 bg-muted/50 text-foreground rounded-bl-md text-[14px]',
         )}
       >
         {message.isStreaming && !message.content && !message.toolCalls?.length ? (
@@ -80,7 +80,18 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
                   'prose dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
                   isUser
                     ? 'prose-sm'
-                    : 'prose-lg leading-8 prose-p:my-4 prose-headings:mt-8 prose-headings:mb-4 prose-headings:font-semibold prose-li:my-1.5 prose-ul:my-4 prose-ol:my-4 prose-blockquote:border-l-2 prose-blockquote:border-muted-foreground/30 prose-blockquote:pl-4 prose-blockquote:italic',
+                    : [
+                        'text-[14px] leading-[1.8]',
+                        'prose-p:my-3 prose-p:leading-[1.8]',
+                        'prose-headings:mt-8 prose-headings:mb-3 prose-headings:font-semibold prose-headings:tracking-tight prose-headings:leading-tight',
+                        'prose-h1:text-xl prose-h2:text-lg prose-h3:text-base',
+                        'prose-li:my-1 prose-li:leading-[1.7]',
+                        'prose-ul:my-3 prose-ol:my-3 prose-ul:pl-5 prose-ol:pl-5',
+                        'prose-blockquote:border-l-2 prose-blockquote:border-muted-foreground/30 prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:text-muted-foreground prose-blockquote:my-4',
+                        'prose-strong:font-semibold prose-strong:text-foreground',
+                        'prose-a:text-blue-500 prose-a:underline prose-a:underline-offset-2',
+                        'prose-hr:my-6 prose-hr:border-border/50',
+                      ].join(' '),
                 )}
               >
                 <ReactMarkdown
