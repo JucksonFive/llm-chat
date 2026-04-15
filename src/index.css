@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -169,6 +170,9 @@
 }
 
 /* Code block styles for markdown */
+.prose {
+  max-width: 100% !important;
+}
 .prose pre {
   @apply rounded-lg bg-secondary/50 p-4 overflow-x-auto;
 }

@@ -33,11 +33,15 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: 'easeOut' }}
-      className={cn('flex gap-3 px-4 py-2', isUser ? 'justify-end' : 'justify-start')}
+      className={cn(
+        'flex gap-3 py-2',
+        isUser ? 'justify-end px-4' : 'px-4 w-full',
+      )}
+      style={!isUser ? { maxWidth: '100%' } : undefined}
     >
       {!isUser && (
         <div
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium text-white"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium text-white mt-1"
           style={{ backgroundColor: agentColor || '#6366f1' }}
         >
           {agentName?.charAt(0)?.toUpperCase() || 'A'}
@@ -46,11 +50,11 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
 
       <div
         className={cn(
-          'rounded-2xl px-4 leading-relaxed',
           isUser
-            ? 'max-w-[75%] py-2.5 text-sm bg-primary text-primary-foreground rounded-br-md'
-            : 'min-w-0 flex-1 py-4 bg-muted/50 text-foreground rounded-bl-md text-[14px]',
+            ? 'max-w-[75%] rounded-2xl rounded-br-md px-4 py-2.5 text-sm leading-relaxed bg-primary text-primary-foreground'
+            : 'py-2 text-[14px] leading-[1.8] text-foreground',
         )}
+        style={!isUser ? { flex: '1 1 0%', minWidth: 0, maxWidth: '100%' } : undefined}
       >
         {message.isStreaming && !message.content && !message.toolCalls?.length ? (
           <TypingIndicator />
@@ -77,7 +81,7 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
             {message.content && (
               <div
                 className={cn(
-                  'prose dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
+                  'prose dark:prose-invert [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
                   isUser
                     ? 'prose-sm'
                     : [
@@ -93,6 +97,7 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
                         'prose-hr:my-6 prose-hr:border-border/50',
                       ].join(' '),
                 )}
+                style={{ maxWidth: '100%' }}
               >
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}

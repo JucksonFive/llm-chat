@@ -1,10 +1,10 @@
-import { AnimatePresence } from 'motion/react'
-import { ArrowDown } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { MessageBubble } from '@/components/chat/message-bubble'
+import { Button } from '@/components/ui/button'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import { useAgentStore } from '@/stores/agent-store'
 import type { Conversation } from '@/types'
+import { ArrowDown } from 'lucide-react'
+import { AnimatePresence } from 'motion/react'
 
 interface ChatWindowProps {
   conversation: Conversation
@@ -25,7 +25,7 @@ export function ChatWindow({ conversation }: ChatWindowProps) {
         onScroll={handleScroll}
         className="h-full overflow-y-auto py-4"
       >
-        <AnimatePresence mode="popLayout">
+        <AnimatePresence>
           {conversation.messages.map((message) => (
             <MessageBubble
               key={message.id}
