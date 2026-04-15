@@ -25,3 +25,4 @@ release
 *.sln
 *.sw?
 searxng/
+src/components/layout/app-sidebar.tsx
