@@ -66,6 +66,8 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
   const [showApiKey, setShowApiKey] = useState(false)
   const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>([])
   const [selectedBuiltInTools, setSelectedBuiltInTools] = useState<BuiltInToolId[]>([])
+  const [thinkingEnabled, setThinkingEnabled] = useState(false)
+  const [thinkingBudget, setThinkingBudget] = useState(10000)
 
   const mcpServers = useMcpStore((s) => s.servers)
   const provider = PROVIDERS[providerId]
@@ -82,6 +84,8 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
       setSystemPrompt(editingAgent.systemPrompt)
       setSelectedMcpIds(editingAgent.mcpServerIds ?? [])
       setSelectedBuiltInTools((editingAgent.builtInToolIds ?? []) as BuiltInToolId[])
+      setThinkingEnabled(editingAgent.thinkingEnabled ?? false)
+      setThinkingBudget(editingAgent.thinkingBudget ?? 10000)
     } else {
       setName('')
       setProviderId('openai')
@@ -91,6 +95,8 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
       setSystemPrompt(DEFAULT_SYSTEM_PROMPT)
       setSelectedMcpIds([])
       setSelectedBuiltInTools([])
+      setThinkingEnabled(false)
+      setThinkingBudget(10000)
     }
     setShowApiKey(false)
   }, [editingAgent, open])
@@ -115,6 +121,8 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
         systemPrompt: systemPrompt.trim(),
         mcpServerIds: selectedMcpIds,
         builtInToolIds: selectedBuiltInTools,
+        thinkingEnabled,
+        thinkingBudget,
       })
     } else {
       await addAgent({
@@ -125,6 +133,8 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
         systemPrompt: systemPrompt.trim(),
         mcpServerIds: selectedMcpIds,
         builtInToolIds: selectedBuiltInTools,
+        thinkingEnabled,
+        thinkingBudget,
       })
     }
     onOpenChange(false)
@@ -258,6 +268,38 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
                 </div>
               ))}
             </div>
+          </div>
+
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-1.5">
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                </svg>
+                Extended Thinking
+              </Label>
+              <Switch
+                checked={thinkingEnabled}
+                onCheckedChange={setThinkingEnabled}
+              />
+            </div>
+            {thinkingEnabled && (
+              <div className="flex items-center gap-2">
+                <Label htmlFor="thinkingBudget" className="text-xs text-muted-foreground shrink-0">
+                  Token budget
+                </Label>
+                <Input
+                  id="thinkingBudget"
+                  type="number"
+                  value={thinkingBudget}
+                  onChange={(e) => setThinkingBudget(Number(e.target.value))}
+                  className="h-7 text-xs"
+                  min={1000}
+                  max={100000}
+                  step={1000}
+                />
+              </div>
+            )}
           </div>
 
           {mcpServers.length > 0 && (

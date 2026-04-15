@@ -33,6 +33,8 @@ export interface Agent {
   avatarColor: string
   mcpServerIds: string[]
   builtInToolIds: BuiltInToolId[]
+  thinkingEnabled?: boolean
+  thinkingBudget?: number
 }
 
 export interface ToolCallInfo {
@@ -52,6 +54,11 @@ export interface Attachment {
   textContent?: string
 }
 
+export interface ThinkingBlock {
+  content: string
+  isStreaming?: boolean
+}
+
 export interface Message {
   id: string
   role: 'user' | 'assistant' | 'system'
@@ -60,6 +67,7 @@ export interface Message {
   isStreaming?: boolean
   toolCalls?: ToolCallInfo[]
   attachments?: Attachment[]
+  thinking?: ThinkingBlock
 }
 
 export interface McpServerConfig {

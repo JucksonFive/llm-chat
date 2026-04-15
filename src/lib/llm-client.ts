@@ -10,7 +10,10 @@ interface StreamChatParams {
   messages: { role: string; content: MessageContent }[]
   mcpServers?: McpServerConfig[]
   builtInToolIds?: string[]
+  thinkingEnabled?: boolean
+  thinkingBudget?: number
   signal?: AbortSignal
+  onReasoning: (text: string) => void
   onToken: (token: string) => void
   onToolCall: (data: { toolCallId: string; toolName: string; args: Record<string, unknown> }) => void
   onToolResult: (data: { toolCallId: string; toolName: string; result: unknown }) => void
@@ -27,7 +30,10 @@ export async function streamChat({
   messages,
   mcpServers,
   builtInToolIds,
+  thinkingEnabled,
+  thinkingBudget,
   signal,
+  onReasoning,
   onToken,
   onToolCall,
   onToolResult,
@@ -55,7 +61,7 @@ export async function streamChat({
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ providerId, model, apiKey, systemPrompt, messages, mcpServers, builtInToolIds }),
+      body: JSON.stringify({ providerId, model, apiKey, systemPrompt, messages, mcpServers, builtInToolIds, thinkingEnabled, thinkingBudget }),
       signal,
     })
 
@@ -98,6 +104,9 @@ export async function streamChat({
           }
 
           switch (parsed.type) {
+            case 'reasoning':
+              if (parsed.text != null) onReasoning(parsed.text)
+              break
             case 'text-delta':
               if (parsed.text != null) onToken(parsed.text)
               break

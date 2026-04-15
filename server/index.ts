@@ -28,7 +28,7 @@ if (process.env.ELECTRON_DIST_PATH) {
 app.post('/api/chat', async (req, res) => {
   let serverTimeout: ReturnType<typeof setTimeout> | undefined
   try {
-    const { providerId, model, apiKey, messages, systemPrompt, mcpServers, builtInToolIds } = req.body
+    const { providerId, model, apiKey, messages, systemPrompt, mcpServers, builtInToolIds, thinkingEnabled, thinkingBudget } = req.body
 
     let llmModel
     switch (providerId) {
@@ -94,6 +94,18 @@ Tool usage guidelines:
 - Do not fabricate tool results — only report what the tools actually return.`
     }
 
+    // Build provider-specific options for thinking/reasoning
+    const providerOptions: Record<string, unknown> = {}
+    if (thinkingEnabled) {
+      if (providerId === 'anthropic') {
+        providerOptions.anthropic = { thinking: { type: 'enabled', budgetTokens: thinkingBudget || 10000 } }
+      } else if (providerId === 'openai') {
+        providerOptions.openai = { reasoningEffort: 'high' }
+      } else if (providerId === 'google') {
+        providerOptions.google = { thinkingConfig: { thinkingBudget: thinkingBudget || 10000 } }
+      }
+    }
+
     const result = streamText({
       model: llmModel,
       system: finalSystemPrompt,
@@ -101,6 +113,7 @@ Tool usage guidelines:
       tools: hasTools ? tools : undefined,
       stopWhen: hasTools ? stepCountIs(20) : stepCountIs(1),
       abortSignal: abortController.signal,
+      providerOptions: Object.keys(providerOptions).length > 0 ? providerOptions : undefined,
     })
 
     // Start streaming - don't set SSE headers until we confirm the stream works
@@ -124,6 +137,11 @@ Tool usage guidelines:
       }
       chunkCount++
       switch (part.type) {
+        case 'reasoning':
+          if (part.text != null) {
+            writeSSE(JSON.stringify({ type: 'reasoning', text: part.text }))
+          }
+          break
         case 'text-delta':
           if (part.text != null) {
             writeSSE(JSON.stringify({ type: 'text-delta', text: part.text }))

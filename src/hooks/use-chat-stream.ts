@@ -104,7 +104,12 @@ export function useChatStream() {
       messages: historyMessages,
       mcpServers: mcpServers.length > 0 ? mcpServers : undefined,
       builtInToolIds: builtInToolIds.length > 0 ? builtInToolIds : undefined,
+      thinkingEnabled: agent.thinkingEnabled,
+      thinkingBudget: agent.thinkingBudget,
       signal: controller.signal,
+      onReasoning: (text) => {
+        useChatStore.getState().appendReasoningToLastMessage(conversationId!, text)
+      },
       onToken: (token) => {
         useChatStore.getState().appendToLastMessage(conversationId!, token)
       },

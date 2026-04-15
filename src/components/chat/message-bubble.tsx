@@ -52,10 +52,26 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
             : 'max-w-[85%] py-4 bg-muted/50 text-foreground rounded-bl-md',
         )}
       >
-        {message.isStreaming && !message.content && !message.toolCalls?.length ? (
+        {message.isStreaming && !message.content && !message.toolCalls?.length && !message.thinking ? (
           <TypingIndicator />
         ) : (
           <>
+            {!isUser && message.thinking && (
+              <details className="mb-3 group/think" open={message.thinking.isStreaming}>
+                <summary className="cursor-pointer text-xs font-medium text-muted-foreground/70 hover:text-muted-foreground select-none flex items-center gap-1.5">
+                  <svg className={cn('h-3.5 w-3.5', message.thinking.isStreaming && 'animate-spin')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    {message.thinking.isStreaming
+                      ? <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.49-8.49l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" />
+                      : <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                    }
+                  </svg>
+                  {message.thinking.isStreaming ? 'Thinking...' : 'Thought process'}
+                </summary>
+                <div className="mt-2 text-xs text-muted-foreground/60 leading-relaxed whitespace-pre-wrap border-l-2 border-muted-foreground/10 pl-3">
+                  {message.thinking.content}
+                </div>
+              </details>
+            )}
             {isUser && message.attachments?.map((att) => (
               <div key={att.id} className="mb-2">
                 {att.type === 'image' ? (
