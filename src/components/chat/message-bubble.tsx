@@ -28,17 +28,8 @@ interface MessageBubbleProps {
 export function MessageBubble({ message, agentName, agentColor }: MessageBubbleProps) {
   const isUser = message.role === 'user'
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, ease: 'easeOut' }}
-      className={cn(
-        'flex gap-3 py-2',
-        isUser ? 'justify-end px-4' : 'px-4 w-full',
-      )}
-      style={!isUser ? { maxWidth: '100%' } : undefined}
-    >
+  const content = (
+    <>
       {!isUser && (
         <div
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium text-white mt-1"
@@ -52,9 +43,9 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
         className={cn(
           isUser
             ? 'max-w-[75%] rounded-2xl rounded-br-md px-4 py-2.5 text-sm leading-relaxed bg-primary text-primary-foreground'
-            : 'py-2 text-[14px] leading-[1.8] text-foreground',
+            : 'overflow-hidden py-2 text-[14px] leading-[1.8] text-foreground',
         )}
-        style={!isUser ? { flex: '1 1 0%', minWidth: 0, maxWidth: '100%' } : undefined}
+        style={!isUser ? { flex: '1 1 0%', minWidth: 0 } : undefined}
       >
         {message.isStreaming && !message.content && !message.toolCalls?.length ? (
           <TypingIndicator />
@@ -146,6 +137,25 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
           U
         </div>
       )}
-    </motion.div>
+    </>
+  )
+
+  if (isUser) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
+        className="flex gap-3 py-2 justify-end px-4"
+      >
+        {content}
+      </motion.div>
+    )
+  }
+
+  return (
+    <div className="flex gap-3 py-2 px-4" style={{ width: '100%' }}>
+      {content}
+    </div>
   )
 }
