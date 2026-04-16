@@ -2,9 +2,10 @@ import { CodeBlock } from '@/components/chat/code-block'
 import { ToolCallBlock } from '@/components/chat/tool-call-block'
 import { TypingIndicator } from '@/components/chat/typing-indicator'
 import { cn } from '@/lib/utils'
+import { cleanTextForSpeech } from '@/stores/ui-store'
 import type { Message } from '@/types'
 import { motion, AnimatePresence } from 'motion/react'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useState, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeKatex from 'rehype-katex'
@@ -137,6 +138,51 @@ interface MessageBubbleProps {
   agentColor?: string
 }
 
+function SpeakButton({ text }: { text: string }) {
+  const [isSpeaking, setIsSpeaking] = useState(false)
+
+  const handleSpeak = useCallback(() => {
+    if (isSpeaking) {
+      speechSynthesis.cancel()
+      setIsSpeaking(false)
+      return
+    }
+
+    const clean = cleanTextForSpeech(text)
+    if (!clean) return
+
+    speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(clean)
+    utterance.rate = 1.0
+    utterance.onend = () => setIsSpeaking(false)
+    utterance.onerror = () => setIsSpeaking(false)
+    speechSynthesis.speak(utterance)
+    setIsSpeaking(true)
+  }, [text, isSpeaking])
+
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return null
+
+  return (
+    <button
+      onClick={handleSpeak}
+      className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100"
+      title={isSpeaking ? 'Stop speaking' : 'Read aloud'}
+    >
+      {isSpeaking ? (
+        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 10h6v4H9z" />
+        </svg>
+      ) : (
+        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M6.5 8.8l4.7-3.5c.7-.5 1.6-.05 1.6.8v11.8c0 .85-.9 1.3-1.6.8l-4.7-3.5H4a1.5 1.5 0 01-1.5-1.5v-3.8A1.5 1.5 0 014 8.8h2.5z" />
+        </svg>
+      )}
+      {isSpeaking ? 'Stop' : 'Listen'}
+    </button>
+  )
+}
+
 export function MessageBubble({ message, agentName, agentColor }: MessageBubbleProps) {
   const isUser = message.role === 'user'
 
@@ -154,7 +200,7 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
       <div
         className={cn(
           isUser
-            ? 'max-w-[75%] rounded-2xl rounded-br-md px-4 py-2.5 text-sm leading-relaxed bg-primary text-primary-foreground'
+            ? 'max-w-[75%] rounded-2xl rounded-br-md px-4 py-2.5 text-sm leading-relaxed bg-blue-600 dark:bg-blue-500 text-white'
             : 'overflow-hidden py-2 text-[14px] leading-[1.8] text-foreground',
         )}
         style={!isUser ? { flex: '1 1 0%', minWidth: 0 } : undefined}
@@ -187,11 +233,11 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
             {message.content && (
               <div
                 className={cn(
-                  'prose dark:prose-invert [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
+                  'prose [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
                   isUser
-                    ? 'prose-sm'
+                    ? 'prose-sm prose-invert'
                     : [
-                        'text-[14px] leading-[1.8]',
+                        'dark:prose-invert text-[14px] leading-[1.8]',
                         'prose-p:my-3 prose-p:leading-[1.8]',
                         'prose-headings:mt-8 prose-headings:mb-3 prose-headings:font-semibold prose-headings:tracking-tight prose-headings:leading-tight',
                         'prose-h1:text-xl prose-h2:text-lg prose-h3:text-base',
@@ -243,6 +289,9 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
             {message.toolCalls?.map((tc) => (
               <ToolCallBlock key={tc.id} toolCall={tc} />
             ))}
+            {!isUser && message.content && !message.isStreaming && (
+              <SpeakButton text={message.content} />
+            )}
           </>
         )}
       </div>
@@ -269,7 +318,7 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
   }
 
   return (
-    <div className="flex gap-3 py-2 px-4" style={{ width: '100%' }}>
+    <div className="group flex gap-3 py-2 px-4" style={{ width: '100%' }}>
       {content}
     </div>
   )

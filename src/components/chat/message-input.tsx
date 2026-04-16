@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Square, Database, FileText, X, FileIcon } from 'lucide-react'
+import { Send, Square, Database, FileText, X, FileIcon, Mic, MicOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Textarea } from '@/components/ui/textarea'
@@ -18,8 +18,10 @@ export function MessageInput() {
   const [isDragging, setIsDragging] = useState(false)
   const [resourcesOpen, setResourcesOpen] = useState(false)
   const [promptsOpen, setPromptsOpen] = useState(false)
+  const [isListening, setIsListening] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const dragCounterRef = useRef(0)
+  const recognitionRef = useRef<SpeechRecognition | null>(null)
   const isStreaming = useChatStore((s) => s.isStreaming)
   const activeAgentId = useAgentStore((s) => s.activeAgentId)
   const agents = useAgentStore((s) => s.agents)
@@ -144,6 +146,65 @@ export function MessageInput() {
     textareaRef.current?.focus()
   }
 
+  const hasSpeechRecognition = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)
+
+  const toggleListening = useCallback(() => {
+    if (isListening) {
+      recognitionRef.current?.stop()
+      setIsListening(false)
+      return
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognition) return
+
+    const recognition = new SpeechRecognition()
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.lang = '' // auto-detect language
+
+    let finalTranscript = ''
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let interim = ''
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i]
+        if (result.isFinal) {
+          finalTranscript += result[0].transcript
+        } else {
+          interim += result[0].transcript
+        }
+      }
+      setInput((prev) => {
+        // Remove previous interim result and add the new one
+        const base = prev.replace(/\u200B.*$/, '')
+        const current = finalTranscript + (interim ? '\u200B' + interim : '')
+        return base ? base + ' ' + current : current
+      })
+    }
+
+    recognition.onend = () => {
+      setIsListening(false)
+      // Clean up zero-width space markers from interim results
+      setInput((prev) => prev.replace(/\u200B/g, ''))
+    }
+
+    recognition.onerror = () => {
+      setIsListening(false)
+    }
+
+    recognitionRef.current = recognition
+    recognition.start()
+    setIsListening(true)
+  }, [isListening])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop()
+    }
+  }, [])
+
   const handleUsePrompt = (messages: { role: string; content: string }[]) => {
     // Insert the prompt content as the user's message
     const userMessages = messages.filter((m) => m.role === 'user')
@@ -262,6 +323,28 @@ export function MessageInput() {
               )}
               rows={1}
             />
+            {hasSpeechRecognition && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant={isListening ? 'destructive' : 'ghost'}
+                    className={cn(
+                      'h-[44px] w-[44px] shrink-0',
+                      isListening && 'animate-pulse',
+                    )}
+                    onClick={toggleListening}
+                  >
+                    {isListening ? (
+                      <MicOff className="h-4 w-4" />
+                    ) : (
+                      <Mic className="h-4 w-4" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{isListening ? 'Stop recording' : 'Voice input'}</TooltipContent>
+              </Tooltip>
+            )}
             <Button
               size="icon"
               className="h-[44px] w-[44px] shrink-0"

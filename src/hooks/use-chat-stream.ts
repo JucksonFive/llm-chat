@@ -4,6 +4,8 @@ import { useChatStore } from '@/stores/chat-store'
 import { useAgentStore } from '@/stores/agent-store'
 import { useMemoryStore } from '@/stores/memory-store'
 import { useMcpStore } from '@/stores/mcp-store'
+import { useUIStore } from '@/stores/ui-store'
+import { speakText } from '@/stores/ui-store'
 import { streamChat } from '@/lib/llm-client'
 import type { McpServerConfig, Attachment } from '@/types'
 
@@ -199,6 +201,10 @@ export function useChatStream() {
         const lastMsg = s.conversations[conversationId!]?.messages.slice(-1)[0]
         if (lastMsg && lastMsg.role === 'assistant') {
           s.persistMessage(conversationId!, lastMsg)
+          // Auto-speak the response if enabled
+          if (useUIStore.getState().autoSpeak && lastMsg.content) {
+            speakText(lastMsg.content)
+          }
         }
         s.setStreaming(false)
         abortRef.current = null
