@@ -58,6 +58,7 @@ export interface Message {
   content: string
   createdAt: number
   isStreaming?: boolean
+  reasoning?: string
   toolCalls?: ToolCallInfo[]
   attachments?: Attachment[]
 }

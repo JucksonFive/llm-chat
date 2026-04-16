@@ -183,8 +183,66 @@
   @apply bg-transparent p-0;
 }
 
+/* Highlight.js light theme - ensure readable contrast */
+.hljs {
+  background: transparent !important;
+  color: hsl(240 10% 15%) !important;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-type {
+  color: hsl(270 60% 40%) !important;
+}
+.hljs-string,
+.hljs-attr {
+  color: hsl(140 50% 30%) !important;
+}
+.hljs-number,
+.hljs-literal {
+  color: hsl(25 80% 40%) !important;
+}
+.hljs-comment {
+  color: hsl(220 10% 50%) !important;
+}
+.hljs-title,
+.hljs-function .hljs-title {
+  color: hsl(210 70% 40%) !important;
+}
+.hljs-built_in {
+  color: hsl(190 60% 35%) !important;
+}
+.hljs-property {
+  color: hsl(240 10% 25%) !important;
+}
+
 /* Highlight.js dark theme overrides */
 .dark .hljs {
   background: transparent !important;
   color: hsl(213 31% 91%) !important;
+}
+.dark .hljs-keyword,
+.dark .hljs-selector-tag,
+.dark .hljs-type {
+  color: hsl(270 70% 75%) !important;
+}
+.dark .hljs-string,
+.dark .hljs-attr {
+  color: hsl(140 50% 65%) !important;
+}
+.dark .hljs-number,
+.dark .hljs-literal {
+  color: hsl(30 80% 65%) !important;
+}
+.dark .hljs-comment {
+  color: hsl(220 15% 55%) !important;
+}
+.dark .hljs-title,
+.dark .hljs-function .hljs-title {
+  color: hsl(210 80% 70%) !important;
+}
+.dark .hljs-built_in {
+  color: hsl(190 70% 65%) !important;
+}
+.dark .hljs-property {
+  color: hsl(213 31% 80%) !important;
 }

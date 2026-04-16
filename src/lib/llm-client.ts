@@ -12,6 +12,7 @@ interface StreamChatParams {
   builtInToolIds?: string[]
   signal?: AbortSignal
   onToken: (token: string) => void
+  onReasoning: (token: string) => void
   onToolCall: (data: { toolCallId: string; toolName: string; args: Record<string, unknown> }) => void
   onToolResult: (data: { toolCallId: string; toolName: string; result: unknown }) => void
   onToolError: (data: { toolCallId: string; toolName: string; error: string }) => void
@@ -29,6 +30,7 @@ export async function streamChat({
   builtInToolIds,
   signal,
   onToken,
+  onReasoning,
   onToolCall,
   onToolResult,
   onToolError,
@@ -98,6 +100,9 @@ export async function streamChat({
           }
 
           switch (parsed.type) {
+            case 'reasoning':
+              if (parsed.text != null) onReasoning(parsed.text)
+              break
             case 'text-delta':
               if (parsed.text != null) onToken(parsed.text)
               break

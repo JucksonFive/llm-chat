@@ -96,6 +96,10 @@ export function useChatStream() {
     const controller = new AbortController()
     abortRef.current = controller
 
+    // Track <think> block state for non-reasoning models
+    let insideThink = false
+    let tagBuffer = ''
+
     streamChat({
       providerId: agent.providerId,
       model: agent.model,
@@ -106,7 +110,57 @@ export function useChatStream() {
       builtInToolIds: builtInToolIds.length > 0 ? builtInToolIds : undefined,
       signal: controller.signal,
       onToken: (token) => {
-        useChatStore.getState().appendToLastMessage(conversationId!, token)
+        const store = useChatStore.getState()
+        // Parse <think>...</think> blocks into reasoning
+        tagBuffer += token
+        while (tagBuffer.length > 0) {
+          if (insideThink) {
+            const closeIdx = tagBuffer.indexOf('</think>')
+            if (closeIdx !== -1) {
+              // Emit reasoning up to close tag, then switch back to content
+              const reasoningChunk = tagBuffer.slice(0, closeIdx)
+              if (reasoningChunk) store.appendReasoningToLastMessage(conversationId!, reasoningChunk)
+              tagBuffer = tagBuffer.slice(closeIdx + '</think>'.length)
+              insideThink = false
+            } else {
+              // Might be a partial </think> tag at the end
+              const partialMatch = tagBuffer.match(/<\/?t?h?i?n?k?>?$/)
+              if (partialMatch && tagBuffer.endsWith(partialMatch[0])) {
+                const safe = tagBuffer.slice(0, tagBuffer.length - partialMatch[0].length)
+                if (safe) store.appendReasoningToLastMessage(conversationId!, safe)
+                tagBuffer = partialMatch[0]
+              } else {
+                store.appendReasoningToLastMessage(conversationId!, tagBuffer)
+                tagBuffer = ''
+              }
+              break
+            }
+          } else {
+            const openIdx = tagBuffer.indexOf('<think>')
+            if (openIdx !== -1) {
+              // Emit content up to open tag, then switch to reasoning
+              const contentChunk = tagBuffer.slice(0, openIdx)
+              if (contentChunk) store.appendToLastMessage(conversationId!, contentChunk)
+              tagBuffer = tagBuffer.slice(openIdx + '<think>'.length)
+              insideThink = true
+            } else {
+              // Might be a partial <think> tag at the end
+              const partialMatch = tagBuffer.match(/<t?h?i?n?k?>?$/)
+              if (partialMatch && tagBuffer.endsWith(partialMatch[0])) {
+                const safe = tagBuffer.slice(0, tagBuffer.length - partialMatch[0].length)
+                if (safe) store.appendToLastMessage(conversationId!, safe)
+                tagBuffer = partialMatch[0]
+              } else {
+                store.appendToLastMessage(conversationId!, tagBuffer)
+                tagBuffer = ''
+              }
+              break
+            }
+          }
+        }
+      },
+      onReasoning: (token) => {
+        useChatStore.getState().appendReasoningToLastMessage(conversationId!, token)
       },
       onToolCall: ({ toolCallId, toolName, args }) => {
         useChatStore.getState().addToolCallToLastMessage(conversationId!, {
@@ -129,6 +183,16 @@ export function useChatStream() {
         })
       },
       onDone: () => {
+        // Flush any remaining tag buffer
+        if (tagBuffer) {
+          const store = useChatStore.getState()
+          if (insideThink) {
+            store.appendReasoningToLastMessage(conversationId!, tagBuffer)
+          } else {
+            store.appendToLastMessage(conversationId!, tagBuffer)
+          }
+          tagBuffer = ''
+        }
         const s = useChatStore.getState()
         s.finalizeLastMessage(conversationId!)
         // Persist the completed assistant message to DB

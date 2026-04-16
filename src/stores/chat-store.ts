@@ -15,6 +15,7 @@ interface ChatState {
   addMessage: (conversationId: string, message: Omit<Message, 'id' | 'createdAt'>) => string
   persistMessage: (conversationId: string, message: Message) => Promise<void>
   appendToLastMessage: (conversationId: string, token: string) => void
+  appendReasoningToLastMessage: (conversationId: string, token: string) => void
   finalizeLastMessage: (conversationId: string) => void
   setStreaming: (streaming: boolean) => void
   addToolCallToLastMessage: (conversationId: string, toolCall: ToolCallInfo) => void
@@ -125,6 +126,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       body: JSON.stringify({
         role: message.role,
         content: message.content,
+        reasoning: message.reasoning,
         toolCalls: message.toolCalls,
         attachments: message.attachments,
       }),
@@ -138,6 +140,23 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       const messages = [...conv.messages]
       const last = { ...messages[messages.length - 1] }
       last.content += token
+      messages[messages.length - 1] = last
+      return {
+        conversations: {
+          ...state.conversations,
+          [conversationId]: { ...conv, messages, updatedAt: Date.now() },
+        },
+      }
+    })
+  },
+
+  appendReasoningToLastMessage: (conversationId, token) => {
+    set((state) => {
+      const conv = state.conversations[conversationId]
+      if (!conv || conv.messages.length === 0) return state
+      const messages = [...conv.messages]
+      const last = { ...messages[messages.length - 1] }
+      last.reasoning = (last.reasoning || '') + token
       messages[messages.length - 1] = last
       return {
         conversations: {

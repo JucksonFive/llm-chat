@@ -157,6 +157,7 @@ app.get('/api/db/conversations/:id/messages', (req, res) => {
       id: m.id,
       role: m.role,
       content: m.content,
+      reasoning: m.reasoning || undefined,
       createdAt: m.created_at,
       toolCalls: m.tool_calls ? JSON.parse(m.tool_calls as string) : undefined,
       attachments: atts.length > 0
@@ -174,16 +175,17 @@ app.get('/api/db/conversations/:id/messages', (req, res) => {
 })
 
 app.post('/api/db/conversations/:id/messages', (req, res) => {
-  const { role, content, toolCalls, attachments } = req.body
+  const { role, content, reasoning, toolCalls, attachments } = req.body
   const msgId = crypto.randomUUID()
   run(
-    `INSERT INTO messages (id, conversation_id, role, content, tool_calls, created_at)
-     VALUES ($id, $convId, $role, $content, $toolCalls, $createdAt)`,
+    `INSERT INTO messages (id, conversation_id, role, content, reasoning, tool_calls, created_at)
+     VALUES ($id, $convId, $role, $content, $reasoning, $toolCalls, $createdAt)`,
     {
       id: msgId,
       convId: req.params.id,
       role,
       content: content || '',
+      reasoning: reasoning || null,
       toolCalls: toolCalls ? JSON.stringify(toolCalls) : null,
       createdAt: Date.now(),
     },
