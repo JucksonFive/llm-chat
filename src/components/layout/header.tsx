@@ -12,9 +12,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { BrainCircuit } from 'lucide-react'
+import { BrainCircuit, Volume2, VolumeX } from 'lucide-react'
 import { useAgentStore } from '@/stores/agent-store'
 import { useMemoryStore } from '@/stores/memory-store'
+import { useUIStore } from '@/stores/ui-store'
 import { MemoryPanel } from '@/components/memory/memory-panel'
 import { PROVIDERS } from '@/lib/providers'
 
@@ -27,6 +28,7 @@ export function Header() {
     ? allMemories.filter((m) => m.agentId === activeAgentId)
     : []
   const [memoryOpen, setMemoryOpen] = useState(false)
+  const { autoSpeak, toggleAutoSpeak } = useUIStore()
 
   const handleModelChange = (newModel: string) => {
     if (activeAgent) {
@@ -74,6 +76,23 @@ export function Header() {
                 </Select>
               )}
             </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleAutoSpeak}
+                  className={autoSpeak ? 'text-primary' : ''}
+                >
+                  {autoSpeak ? (
+                    <Volume2 className="h-4 w-4" />
+                  ) : (
+                    <VolumeX className="h-4 w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{autoSpeak ? 'Voice replies ON' : 'Voice replies OFF'}</TooltipContent>
+            </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
