@@ -33,7 +33,7 @@ function markDirty() {
   dirty = true
 }
 
-const SCHEMA_VERSION = 1
+const SCHEMA_VERSION = 2
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS agents (
@@ -126,8 +126,20 @@ export async function initDb(): Promise<Database> {
   const versionResult = db.exec('PRAGMA user_version')
   const currentVersion = versionResult[0]?.values[0]?.[0] as number ?? 0
 
-  if (currentVersion < SCHEMA_VERSION) {
+  if (currentVersion < 1) {
     db.exec(SCHEMA)
+  }
+
+  if (currentVersion < 2) {
+    // Add reasoning column to messages table
+    try {
+      db.exec('ALTER TABLE messages ADD COLUMN reasoning TEXT')
+    } catch {
+      // Column may already exist
+    }
+  }
+
+  if (currentVersion < SCHEMA_VERSION) {
     db.run(`PRAGMA user_version = ${SCHEMA_VERSION}`)
     saveToDisk()
   }

@@ -80,8 +80,23 @@ app.post('/api/chat', async (req, res) => {
       abortController.abort()
     }, 120_000)
 
-    // Augment system prompt with tool usage instructions when tools are available
+    // For non-reasoning models, inject step-by-step thinking discipline
     let finalSystemPrompt = systemPrompt || undefined
+    const isReasoningModel = providerId === 'anthropic' || /^(o3|o4|o3-mini|o4-mini|deepseek-reasoner)/.test(model)
+    if (finalSystemPrompt && !isReasoningModel) {
+      finalSystemPrompt += `\n\n## Mandatory thinking process
+For every non-trivial question, you MUST begin your response with a <think>...</think> block before giving your actual answer. This block is your internal reasoning space. Inside it:
+1. Restate the core problem in your own words.
+2. Identify what you know, what you do not know, and what assumptions you are making.
+3. Consider at least 2 different approaches or perspectives. Compare their tradeoffs.
+4. Choose the best approach and note why.
+5. Plan the structure of your answer.
+
+After the </think> tag, write your actual response to the user. The thinking block ensures you do not give shallow, generic answers.
+
+For trivial factual questions (e.g. "what is 2+2", "what color is the sky"), skip the thinking block and answer directly.`
+    }
+
     if (hasTools && finalSystemPrompt) {
       const toolNames = Object.keys(tools).map((n) => n.replace('builtin__', '').replace(/_/g, '-')).join(', ')
       finalSystemPrompt += `\n\nYou have access to the following tools: ${toolNames}.
@@ -101,6 +116,13 @@ Tool usage guidelines:
       tools: hasTools ? tools : undefined,
       stopWhen: hasTools ? stepCountIs(20) : stepCountIs(1),
       abortSignal: abortController.signal,
+      ...(providerId === 'anthropic' && {
+        providerOptions: {
+          anthropic: {
+            thinking: { type: 'enabled', budgetTokens: 10000 },
+          },
+        },
+      }),
     })
 
     // Start streaming - don't set SSE headers until we confirm the stream works
@@ -144,6 +166,14 @@ Tool usage guidelines:
             toolName: part.toolName,
             result: part.output,
           }))
+          break
+        case 'reasoning':
+          writeSSE(JSON.stringify({
+            type: 'reasoning',
+            text: part.text,
+          }))
+          break
+        case 'reasoning-signature':
           break
         case 'finish-step':
           writeSSE(JSON.stringify({ type: 'step-finish' }))

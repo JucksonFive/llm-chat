@@ -10,7 +10,7 @@ interface CodeBlockProps {
 
 export function CodeBlock({ children, className, rawText }: CodeBlockProps) {
   const [copied, setCopied] = useState(false)
-  const language = className?.replace('language-', '') || ''
+  const language = className?.replace('language-', '').replace('hljs ', '').replace('hljs', '').trim() || ''
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(rawText ?? String(children))
@@ -19,7 +19,7 @@ export function CodeBlock({ children, className, rawText }: CodeBlockProps) {
   }
 
   return (
-    <div className="group relative my-3 rounded-lg border border-border/50 bg-secondary/30 overflow-hidden">
+    <div className="group relative my-3 rounded-lg border border-border/60 bg-secondary/60 overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2 border-b border-border/30">
         <span className="text-xs text-muted-foreground font-mono">
           {language || 'code'}
