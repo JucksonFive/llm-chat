@@ -96,6 +96,17 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
   }, [providerId, models, isCustomModel, model])
 
   const applyTemplate = (templateId: string) => {
+    if (templateId === 'custom') {
+      setName('')
+      setProviderId('openai')
+      setModel(PROVIDERS['openai'].models[0])
+      setCustomModel('')
+      setSystemPrompt('')
+      setSelectedBuiltInTools([])
+      setSelectedMcpIds([])
+      return
+    }
+
     const template = AGENT_TEMPLATES.find((item) => item.id === templateId)
     if (!template) return
 
@@ -168,6 +179,14 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
                   {template.name}
                 </Button>
               ))}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => applyTemplate('custom')}
+              >
+                Custom
+              </Button>
             </div>
             <p className="text-xs text-muted-foreground">
               Load a ready-made agent profile with prompt, model, and tool defaults.
