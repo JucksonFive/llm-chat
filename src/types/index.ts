@@ -27,7 +27,6 @@ export interface Agent {
   name: string
   providerId: ProviderId
   model: string
-  apiKey: string
   systemPrompt: string
   createdAt: number
   avatarColor: string

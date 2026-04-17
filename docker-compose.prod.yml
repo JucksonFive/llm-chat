@@ -1,0 +1,98 @@
+# Production compose file for deploying llm-chat behind Caddy with SearXNG.
+# Dev compose file (./docker-compose.yml) is unchanged and still used for
+# running a local SearXNG during `pnpm run dev`.
+#
+# Usage on the server:
+#   cp .env.example .env   # fill in DOMAIN + LLM_CHAT_MASTER_PASSWORD
+#   docker compose -f docker-compose.prod.yml up -d
+
+services:
+  # Reverse proxy with automatic Let's Encrypt TLS
+  caddy:
+    image: caddy:2-alpine
+    container_name: llm-chat-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      DOMAIN: ${DOMAIN}
+    depends_on:
+      - llm-chat
+    networks:
+      - web
+
+  # Main chat application (frontend + API server)
+  llm-chat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: llm-chat:latest
+    container_name: llm-chat-app
+    restart: unless-stopped
+    expose:
+      - "3001"
+    environment:
+      # REQUIRED for at-rest DB encryption. Without this, the DB file on
+      # the host volume is plain SQLite and can be read by anyone with
+      # shell access to the VM.
+      LLM_CHAT_MASTER_PASSWORD: ${LLM_CHAT_MASTER_PASSWORD}
+      NODE_ENV: production
+      PORT: "3001"
+    volumes:
+      # Persistent volume for SQLite DB + attachments
+      - llm_chat_data:/data/.llm-chat
+    networks:
+      - web
+      - internal
+
+  # Private web search used by the built-in web-search tool
+  searxng:
+    image: searxng/searxng
+    container_name: llm-chat-searxng
+    restart: unless-stopped
+    expose:
+      - "8080"
+    volumes:
+      - ./searxng:/etc/searxng
+    environment:
+      SEARXNG_BASE_URL: https://${DOMAIN}/search/
+    networks:
+      - internal
+
+  # ─── Optional: OpenClaw autonomous agent ──────────────
+  # Uncomment and configure after creating an OpenClaw account /
+  # setting up your messaging-platform webhooks. See:
+  # https://github.com/openclaw/openclaw
+  #
+  # openclaw:
+  #   image: openclaw/openclaw:latest
+  #   container_name: openclaw
+  #   restart: unless-stopped
+  #   expose:
+  #     - "3000"
+  #   volumes:
+  #     - openclaw_data:/app/data
+  #     - ./openclaw/config.yml:/app/config.yml:ro
+  #   environment:
+  #     OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  #     ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  #     TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+  #   networks:
+  #     - web
+  #     - internal
+
+volumes:
+  llm_chat_data:
+  caddy_data:
+  caddy_config:
+  # openclaw_data:
+
+networks:
+  web:
+  internal:
+    internal: true

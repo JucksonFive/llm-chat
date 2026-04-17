@@ -2,6 +2,7 @@ import initSqlJs, { type Database } from 'sql.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
+import { encryptDbBlob, decryptDbBlob, isEncryptionEnabled } from './db-encryption.js'
 
 const DATA_DIR = path.join(os.homedir(), '.llm-chat')
 const DB_PATH = path.join(DATA_DIR, 'data.db')
@@ -17,7 +18,8 @@ function ensureDirs() {
 function saveToDisk() {
   if (!db) return
   const data = db.export()
-  fs.writeFileSync(DB_PATH, Buffer.from(data))
+  const blob = encryptDbBlob(Buffer.from(data))
+  fs.writeFileSync(DB_PATH, blob)
 }
 
 // Auto-save every 5 seconds if there are changes
@@ -126,7 +128,8 @@ export async function initDb(): Promise<Database> {
 
   if (fs.existsSync(DB_PATH)) {
     const fileBuffer = fs.readFileSync(DB_PATH)
-    db = new SQL.Database(fileBuffer)
+    const plaintext = decryptDbBlob(fileBuffer)
+    db = new SQL.Database(plaintext)
   } else {
     db = new SQL.Database()
   }
@@ -179,7 +182,9 @@ export async function initDb(): Promise<Database> {
     saveToDisk()
   }
 
-  console.log(`[db] SQLite initialized at ${DB_PATH} (version ${SCHEMA_VERSION})`)
+  console.log(
+    `[db] SQLite initialized at ${DB_PATH} (version ${SCHEMA_VERSION}, encryption=${isEncryptionEnabled() ? 'on' : 'off'})`,
+  )
   return db
 }
 

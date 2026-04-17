@@ -1,0 +1,42 @@
+# Caddy configuration for production.
+# $DOMAIN is provided via the `caddy` service's environment (from .env).
+#
+# Caddy will automatically:
+#  - Obtain & renew Let's Encrypt certs for $DOMAIN
+#  - Redirect HTTP → HTTPS
+#  - Stream SSE correctly (buffering is disabled for /api/chat)
+
+{$DOMAIN} {
+    encode zstd gzip
+
+    # Chat API streams SSE for /api/chat. Disable response buffering so
+    # tokens reach the browser in real time.
+    @stream path /api/chat /api/chat/*
+    reverse_proxy @stream llm-chat:3001 {
+        flush_interval -1
+    }
+
+    # SearXNG — accessible at https://$DOMAIN/search/
+    # The built-in web-search tool inside llm-chat talks to it directly
+    # on the internal network, so this mount is only useful if you want
+    # to browse search results yourself.
+    handle_path /search/* {
+        reverse_proxy searxng:8080
+    }
+
+    # Everything else → the chat app
+    reverse_proxy llm-chat:3001
+
+    # Reasonable security defaults
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+}
+
+# ─── Optional: OpenClaw on a subdomain ────────────────
+# claw.{$DOMAIN} {
+#     reverse_proxy openclaw:3000
+# }

@@ -22,6 +22,7 @@ import { AGENT_TEMPLATES } from '@/lib/agent-templates'
 import { DEFAULT_SYSTEM_PROMPT, SYSTEM_PROMPT_PRESETS } from '@/lib/default-system-prompt'
 import { PROVIDERS } from '@/lib/providers'
 import { useAgentStore } from '@/stores/agent-store'
+import { useApiKeyStore } from '@/stores/api-key-store'
 import { useMcpStore } from '@/stores/mcp-store'
 import type { BuiltInToolId, ProviderId, Agent } from '@/types'
 import { Eye, EyeOff, Server, Trash2, Wrench } from 'lucide-react'
@@ -72,17 +73,20 @@ function AgentForm({
 }) {
   const { agents, addAgent, updateAgent, deleteAgent } = useAgentStore()
   const mcpServers = useMcpStore((s) => s.servers)
+  const apiKeyStore = useApiKeyStore()
 
-  const getApiKeyForProvider = (pid: ProviderId) => {
-    const existing = agents.find((a) => a.providerId === pid && a.apiKey)
-    return existing?.apiKey ?? ''
-  }
+  const getApiKeyForProvider = (pid: ProviderId) =>
+    apiKeyStore.findKeyForProvider(pid, agents)
+
+  const initialApiKey = editingAgent
+    ? apiKeyStore.getKey(editingAgent.id) || getApiKeyForProvider(editingAgent.providerId)
+    : getApiKeyForProvider('openai')
 
   const [name, setName] = useState(editingAgent?.name ?? '')
   const [providerId, setProviderId] = useState<ProviderId>(editingAgent?.providerId ?? 'openai')
   const [model, setModel] = useState(editingAgent?.model ?? 'gpt-4o')
   const [customModel, setCustomModel] = useState(editingAgent?.model ?? '')
-  const [apiKey, setApiKey] = useState(editingAgent?.apiKey ?? getApiKeyForProvider(editingAgent?.providerId ?? 'openai'))
+  const [apiKey, setApiKey] = useState(initialApiKey)
   const [systemPrompt, setSystemPrompt] = useState(editingAgent?.systemPrompt ?? DEFAULT_SYSTEM_PROMPT)
   const [showApiKey, setShowApiKey] = useState(false)
   const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>(editingAgent?.mcpServerIds ?? [])
@@ -155,27 +159,28 @@ function AgentForm({
         name: name.trim(),
         providerId,
         model: finalModel.trim(),
-        apiKey: apiKey.trim(),
         systemPrompt: systemPrompt.trim(),
         mcpServerIds: selectedMcpIds,
         builtInToolIds: selectedBuiltInTools,
       })
+      apiKeyStore.setKey(editingAgent.id, apiKey.trim())
     } else {
-      await addAgent({
+      const created = await addAgent({
         name: name.trim(),
         providerId,
         model: finalModel.trim(),
-        apiKey: apiKey.trim(),
         systemPrompt: systemPrompt.trim(),
         mcpServerIds: selectedMcpIds,
         builtInToolIds: selectedBuiltInTools,
       })
+      apiKeyStore.setKey(created.id, apiKey.trim())
     }
     onClose()
   }
 
   const handleDelete = async () => {
     if (editingAgent) {
+      apiKeyStore.removeKey(editingAgent.id)
       await deleteAgent(editingAgent.id)
       onClose()
     }
