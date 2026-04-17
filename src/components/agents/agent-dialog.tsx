@@ -23,9 +23,9 @@ import { DEFAULT_SYSTEM_PROMPT, SYSTEM_PROMPT_PRESETS } from '@/lib/default-syst
 import { PROVIDERS } from '@/lib/providers'
 import { useAgentStore } from '@/stores/agent-store'
 import { useMcpStore } from '@/stores/mcp-store'
-import type { BuiltInToolId, ProviderId } from '@/types'
+import type { BuiltInToolId, ProviderId, Agent } from '@/types'
 import { Eye, EyeOff, Server, Trash2, Wrench } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 const BUILT_IN_TOOL_LIST: { id: BuiltInToolId; name: string; description: string }[] = [
   { id: 'web-fetch', name: 'Fetch URL', description: 'Fetch content from a URL' },
@@ -47,53 +47,57 @@ interface AgentDialogProps {
 }
 
 export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProps) {
-  const { agents, addAgent, updateAgent, deleteAgent } = useAgentStore()
+  const agents = useAgentStore((s) => s.agents)
   const editingAgent = editAgentId ? agents.find((a) => a.id === editAgentId) : null
 
-  const [name, setName] = useState('')
-  const [providerId, setProviderId] = useState<ProviderId>('openai')
-  const [model, setModel] = useState('')
-  const [customModel, setCustomModel] = useState('')
-  const [apiKey, setApiKey] = useState('')
-  const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT)
-  const [showApiKey, setShowApiKey] = useState(false)
-  const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>([])
-  const [selectedBuiltInTools, setSelectedBuiltInTools] = useState<BuiltInToolId[]>([])
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
+        <AgentForm
+          key={`${editAgentId ?? 'new'}-${open}`}
+          editingAgent={editingAgent ?? null}
+          onClose={() => onOpenChange(false)}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
 
+function AgentForm({
+  editingAgent,
+  onClose,
+}: {
+  editingAgent: Agent | null
+  onClose: () => void
+}) {
+  const { addAgent, updateAgent, deleteAgent } = useAgentStore()
   const mcpServers = useMcpStore((s) => s.servers)
+
+  const [name, setName] = useState(editingAgent?.name ?? '')
+  const [providerId, setProviderId] = useState<ProviderId>(editingAgent?.providerId ?? 'openai')
+  const [model, setModel] = useState(editingAgent?.model ?? 'gpt-4o')
+  const [customModel, setCustomModel] = useState(editingAgent?.model ?? '')
+  const [apiKey, setApiKey] = useState(editingAgent?.apiKey ?? '')
+  const [systemPrompt, setSystemPrompt] = useState(editingAgent?.systemPrompt ?? DEFAULT_SYSTEM_PROMPT)
+  const [showApiKey, setShowApiKey] = useState(false)
+  const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>(editingAgent?.mcpServerIds ?? [])
+  const [selectedBuiltInTools, setSelectedBuiltInTools] = useState<BuiltInToolId[]>((editingAgent?.builtInToolIds ?? []) as BuiltInToolId[])
+  const [errors, setErrors] = useState<Record<string, string>>({})
+
   const provider = PROVIDERS[providerId]
   const models = provider.models
   const isCustomModel = provider.freeTextModel
   const matchedPreset = SYSTEM_PROMPT_PRESETS.find((preset) => preset.prompt === systemPrompt)
 
-  useEffect(() => {
-    if (editingAgent) {
-      setName(editingAgent.name)
-      setProviderId(editingAgent.providerId)
-      setModel(editingAgent.model)
-      setCustomModel(editingAgent.model)
-      setApiKey(editingAgent.apiKey)
-      setSystemPrompt(editingAgent.systemPrompt)
-      setSelectedMcpIds(editingAgent.mcpServerIds ?? [])
-      setSelectedBuiltInTools((editingAgent.builtInToolIds ?? []) as BuiltInToolId[])
-    } else {
-      setName('')
-      setProviderId('openai')
-      setModel('gpt-4o')
-      setCustomModel('')
-      setApiKey('')
-      setSystemPrompt(DEFAULT_SYSTEM_PROMPT)
-      setSelectedMcpIds([])
-      setSelectedBuiltInTools([])
-    }
-    setShowApiKey(false)
-  }, [editingAgent, open])
+  const effectiveModel = isCustomModel ? model : (models.includes(model) ? model : models[0])
 
-  useEffect(() => {
-    if (!isCustomModel && models.length > 0 && !models.includes(model)) {
-      setModel(models[0])
+  const handleProviderChange = (newProviderId: ProviderId) => {
+    setProviderId(newProviderId)
+    const newProvider = PROVIDERS[newProviderId]
+    if (!newProvider.freeTextModel && newProvider.models.length > 0) {
+      setModel(newProvider.models[0])
     }
-  }, [providerId, models, isCustomModel, model])
+  }
 
   const applyTemplate = (templateId: string) => {
     if (templateId === 'custom') {
@@ -119,10 +123,25 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
     setSelectedMcpIds([])
   }
 
+  const clearError = (field: string) => {
+    setErrors((prev) => {
+      const next = { ...prev }
+      delete next[field]
+      return next
+    })
+  }
+
   const handleSave = async () => {
-    const finalModel = isCustomModel ? customModel : model
-    if (!name.trim() || !finalModel.trim()) return
-    if (provider.requiresApiKey && !apiKey.trim()) return
+    const finalModel = isCustomModel ? customModel : effectiveModel
+    const newErrors: Record<string, string> = {}
+    if (!name.trim()) newErrors.name = 'Name is required'
+    if (!finalModel.trim()) newErrors.model = 'Model is required'
+    if (provider.requiresApiKey && !apiKey.trim()) newErrors.apiKey = 'API key is required'
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors)
+      return
+    }
+    setErrors({})
 
     if (editingAgent) {
       await updateAgent(editingAgent.id, {
@@ -145,177 +164,211 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
         builtInToolIds: selectedBuiltInTools,
       })
     }
-    onOpenChange(false)
+    onClose()
   }
 
   const handleDelete = async () => {
     if (editingAgent) {
       await deleteAgent(editingAgent.id)
-      onOpenChange(false)
+      onClose()
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>
-            {editingAgent ? 'Edit Agent' : 'Create Agent'}
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      <DialogHeader>
+        <DialogTitle>
+          {editingAgent ? 'Edit Agent' : 'Create Agent'}
+        </DialogTitle>
+      </DialogHeader>
 
-        <div className="grid gap-4 py-4 overflow-y-auto">
-          <div className="grid gap-2">
-            <Label>Templates</Label>
-            <div className="flex flex-wrap gap-2">
-              {AGENT_TEMPLATES.map((template) => (
-                <Button
-                  key={template.id}
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => applyTemplate(template.id)}
-                >
-                  {template.name}
-                </Button>
-              ))}
+      <div className="grid gap-4 py-4 overflow-y-auto">
+        <div className="grid gap-2">
+          <Label>Templates</Label>
+          <div className="flex flex-wrap gap-2">
+            {AGENT_TEMPLATES.map((template) => (
               <Button
+                key={template.id}
                 type="button"
                 size="sm"
                 variant="outline"
-                onClick={() => applyTemplate('custom')}
+                onClick={() => applyTemplate(template.id)}
               >
-                Custom
+                {template.name}
+              </Button>
+            ))}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => applyTemplate('custom')}
+            >
+              Custom
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Load a ready-made agent profile with prompt, model, and tool defaults.
+          </p>
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="name">Name</Label>
+          <Input
+            id="name"
+            value={name}
+            onChange={(e) => { setName(e.target.value); clearError('name') }}
+            placeholder="My Assistant"
+            autoComplete="off"
+            data-form-type="other"
+            className={errors.name ? 'border-destructive' : ''}
+          />
+          {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+        </div>
+
+        <div className="grid gap-2">
+          <Label>Provider</Label>
+          <ProviderSelect value={providerId} onValueChange={handleProviderChange} />
+        </div>
+
+        <div className="grid gap-2">
+          <Label>Model</Label>
+          {isCustomModel ? (
+            <Input
+              value={customModel}
+              onChange={(e) => { setCustomModel(e.target.value); clearError('model') }}
+              placeholder="e.g. llama3.1, mistral, codellama"
+              className={errors.model ? 'border-destructive' : ''}
+            />
+          ) : (
+            <Select value={effectiveModel} onValueChange={setModel}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select model" />
+              </SelectTrigger>
+              <SelectContent>
+                {models.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {errors.model && <p className="text-xs text-destructive">{errors.model}</p>}
+        </div>
+
+        {provider.requiresApiKey && (
+          <div className="grid gap-2">
+            <Label htmlFor="apiKey">API Key</Label>
+            <div className="relative">
+              <Input
+                id="apiKey"
+                type={showApiKey ? 'text' : 'password'}
+                value={apiKey}
+                onChange={(e) => { setApiKey(e.target.value); clearError('apiKey') }}
+                placeholder="sk-..."
+                className={`pr-10${errors.apiKey ? ' border-destructive' : ''}`}
+                autoComplete="off"
+                data-form-type="other"
+                data-lpignore="true"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-0 top-0 h-full w-10"
+                onClick={() => setShowApiKey(!showApiKey)}
+              >
+                {showApiKey ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Load a ready-made agent profile with prompt, model, and tool defaults.
-            </p>
+            {errors.apiKey && <p className="text-xs text-destructive">{errors.apiKey}</p>}
           </div>
+        )}
 
-          <div className="grid gap-2">
-            <Label htmlFor="name">Name</Label>
-            <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="My Assistant"
-              autoComplete="off"
-              data-form-type="other"
-            />
+        <div className="grid gap-2">
+          <Label htmlFor="systemPrompt">System Prompt</Label>
+          <div className="flex flex-wrap gap-2">
+            {SYSTEM_PROMPT_PRESETS.map((preset) => (
+              <Button
+                key={preset.id}
+                type="button"
+                size="sm"
+                variant={matchedPreset?.id === preset.id ? 'default' : 'outline'}
+                onClick={() => setSystemPrompt(preset.prompt)}
+              >
+                {preset.name}
+              </Button>
+            ))}
           </div>
+          <p className="text-xs text-muted-foreground">
+            {matchedPreset
+              ? matchedPreset.description
+              : 'Custom prompt in use. Selecting a preset will replace the current text.'}
+          </p>
+          <Textarea
+            id="systemPrompt"
+            value={systemPrompt}
+            onChange={(e) => setSystemPrompt(e.target.value)}
+            placeholder="Define the agent's behavior, depth, and quality bar..."
+            className="min-h-[220px]"
+          />
+        </div>
 
-          <div className="grid gap-2">
-            <Label>Provider</Label>
-            <ProviderSelect value={providerId} onValueChange={setProviderId} />
-          </div>
-
-          <div className="grid gap-2">
-            <Label>Model</Label>
-            {isCustomModel ? (
-              <Input
-                value={customModel}
-                onChange={(e) => setCustomModel(e.target.value)}
-                placeholder="e.g. llama3.1, mistral, codellama"
-              />
-            ) : (
-              <Select value={model} onValueChange={setModel}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select model" />
-                </SelectTrigger>
-                <SelectContent>
-                  {models.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {m}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-
-          {provider.requiresApiKey && (
-            <div className="grid gap-2">
-              <Label htmlFor="apiKey">API Key</Label>
-              <div className="relative">
-                <Input
-                  id="apiKey"
-                  type={showApiKey ? 'text' : 'password'}
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="sk-..."
-                  className="pr-10"
-                  autoComplete="off"
-                  data-form-type="other"
-                  data-lpignore="true"
+        <div className="grid gap-2">
+          <Label className="flex items-center gap-1.5">
+            <Wrench className="h-3.5 w-3.5" />
+            Built-in Tools
+          </Label>
+          <div className="space-y-2 rounded-lg border border-border/50 p-3">
+            {BUILT_IN_TOOL_LIST.map((tool) => (
+              <div key={tool.id} className="flex items-center justify-between">
+                <div className="flex flex-col">
+                  <span className="text-sm">{tool.name}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {tool.description}
+                  </span>
+                </div>
+                <Switch
+                  checked={selectedBuiltInTools.includes(tool.id)}
+                  onCheckedChange={(checked) => {
+                    setSelectedBuiltInTools((prev) =>
+                      checked
+                        ? [...prev, tool.id]
+                        : prev.filter((id) => id !== tool.id)
+                    )
+                  }}
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-0 top-0 h-full w-10"
-                  onClick={() => setShowApiKey(!showApiKey)}
-                >
-                  {showApiKey ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </Button>
               </div>
-            </div>
-          )}
-
-          <div className="grid gap-2">
-            <Label htmlFor="systemPrompt">System Prompt</Label>
-            <div className="flex flex-wrap gap-2">
-              {SYSTEM_PROMPT_PRESETS.map((preset) => (
-                <Button
-                  key={preset.id}
-                  type="button"
-                  size="sm"
-                  variant={matchedPreset?.id === preset.id ? 'default' : 'outline'}
-                  onClick={() => setSystemPrompt(preset.prompt)}
-                >
-                  {preset.name}
-                </Button>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {matchedPreset
-                ? matchedPreset.description
-                : 'Custom prompt in use. Selecting a preset will replace the current text.'}
-            </p>
-            <Textarea
-              id="systemPrompt"
-              value={systemPrompt}
-              onChange={(e) => setSystemPrompt(e.target.value)}
-              placeholder="Define the agent's behavior, depth, and quality bar..."
-              className="min-h-[220px]"
-            />
+            ))}
           </div>
+        </div>
 
+        {mcpServers.length > 0 && (
           <div className="grid gap-2">
             <Label className="flex items-center gap-1.5">
-              <Wrench className="h-3.5 w-3.5" />
-              Built-in Tools
+              <Server className="h-3.5 w-3.5" />
+              MCP Tools
             </Label>
             <div className="space-y-2 rounded-lg border border-border/50 p-3">
-              {BUILT_IN_TOOL_LIST.map((tool) => (
-                <div key={tool.id} className="flex items-center justify-between">
-                  <div className="flex flex-col">
-                    <span className="text-sm">{tool.name}</span>
-                    <span className="text-[10px] text-muted-foreground">
-                      {tool.description}
+              {mcpServers.map((server) => (
+                <div key={server.id} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">{server.name}</span>
+                    <span className="text-[10px] text-muted-foreground font-mono">
+                      {server.transport}
                     </span>
                   </div>
                   <Switch
-                    checked={selectedBuiltInTools.includes(tool.id)}
+                    checked={selectedMcpIds.includes(server.id)}
                     onCheckedChange={(checked) => {
-                      setSelectedBuiltInTools((prev) =>
+                      setSelectedMcpIds((prev) =>
                         checked
-                          ? [...prev, tool.id]
-                          : prev.filter((id) => id !== tool.id)
+                          ? [...prev, server.id]
+                          : prev.filter((id) => id !== server.id)
                       )
                     }}
                   />
@@ -323,61 +376,30 @@ export function AgentDialog({ open, onOpenChange, editAgentId }: AgentDialogProp
               ))}
             </div>
           </div>
+        )}
+      </div>
 
-          {mcpServers.length > 0 && (
-            <div className="grid gap-2">
-              <Label className="flex items-center gap-1.5">
-                <Server className="h-3.5 w-3.5" />
-                MCP Tools
-              </Label>
-              <div className="space-y-2 rounded-lg border border-border/50 p-3">
-                {mcpServers.map((server) => (
-                  <div key={server.id} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">{server.name}</span>
-                      <span className="text-[10px] text-muted-foreground font-mono">
-                        {server.transport}
-                      </span>
-                    </div>
-                    <Switch
-                      checked={selectedMcpIds.includes(server.id)}
-                      onCheckedChange={(checked) => {
-                        setSelectedMcpIds((prev) =>
-                          checked
-                            ? [...prev, server.id]
-                            : prev.filter((id) => id !== server.id)
-                        )
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+      <DialogFooter className="flex justify-between">
+        {editingAgent && (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleDelete}
+            className="mr-auto"
+          >
+            <Trash2 className="mr-1 h-3.5 w-3.5" />
+            Delete
+          </Button>
+        )}
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave}>
+            {editingAgent ? 'Save' : 'Create'}
+          </Button>
         </div>
-
-        <DialogFooter className="flex justify-between">
-          {editingAgent && (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleDelete}
-              className="mr-auto"
-            >
-              <Trash2 className="mr-1 h-3.5 w-3.5" />
-              Delete
-            </Button>
-          )}
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave}>
-              {editingAgent ? 'Save' : 'Create'}
-            </Button>
-          </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </DialogFooter>
+    </>
   )
 }

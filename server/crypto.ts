@@ -1,5 +1,5 @@
-import crypto from 'crypto'
-import os from 'os'
+import crypto from 'node:crypto'
+import os from 'node:os'
 
 // Derive a stable encryption key from machine-specific data
 // Not bulletproof, but much better than plaintext

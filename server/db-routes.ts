@@ -1,7 +1,7 @@
 import type { Express } from 'express'
-import crypto from 'crypto'
-import fs from 'fs'
-import path from 'path'
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
 import { run, query, queryOne, ATTACHMENTS_DIR } from './db.js'
 import { encrypt, decrypt } from './crypto.js'
 
