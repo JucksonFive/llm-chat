@@ -150,7 +150,10 @@ export async function initDb(): Promise<Database> {
     }
   }
 
-  // Always ensure critical tables/columns exist (idempotent)
+  // Always ensure critical columns/tables exist (idempotent)
+  try {
+    db.exec('ALTER TABLE messages ADD COLUMN reasoning TEXT')
+  } catch { /* column may already exist */ }
   try {
     db.exec(`CREATE TABLE IF NOT EXISTS projects (
       id TEXT PRIMARY KEY,

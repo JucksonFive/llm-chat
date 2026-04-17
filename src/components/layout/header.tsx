@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { SidebarTrigger } from '@/components/ui/sidebar'
-import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -17,7 +16,8 @@ import { useAgentStore } from '@/stores/agent-store'
 import { useMemoryStore } from '@/stores/memory-store'
 import { useUIStore } from '@/stores/ui-store'
 import { MemoryPanel } from '@/components/memory/memory-panel'
-import { PROVIDERS } from '@/lib/providers'
+import { PROVIDERS, PROVIDER_LIST } from '@/lib/providers'
+import type { ProviderId } from '@/types'
 
 export function Header() {
   const { agents, activeAgentId, updateAgent } = useAgentStore()
@@ -29,6 +29,16 @@ export function Header() {
     : []
   const [memoryOpen, setMemoryOpen] = useState(false)
   const { autoSpeak, toggleAutoSpeak } = useUIStore()
+
+  const handleProviderChange = (newProviderId: string) => {
+    if (activeAgent) {
+      const newProvider = PROVIDERS[newProviderId as ProviderId]
+      const newModel = newProvider.freeTextModel
+        ? activeAgent.model
+        : newProvider.models[0]
+      updateAgent(activeAgent.id, { providerId: newProviderId as ProviderId, model: newModel })
+    }
+  }
 
   const handleModelChange = (newModel: string) => {
     if (activeAgent) {
@@ -45,16 +55,21 @@ export function Header() {
           <>
             <div className="flex items-center gap-2 flex-1">
               <span className="font-medium text-sm">{activeAgent.name}</span>
-              <Badge
-                variant="outline"
-                className="text-xs font-normal px-1.5 py-0"
-                style={{
-                  borderColor: provider.color + '50',
-                  color: provider.color,
-                }}
-              >
-                {provider.name}
-              </Badge>
+              <Select value={activeAgent.providerId} onValueChange={handleProviderChange}>
+                <SelectTrigger
+                  className="h-7 w-auto gap-1 border-border/50 text-xs font-medium px-2"
+                  style={{ color: provider.color }}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROVIDER_LIST.map((p) => (
+                    <SelectItem key={p.id} value={p.id} className="text-xs">
+                      <span style={{ color: p.color }}>{p.name}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {provider.freeTextModel ? (
                 <Input
                   value={activeAgent.model}
