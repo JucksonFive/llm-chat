@@ -315,17 +315,18 @@ app.get('/api/db/memories', (req, res) => {
     id: m.id,
     agentId: m.agent_id,
     content: m.content,
+    type: m.type || 'long',
     createdAt: m.created_at,
   }))
   res.json(result)
 })
 
 app.post('/api/db/memories', (req, res) => {
-  const { agentId, content } = req.body
+  const { agentId, content, type } = req.body
   const id = crypto.randomUUID()
   run(
-    'INSERT INTO memories (id, agent_id, content, created_at) VALUES ($id, $agentId, $content, $createdAt)',
-    { id, agentId, content, createdAt: Date.now() },
+    'INSERT INTO memories (id, agent_id, content, type, created_at) VALUES ($id, $agentId, $content, $type, $createdAt)',
+    { id, agentId, content, type: type || 'long', createdAt: Date.now() },
   )
   res.json({ id })
 })

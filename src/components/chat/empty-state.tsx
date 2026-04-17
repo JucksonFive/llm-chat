@@ -2,6 +2,7 @@ import { MessageSquarePlus, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAgentStore } from '@/stores/agent-store'
 import { useChatStore } from '@/stores/chat-store'
+import { useProjectStore } from '@/stores/project-store'
 
 interface EmptyStateProps {
   hasAgent: boolean
@@ -9,11 +10,12 @@ interface EmptyStateProps {
 
 export function EmptyState({ hasAgent }: EmptyStateProps) {
   const activeAgentId = useAgentStore((s) => s.activeAgentId)
+  const activeProjectId = useProjectStore((s) => s.activeProjectId)
   const createConversation = useChatStore((s) => s.createConversation)
 
   const handleNewChat = async () => {
     if (!activeAgentId) return
-    await createConversation(activeAgentId)
+    await createConversation(activeAgentId, activeProjectId)
   }
 
   return (

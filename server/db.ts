@@ -33,7 +33,7 @@ function markDirty() {
   dirty = true
 }
 
-const SCHEMA_VERSION = 5
+const SCHEMA_VERSION = 6
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS agents (
@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS memories (
   id TEXT PRIMARY KEY,
   agent_id TEXT NOT NULL,
   content TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'long' CHECK(type IN ('short', 'long')),
   created_at INTEGER NOT NULL,
   FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
 );
@@ -165,6 +166,10 @@ export async function initDb(): Promise<Database> {
   try {
     db.exec('CREATE INDEX IF NOT EXISTS idx_conversations_project ON conversations(project_id)')
   } catch { /* index may already exist */ }
+
+  try {
+    db.exec("ALTER TABLE memories ADD COLUMN type TEXT NOT NULL DEFAULT 'long' CHECK(type IN ('short', 'long'))")
+  } catch { /* column may already exist */ }
 
   if (currentVersion < SCHEMA_VERSION) {
     db.run(`PRAGMA user_version = ${SCHEMA_VERSION}`)

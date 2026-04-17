@@ -111,6 +111,7 @@ export interface Memory {
   id: string
   agentId: string
   content: string
+  type: 'short' | 'long'
   createdAt: number
 }
 
