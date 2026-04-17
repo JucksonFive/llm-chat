@@ -9,7 +9,7 @@ interface ChatState {
 
   loadConversations: () => Promise<void>
   loadMessages: (conversationId: string) => Promise<void>
-  createConversation: (agentId: string) => Promise<string>
+  createConversation: (agentId: string, projectId?: string | null) => Promise<string>
   deleteConversation: (id: string) => Promise<void>
   setActiveConversation: (id: string | null) => void
   addMessage: (conversationId: string, message: Omit<Message, 'id' | 'createdAt'>) => string
@@ -35,7 +35,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     const convs: Conversation[] = await res.json()
     const map: Record<string, Conversation> = {}
     for (const c of convs) {
-      map[c.id] = { ...c, messages: [] }
+      map[c.id] = { ...c, projectId: c.projectId || null, messages: [] }
     }
     set({ conversations: map, loaded: true })
   },
@@ -55,16 +55,17 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     })
   },
 
-  createConversation: async (agentId) => {
+  createConversation: async (agentId, projectId) => {
     const res = await fetch('/api/db/conversations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agentId }),
+      body: JSON.stringify({ agentId, projectId: projectId || null }),
     })
     const { id } = await res.json()
     const conversation: Conversation = {
       id,
       agentId,
+      projectId: projectId || null,
       title: 'New conversation',
       messages: [],
       createdAt: Date.now(),

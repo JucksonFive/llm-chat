@@ -74,6 +74,47 @@ app.delete('/api/db/agents/:id', (req, res) => {
   res.json({ ok: true })
 })
 
+// ─── Projects ─────────────────────────────────────────
+
+app.get('/api/db/projects', (_req, res) => {
+  const rows = query('SELECT * FROM projects ORDER BY updated_at DESC')
+  const result = rows.map((p: Record<string, unknown>) => ({
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    createdAt: p.created_at,
+    updatedAt: p.updated_at,
+  }))
+  res.json(result)
+})
+
+app.post('/api/db/projects', (req, res) => {
+  const { name, description } = req.body
+  const id = crypto.randomUUID()
+  const now = Date.now()
+  run(
+    'INSERT INTO projects (id, name, description, created_at, updated_at) VALUES ($id, $name, $description, $now, $now)',
+    { id, name, description: description || '', now },
+  )
+  res.json({ id })
+})
+
+app.put('/api/db/projects/:id', (req, res) => {
+  const { name, description } = req.body
+  run('UPDATE projects SET name=$name, description=$description, updated_at=$now WHERE id=$id', {
+    id: req.params.id,
+    name,
+    description: description || '',
+    now: Date.now(),
+  })
+  res.json({ ok: true })
+})
+
+app.delete('/api/db/projects/:id', (req, res) => {
+  run('DELETE FROM projects WHERE id=$id', { id: req.params.id })
+  res.json({ ok: true })
+})
+
 // ─── Conversations ─────────────────────────────────────
 
 app.get('/api/db/conversations', (req, res) => {
@@ -84,6 +125,7 @@ app.get('/api/db/conversations', (req, res) => {
   const result = rows.map((c: Record<string, unknown>) => ({
     ...c,
     agentId: c.agent_id,
+    projectId: c.project_id || null,
     createdAt: c.created_at,
     updatedAt: c.updated_at,
   }))
@@ -91,23 +133,32 @@ app.get('/api/db/conversations', (req, res) => {
 })
 
 app.post('/api/db/conversations', (req, res) => {
-  const { agentId, title } = req.body
+  const { agentId, title, projectId } = req.body
   const id = crypto.randomUUID()
   const now = Date.now()
   run(
-    'INSERT INTO conversations (id, agent_id, title, created_at, updated_at) VALUES ($id, $agentId, $title, $now, $now)',
-    { id, agentId, title: title || 'New conversation', now },
+    'INSERT INTO conversations (id, agent_id, project_id, title, created_at, updated_at) VALUES ($id, $agentId, $projectId, $title, $now, $now)',
+    { id, agentId, projectId: projectId || null, title: title || 'New conversation', now },
   )
   res.json({ id })
 })
 
 app.put('/api/db/conversations/:id', (req, res) => {
-  const { title } = req.body
-  run('UPDATE conversations SET title=$title, updated_at=$now WHERE id=$id', {
-    id: req.params.id,
-    title,
-    now: Date.now(),
-  })
+  const { title, projectId } = req.body
+  if (projectId !== undefined) {
+    run('UPDATE conversations SET title=$title, project_id=$projectId, updated_at=$now WHERE id=$id', {
+      id: req.params.id,
+      title,
+      projectId: projectId || null,
+      now: Date.now(),
+    })
+  } else {
+    run('UPDATE conversations SET title=$title, updated_at=$now WHERE id=$id', {
+      id: req.params.id,
+      title,
+      now: Date.now(),
+    })
+  }
   res.json({ ok: true })
 })
 

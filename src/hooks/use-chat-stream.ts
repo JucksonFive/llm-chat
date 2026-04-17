@@ -4,6 +4,7 @@ import { useChatStore } from '@/stores/chat-store'
 import { useAgentStore } from '@/stores/agent-store'
 import { useMemoryStore } from '@/stores/memory-store'
 import { useMcpStore } from '@/stores/mcp-store'
+import { useProjectStore } from '@/stores/project-store'
 import { useUIStore } from '@/stores/ui-store'
 import { speakText } from '@/stores/ui-store'
 import { streamChat } from '@/lib/llm-client'
@@ -21,7 +22,8 @@ export function useChatStream() {
     let conversationId = store.activeConversationId
 
     if (!conversationId) {
-      conversationId = await store.createConversation(agent.id)
+      const projectId = useProjectStore.getState().activeProjectId
+      conversationId = await store.createConversation(agent.id, projectId)
     }
 
     // Add user message (local) and persist to DB

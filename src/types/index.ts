@@ -89,9 +89,18 @@ export interface McpPreset {
   homepage?: string
 }
 
+export interface Project {
+  id: string
+  name: string
+  description: string
+  createdAt: number
+  updatedAt: number
+}
+
 export interface Conversation {
   id: string
   agentId: string
+  projectId: string | null
   title: string
   messages: Message[]
   createdAt: number
