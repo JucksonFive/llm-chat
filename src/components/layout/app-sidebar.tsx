@@ -1,4 +1,5 @@
 import { AgentDialog } from '@/components/agents/agent-dialog'
+import { ProjectDialog } from '@/components/projects/project-dialog'
 import { SettingsSheet } from '@/components/settings/settings-sheet'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -15,9 +16,11 @@ import { PROVIDERS } from '@/lib/providers'
 import { cn } from '@/lib/utils'
 import { useAgentStore } from '@/stores/agent-store'
 import { useChatStore } from '@/stores/chat-store'
+import { useProjectStore } from '@/stores/project-store'
 import type { ProviderId } from '@/types'
 import {
   Brain,
+  FolderOpen,
   Gem,
   HardDrive,
   MessageSquarePlus,
@@ -46,23 +49,35 @@ export function AppSidebar() {
     deleteConversation,
     getConversationsForAgent,
   } = useChatStore()
+  const { projects, activeProjectId, setActiveProject, deleteProject } = useProjectStore()
   const [agentDialogOpen, setAgentDialogOpen] = useState(false)
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null)
+  const [projectDialogOpen, setProjectDialogOpen] = useState(false)
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const activeAgent = agents.find((a) => a.id === activeAgentId)
-  const conversations = activeAgentId
+
+  const allConversations = activeAgentId
     ? getConversationsForAgent(activeAgentId)
     : []
+  const conversations = allConversations.filter((c) =>
+    activeProjectId ? c.projectId === activeProjectId : true
+  )
 
   const handleNewChat = async () => {
     if (!activeAgentId) return
-    await createConversation(activeAgentId)
+    await createConversation(activeAgentId, activeProjectId)
   }
 
   const handleEditAgent = (agentId: string) => {
     setEditingAgentId(agentId)
     setAgentDialogOpen(true)
+  }
+
+  const handleEditProject = (projectId: string) => {
+    setEditingProjectId(projectId)
+    setProjectDialogOpen(true)
   }
 
   return (
@@ -80,6 +95,66 @@ export function AppSidebar() {
         </SidebarHeader>
 
         <SidebarContent>
+            {/* Projects */}
+            <SidebarGroup>
+              <div className="flex items-center justify-between px-2 py-1">
+                <span className="text-xs font-medium text-sidebar-foreground/70">Projects</span>
+                <button
+                  type="button"
+                  className="flex h-5 w-5 items-center justify-center rounded-md text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  onClick={() => {
+                    setEditingProjectId(null)
+                    setProjectDialogOpen(true)
+                  }}
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={activeProjectId === null}
+                    onClick={() => setActiveProject(null)}
+                  >
+                    <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-muted-foreground">All conversations</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                {projects.map((project) => (
+                  <SidebarMenuItem key={project.id}>
+                    <SidebarMenuButton
+                      isActive={project.id === activeProjectId}
+                      onClick={() => setActiveProject(project.id)}
+                      onDoubleClick={() => handleEditProject(project.id)}
+                      className="group"
+                    >
+                      <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{project.name}</span>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        className="ml-auto inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/20 hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          deleteProject(project.id)
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.stopPropagation()
+                            deleteProject(project.id)
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </div>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroup>
+
+            <Separator className="my-2" />
+
             {/* Agents */}
             <SidebarGroup>
               <div className="flex items-center justify-between px-2 py-1">
@@ -218,6 +293,11 @@ export function AppSidebar() {
         open={agentDialogOpen}
         onOpenChange={setAgentDialogOpen}
         editAgentId={editingAgentId}
+      />
+      <ProjectDialog
+        open={projectDialogOpen}
+        onOpenChange={setProjectDialogOpen}
+        editProjectId={editingProjectId}
       />
       <SettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} />
     </>

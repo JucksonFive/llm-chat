@@ -4,6 +4,7 @@ import { useChatStore } from '@/stores/chat-store'
 import { useAgentStore } from '@/stores/agent-store'
 import { useMemoryStore } from '@/stores/memory-store'
 import { useMcpStore } from '@/stores/mcp-store'
+import { useProjectStore } from '@/stores/project-store'
 import { useUIStore } from '@/stores/ui-store'
 import { speakText } from '@/stores/ui-store'
 import { streamChat } from '@/lib/llm-client'
@@ -21,7 +22,8 @@ export function useChatStream() {
     let conversationId = store.activeConversationId
 
     if (!conversationId) {
-      conversationId = await store.createConversation(agent.id)
+      const projectId = useProjectStore.getState().activeProjectId
+      conversationId = await store.createConversation(agent.id, projectId)
     }
 
     // Add user message (local) and persist to DB
@@ -208,6 +210,50 @@ export function useChatStream() {
         }
         s.setStreaming(false)
         abortRef.current = null
+
+        // Auto-extract memories in background
+        const conv = s.conversations[conversationId!]
+        if (conv && conv.messages.length >= 2) {
+          const recentMsgs = conv.messages
+            .filter((m) => !m.isStreaming && (m.role === 'user' || m.role === 'assistant'))
+            .slice(-6)
+            .map((m) => ({ role: m.role, content: m.content }))
+
+          fetch('/api/extract-memories', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              providerId: agent.providerId,
+              model: agent.model,
+              apiKey: agent.apiKey,
+              messages: recentMsgs,
+            }),
+          })
+            .then((r) => r.json())
+            .then(({ memories }) => {
+              const memStore = useMemoryStore.getState()
+              const existingShort = memStore.getShortTermMemories(agent.id)
+              const existingLong = memStore.getLongTermMemories(agent.id)
+              const existingTexts = new Set([
+                ...existingShort.map((m) => m.content),
+                ...existingLong.map((m) => m.content),
+              ])
+
+              for (const item of memories.short || []) {
+                if (item && !existingTexts.has(item)) {
+                  memStore.addMemory(agent.id, item, 'short')
+                  existingTexts.add(item)
+                }
+              }
+              for (const item of memories.long || []) {
+                if (item && !existingTexts.has(item)) {
+                  memStore.addMemory(agent.id, item, 'long')
+                  existingTexts.add(item)
+                }
+              }
+            })
+            .catch(() => {})
+        }
       },
       onError: (error) => {
         const store = useChatStore.getState()

@@ -1,7 +1,7 @@
 import initSqlJs, { type Database } from 'sql.js'
-import fs from 'fs'
-import path from 'path'
-import os from 'os'
+import fs from 'node:fs'
+import path from 'node:path'
+import os from 'node:os'
 
 const DATA_DIR = path.join(os.homedir(), '.llm-chat')
 const DB_PATH = path.join(DATA_DIR, 'data.db')
@@ -33,7 +33,7 @@ function markDirty() {
   dirty = true
 }
 
-const SCHEMA_VERSION = 2
+const SCHEMA_VERSION = 6
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS agents (
@@ -49,13 +49,23 @@ CREATE TABLE IF NOT EXISTS agents (
   created_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS projects (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS conversations (
   id TEXT PRIMARY KEY,
   agent_id TEXT NOT NULL,
+  project_id TEXT,
   title TEXT NOT NULL DEFAULT 'New conversation',
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
-  FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
+  FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE,
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS messages (
@@ -82,6 +92,7 @@ CREATE TABLE IF NOT EXISTS memories (
   id TEXT PRIMARY KEY,
   agent_id TEXT NOT NULL,
   content TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'long' CHECK(type IN ('short', 'long')),
   created_at INTEGER NOT NULL,
   FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
 );
@@ -99,6 +110,7 @@ CREATE TABLE IF NOT EXISTS mcp_servers (
 );
 
 CREATE INDEX IF NOT EXISTS idx_conversations_agent ON conversations(agent_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_project ON conversations(project_id);
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_attachments_message ON attachments(message_id);
@@ -131,13 +143,36 @@ export async function initDb(): Promise<Database> {
   }
 
   if (currentVersion < 2) {
-    // Add reasoning column to messages table
     try {
       db.exec('ALTER TABLE messages ADD COLUMN reasoning TEXT')
     } catch {
       // Column may already exist
     }
   }
+
+  // Always ensure critical columns/tables exist (idempotent)
+  try {
+    db.exec('ALTER TABLE messages ADD COLUMN reasoning TEXT')
+  } catch { /* column may already exist */ }
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`)
+  } catch { /* table may already exist */ }
+  try {
+    db.exec('ALTER TABLE conversations ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL')
+  } catch { /* column may already exist */ }
+  try {
+    db.exec('CREATE INDEX IF NOT EXISTS idx_conversations_project ON conversations(project_id)')
+  } catch { /* index may already exist */ }
+
+  try {
+    db.exec("ALTER TABLE memories ADD COLUMN type TEXT NOT NULL DEFAULT 'long' CHECK(type IN ('short', 'long'))")
+  } catch { /* column may already exist */ }
 
   if (currentVersion < SCHEMA_VERSION) {
     db.run(`PRAGMA user_version = ${SCHEMA_VERSION}`)

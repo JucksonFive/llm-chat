@@ -9,6 +9,7 @@ import { useAgentStore } from '@/stores/agent-store'
 import { useChatStore } from '@/stores/chat-store'
 import { useMemoryStore } from '@/stores/memory-store'
 import { useMcpStore } from '@/stores/mcp-store'
+import { useProjectStore } from '@/stores/project-store'
 
 export default function App() {
   const theme = useUIStore((s) => s.theme)
@@ -20,10 +21,11 @@ export default function App() {
 
   useEffect(() => {
     Promise.all([
-      useAgentStore.getState().loadAgents(),
-      useChatStore.getState().loadConversations(),
-      useMemoryStore.getState().loadMemories(),
-      useMcpStore.getState().loadServers(),
+      useAgentStore.getState().loadAgents().catch(console.error),
+      useChatStore.getState().loadConversations().catch(console.error),
+      useMemoryStore.getState().loadMemories().catch(console.error),
+      useMcpStore.getState().loadServers().catch(console.error),
+      useProjectStore.getState().loadProjects().catch(console.error),
     ]).then(() => setReady(true))
   }, [])
 

@@ -8,9 +8,10 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Plus, Trash2, BrainCircuit } from 'lucide-react'
+import { Plus, Trash2, BrainCircuit, Clock, Database } from 'lucide-react'
 import { useMemoryStore } from '@/stores/memory-store'
 import { useAgentStore } from '@/stores/agent-store'
+import { cn } from '@/lib/utils'
 
 interface MemoryPanelProps {
   open: boolean
@@ -19,16 +20,19 @@ interface MemoryPanelProps {
 
 export function MemoryPanel({ open, onOpenChange }: MemoryPanelProps) {
   const [newMemory, setNewMemory] = useState('')
+  const [activeTab, setActiveTab] = useState<'long' | 'short'>('long')
   const activeAgentId = useAgentStore((s) => s.activeAgentId)
   const agents = useAgentStore((s) => s.agents)
-  const { addMemory, deleteMemory, getMemoriesForAgent } = useMemoryStore()
+  const { addMemory, deleteMemory, getShortTermMemories, getLongTermMemories, clearShortTermMemories } = useMemoryStore()
 
   const agent = agents.find((a) => a.id === activeAgentId)
-  const memories = activeAgentId ? getMemoriesForAgent(activeAgentId) : []
+  const shortMemories = activeAgentId ? getShortTermMemories(activeAgentId) : []
+  const longMemories = activeAgentId ? getLongTermMemories(activeAgentId) : []
+  const memories = activeTab === 'short' ? shortMemories : longMemories
 
   const handleAdd = () => {
     if (!newMemory.trim() || !activeAgentId) return
-    addMemory(activeAgentId, newMemory.trim())
+    addMemory(activeAgentId, newMemory.trim(), activeTab)
     setNewMemory('')
   }
 
@@ -55,8 +59,49 @@ export function MemoryPanel({ open, onOpenChange }: MemoryPanelProps) {
         </SheetHeader>
 
         <div className="mt-4 space-y-4">
+          <div className="flex rounded-lg border border-border/50 p-0.5">
+            <button
+              type="button"
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                activeTab === 'long'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              onClick={() => setActiveTab('long')}
+            >
+              <Database className="h-3 w-3" />
+              Long-term
+              {longMemories.length > 0 && (
+                <span className="ml-1 rounded-full bg-background/20 px-1.5 text-[10px]">
+                  {longMemories.length}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                activeTab === 'short'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              onClick={() => setActiveTab('short')}
+            >
+              <Clock className="h-3 w-3" />
+              Short-term
+              {shortMemories.length > 0 && (
+                <span className="ml-1 rounded-full bg-background/20 px-1.5 text-[10px]">
+                  {shortMemories.length}
+                </span>
+              )}
+            </button>
+          </div>
+
           <p className="text-xs text-muted-foreground">
-            Memories are injected into the system prompt to personalize responses across conversations.
+            {activeTab === 'long'
+              ? 'Persistent facts, preferences, and key information that carry across all conversations.'
+              : 'Recent context and conversation summaries. Automatically limited to the last 10 entries.'}
           </p>
 
           <div className="flex gap-2">
@@ -64,7 +109,7 @@ export function MemoryPanel({ open, onOpenChange }: MemoryPanelProps) {
               value={newMemory}
               onChange={(e) => setNewMemory(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Add a memory..."
+              placeholder={activeTab === 'long' ? 'Add a permanent memory...' : 'Add a short-term note...'}
               className="flex-1"
             />
             <Button size="icon" onClick={handleAdd} disabled={!newMemory.trim()}>
@@ -72,11 +117,25 @@ export function MemoryPanel({ open, onOpenChange }: MemoryPanelProps) {
             </Button>
           </div>
 
-          <ScrollArea className="h-[calc(100vh-250px)]">
+          {activeTab === 'short' && shortMemories.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full text-xs"
+              onClick={() => activeAgentId && clearShortTermMemories(activeAgentId)}
+            >
+              <Trash2 className="mr-1 h-3 w-3" />
+              Clear all short-term memories
+            </Button>
+          )}
+
+          <ScrollArea className="h-[calc(100vh-320px)]">
             <div className="space-y-2">
               {memories.length === 0 && (
                 <p className="text-sm text-muted-foreground py-8 text-center">
-                  No memories yet. Add some to personalize this agent's responses.
+                  {activeTab === 'long'
+                    ? 'No long-term memories yet. Add facts and preferences to personalize responses.'
+                    : 'No short-term memories yet. Add recent context or conversation notes.'}
                 </p>
               )}
               {memories.map((memory) => (

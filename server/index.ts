@@ -1,6 +1,6 @@
 import express from 'express'
 import cors from 'cors'
-import { streamText, stepCountIs } from 'ai'
+import { streamText, generateText, stepCountIs } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
@@ -325,6 +325,68 @@ app.post('/api/extract-pdf', async (req, res) => {
     res.json({ text: data.text })
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'PDF extraction failed' })
+  }
+})
+
+app.post('/api/extract-memories', async (req, res) => {
+  try {
+    const { providerId, model, apiKey, messages } = req.body
+
+    let llmModel
+    switch (providerId) {
+      case 'openai':
+        llmModel = createOpenAI({ apiKey })(model.includes('o3') || model.includes('o4') ? 'gpt-4o-mini' : 'gpt-4o-mini')
+        break
+      case 'anthropic':
+        llmModel = createAnthropic({ apiKey })('claude-haiku-4-5')
+        break
+      case 'google':
+        llmModel = createGoogleGenerativeAI({ apiKey })('gemini-2.5-flash-lite')
+        break
+      case 'deepseek':
+        llmModel = createOpenAI({ baseURL: 'https://api.deepseek.com', apiKey, name: 'deepseek' }).chat('deepseek-chat')
+        break
+      default:
+        res.json({ memories: [] })
+        return
+    }
+
+    const last6 = messages.slice(-6)
+    const conversationText = last6
+      .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
+      .join('\n\n')
+
+    const { text } = await generateText({
+      model: llmModel,
+      system: `You extract memories from conversations. Analyze the conversation and return a JSON object with two arrays:
+
+{
+  "short": ["recent context items worth remembering for the next few messages"],
+  "long": ["permanent facts about the user, their preferences, or important information"]
+}
+
+Rules:
+- "short" = temporary context: what the user is currently working on, recent decisions, current mood/situation. Max 3 items.
+- "long" = permanent facts: user's name, job, preferences, skills, recurring patterns, important life details. Max 2 items.
+- Each item is a short sentence (under 20 words).
+- Only extract genuinely useful information. Don't extract trivial small talk.
+- If nothing is worth remembering, return {"short": [], "long": []}.
+- Return ONLY the JSON object, no markdown, no explanation.`,
+      prompt: conversationText,
+    })
+
+    let memories = { short: [] as string[], long: [] as string[] }
+    try {
+      const cleaned = text.replace(/```json?\n?/g, '').replace(/```/g, '').trim()
+      memories = JSON.parse(cleaned)
+    } catch {
+      console.error('[extract-memories] Failed to parse LLM response:', text)
+    }
+
+    res.json({ memories })
+  } catch (error) {
+    console.error('[extract-memories] Error:', error)
+    res.json({ memories: { short: [], long: [] } })
   }
 })
 

@@ -1,4 +1,4 @@
-import { CODING_AGENT_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT } from '@/lib/default-system-prompt'
+import { CODING_AGENT_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT, MARKET_RESEARCHER_SYSTEM_PROMPT, SYSTEM_PROMPT_CREATOR_SYSTEM_PROMPT } from '@/lib/default-system-prompt'
 import type { BuiltInToolId, ProviderId } from '@/types'
 
 export interface AgentTemplate {
@@ -39,7 +39,36 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       'deep-research',
     ],
   },
+  {
+    id: 'market-researcher',
+    name: 'Market Researcher',
+    description: 'Finds the absolute lowest prices online — total cost analysis, coupon stacking, cross-border arbitrage.',
+    providerId: 'openai',
+    model: 'gpt-5.4',
+    systemPrompt: MARKET_RESEARCHER_SYSTEM_PROMPT,
+    builtInToolIds: [
+      'web-search',
+      'web-fetch',
+      'calculator',
+      'deep-research',
+    ],
+  },
+  {
+    id: 'system-prompt-creator',
+    name: 'System Prompt Creator',
+    description: 'Creates high-performance system prompts for LLM agents — structured, battle-tested, and failure-resistant.',
+    providerId: 'anthropic',
+    model: 'claude-opus-4-6',
+    systemPrompt: SYSTEM_PROMPT_CREATOR_SYSTEM_PROMPT,
+    builtInToolIds: [
+      'web-search',
+      'web-fetch',
+      'deep-research',
+    ],
+  },
 ]
 
 export const DEFAULT_AGENT_TEMPLATE = AGENT_TEMPLATES[0]
 export const PROGRAMMER_AGENT_TEMPLATE = AGENT_TEMPLATES[1]
+export const MARKET_RESEARCHER_TEMPLATE = AGENT_TEMPLATES[2]
+export const SYSTEM_PROMPT_CREATOR_TEMPLATE = AGENT_TEMPLATES[3]
