@@ -70,14 +70,19 @@ function AgentForm({
   editingAgent: Agent | null
   onClose: () => void
 }) {
-  const { addAgent, updateAgent, deleteAgent } = useAgentStore()
+  const { agents, addAgent, updateAgent, deleteAgent } = useAgentStore()
   const mcpServers = useMcpStore((s) => s.servers)
+
+  const getApiKeyForProvider = (pid: ProviderId) => {
+    const existing = agents.find((a) => a.providerId === pid && a.apiKey)
+    return existing?.apiKey ?? ''
+  }
 
   const [name, setName] = useState(editingAgent?.name ?? '')
   const [providerId, setProviderId] = useState<ProviderId>(editingAgent?.providerId ?? 'openai')
   const [model, setModel] = useState(editingAgent?.model ?? 'gpt-4o')
   const [customModel, setCustomModel] = useState(editingAgent?.model ?? '')
-  const [apiKey, setApiKey] = useState(editingAgent?.apiKey ?? '')
+  const [apiKey, setApiKey] = useState(editingAgent?.apiKey ?? getApiKeyForProvider(editingAgent?.providerId ?? 'openai'))
   const [systemPrompt, setSystemPrompt] = useState(editingAgent?.systemPrompt ?? DEFAULT_SYSTEM_PROMPT)
   const [showApiKey, setShowApiKey] = useState(false)
   const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>(editingAgent?.mcpServerIds ?? [])
@@ -97,6 +102,7 @@ function AgentForm({
     if (!newProvider.freeTextModel && newProvider.models.length > 0) {
       setModel(newProvider.models[0])
     }
+    setApiKey(getApiKeyForProvider(newProviderId))
   }
 
   const applyTemplate = (templateId: string) => {
@@ -121,6 +127,7 @@ function AgentForm({
     setSystemPrompt(template.systemPrompt)
     setSelectedBuiltInTools(template.builtInToolIds)
     setSelectedMcpIds([])
+    setApiKey(getApiKeyForProvider(template.providerId))
   }
 
   const clearError = (field: string) => {
