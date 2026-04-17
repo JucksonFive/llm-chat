@@ -2,6 +2,7 @@ import { useRef, useCallback } from 'react'
 import { toast } from 'sonner'
 import { useChatStore } from '@/stores/chat-store'
 import { useAgentStore } from '@/stores/agent-store'
+import { useApiKeyStore } from '@/stores/api-key-store'
 import { useMemoryStore } from '@/stores/memory-store'
 import { useMcpStore } from '@/stores/mcp-store'
 import { useProjectStore } from '@/stores/project-store'
@@ -17,6 +18,10 @@ export function useChatStream() {
     const { activeAgentId, agents } = useAgentStore.getState()
     const agent = agents.find((a) => a.id === activeAgentId)
     if (!agent) return
+
+    const apiKey =
+      useApiKeyStore.getState().getKey(agent.id) ||
+      useApiKeyStore.getState().findKeyForProvider(agent.providerId, agents)
 
     const store = useChatStore.getState()
     let conversationId = store.activeConversationId
@@ -107,7 +112,7 @@ export function useChatStream() {
     streamChat({
       providerId: agent.providerId,
       model: agent.model,
-      apiKey: agent.apiKey,
+      apiKey,
       systemPrompt,
       messages: historyMessages,
       mcpServers: mcpServers.length > 0 ? mcpServers : undefined,
@@ -225,7 +230,7 @@ export function useChatStream() {
             body: JSON.stringify({
               providerId: agent.providerId,
               model: agent.model,
-              apiKey: agent.apiKey,
+              apiKey,
               messages: recentMsgs,
             }),
           })

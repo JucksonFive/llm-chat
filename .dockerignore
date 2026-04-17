@@ -1,0 +1,22 @@
+node_modules
+dist
+dist-electron
+release
+.git
+.github
+.vscode
+*.log
+.env
+.env.local
+.env.*.local
+coverage
+.DS_Store
+**/.llm-chat
+
+# Electron artifacts not needed in server image
+electron
+scripts/build-electron.mjs
+
+# Local compose data
+caddy_data
+caddy_config
