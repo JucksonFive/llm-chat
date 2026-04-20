@@ -37,7 +37,7 @@ export function CodeBlock({ children, className, rawText }: CodeBlockProps) {
           )}
         </Button>
       </div>
-      <pre className="overflow-x-auto p-4 !bg-transparent !m-0">
+      <pre className="overflow-x-auto p-4 !bg-transparent !m-0 whitespace-pre-wrap break-words">
         <code className={className}>{children}</code>
       </pre>
     </div>

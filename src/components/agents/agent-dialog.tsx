@@ -315,6 +315,14 @@ function AgentForm({
                 {preset.name}
               </Button>
             ))}
+            <Button
+              type="button"
+              size="sm"
+              variant={!matchedPreset ? 'default' : 'outline'}
+              onClick={() => setSystemPrompt('')}
+            >
+              Custom
+            </Button>
           </div>
           <p className="text-xs text-muted-foreground">
             {matchedPreset

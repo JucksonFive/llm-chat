@@ -1,4 +1,4 @@
-import { CODING_AGENT_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT, MARKET_RESEARCHER_SYSTEM_PROMPT, SYSTEM_PROMPT_CREATOR_SYSTEM_PROMPT } from '@/lib/default-system-prompt'
+import { CODING_AGENT_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT, HUMANIZER_SYSTEM_PROMPT, MARKET_RESEARCHER_SYSTEM_PROMPT, SYSTEM_PROMPT_CREATOR_SYSTEM_PROMPT } from '@/lib/default-system-prompt'
 import type { BuiltInToolId, ProviderId } from '@/types'
 
 export interface AgentTemplate {
@@ -66,9 +66,19 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       'deep-research',
     ],
   },
+  {
+    id: 'humanizer',
+    name: 'Humanizer',
+    description: 'Rewrites AI-generated or stiff text to sound like a skilled human wrote it — preserves facts, fixes rhythm and voice.',
+    providerId: 'anthropic',
+    model: 'claude-opus-4-6',
+    systemPrompt: HUMANIZER_SYSTEM_PROMPT,
+    builtInToolIds: [],
+  },
 ]
 
 export const DEFAULT_AGENT_TEMPLATE = AGENT_TEMPLATES[0]
 export const PROGRAMMER_AGENT_TEMPLATE = AGENT_TEMPLATES[1]
 export const MARKET_RESEARCHER_TEMPLATE = AGENT_TEMPLATES[2]
 export const SYSTEM_PROMPT_CREATOR_TEMPLATE = AGENT_TEMPLATES[3]
+export const HUMANIZER_TEMPLATE = AGENT_TEMPLATES[4]
