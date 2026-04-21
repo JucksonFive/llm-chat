@@ -32,7 +32,6 @@ export const useAgentStore = create<AgentState>()(
             name: PROGRAMMER_AGENT_TEMPLATE.name,
             providerId: PROGRAMMER_AGENT_TEMPLATE.providerId,
             model: PROGRAMMER_AGENT_TEMPLATE.model,
-            apiKey: '',
             systemPrompt: PROGRAMMER_AGENT_TEMPLATE.systemPrompt,
             mcpServerIds: [],
             builtInToolIds: PROGRAMMER_AGENT_TEMPLATE.builtInToolIds,

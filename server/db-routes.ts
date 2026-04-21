@@ -3,7 +3,6 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { run, query, queryOne, ATTACHMENTS_DIR } from './db.js'
-import { encrypt, decrypt } from './crypto.js'
 
 export function registerDbRoutes(app: Express) {
 
@@ -11,10 +10,11 @@ export function registerDbRoutes(app: Express) {
 
 app.get('/api/db/agents', (_req, res) => {
   const agents = query('SELECT * FROM agents ORDER BY created_at ASC')
-  // Decrypt API keys before sending
+  // API keys are never stored server-side anymore — they live only in the
+  // browser (see src/stores/api-key-store.ts). The `api_key_encrypted` column
+  // is kept for schema compatibility but always written as ''.
   const result = agents.map((a: Record<string, unknown>) => ({
     ...a,
-    apiKey: decrypt(a.api_key_encrypted as string),
     api_key_encrypted: undefined,
     providerId: a.provider_id,
     systemPrompt: a.system_prompt,
@@ -27,17 +27,16 @@ app.get('/api/db/agents', (_req, res) => {
 })
 
 app.post('/api/db/agents', (req, res) => {
-  const { name, providerId, model, apiKey, systemPrompt, avatarColor, mcpServerIds, builtInToolIds } = req.body
+  const { name, providerId, model, systemPrompt, avatarColor, mcpServerIds, builtInToolIds } = req.body
   const id = crypto.randomUUID()
   run(
     `INSERT INTO agents (id, name, provider_id, model, api_key_encrypted, system_prompt, avatar_color, mcp_server_ids, built_in_tool_ids, created_at)
-     VALUES ($id, $name, $providerId, $model, $apiKey, $systemPrompt, $avatarColor, $mcpServerIds, $builtInToolIds, $createdAt)`,
+     VALUES ($id, $name, $providerId, $model, '', $systemPrompt, $avatarColor, $mcpServerIds, $builtInToolIds, $createdAt)`,
     {
       id,
       name,
       providerId,
       model,
-      apiKey: encrypt(apiKey || ''),
       systemPrompt: systemPrompt || '',
       avatarColor: avatarColor || '#6366f1',
       mcpServerIds: JSON.stringify(mcpServerIds || []),
@@ -49,9 +48,9 @@ app.post('/api/db/agents', (req, res) => {
 })
 
 app.put('/api/db/agents/:id', (req, res) => {
-  const { name, providerId, model, apiKey, systemPrompt, avatarColor, mcpServerIds, builtInToolIds } = req.body
+  const { name, providerId, model, systemPrompt, avatarColor, mcpServerIds, builtInToolIds } = req.body
   run(
-    `UPDATE agents SET name=$name, provider_id=$providerId, model=$model, api_key_encrypted=$apiKey,
+    `UPDATE agents SET name=$name, provider_id=$providerId, model=$model, api_key_encrypted='',
      system_prompt=$systemPrompt, avatar_color=$avatarColor, mcp_server_ids=$mcpServerIds, built_in_tool_ids=$builtInToolIds
      WHERE id=$id`,
     {
@@ -59,7 +58,6 @@ app.put('/api/db/agents/:id', (req, res) => {
       name,
       providerId,
       model,
-      apiKey: encrypt(apiKey || ''),
       systemPrompt: systemPrompt || '',
       avatarColor: avatarColor || '#6366f1',
       mcpServerIds: JSON.stringify(mcpServerIds || []),
@@ -186,11 +184,6 @@ app.get('/api/db/conversations/:id/messages', (req, res) => {
   )
 
   const msgIds = messages.map((m: Record<string, unknown>) => m.id as string)
-  const attachments = msgIds.length > 0
-    ? query(
-        `SELECT * FROM attachments WHERE message_id IN (${msgIds.map(() => '?').join(',')})`,
-      )
-    : []
 
   // sql.js doesn't support IN with named params well, use positional
   // Actually let's query per-message for correctness
