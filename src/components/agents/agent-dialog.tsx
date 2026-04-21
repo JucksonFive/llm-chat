@@ -165,7 +165,7 @@ function AgentForm({
       })
       apiKeyStore.setKey(editingAgent.id, apiKey.trim())
     } else {
-      const created = await addAgent({
+      const createdAgent = await addAgent({
         name: name.trim(),
         providerId,
         model: finalModel.trim(),
@@ -173,7 +173,7 @@ function AgentForm({
         mcpServerIds: selectedMcpIds,
         builtInToolIds: selectedBuiltInTools,
       })
-      apiKeyStore.setKey(created.id, apiKey.trim())
+      apiKeyStore.setKey(createdAgent.id, apiKey.trim())
     }
     onClose()
   }
