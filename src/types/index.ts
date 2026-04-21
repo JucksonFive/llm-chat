@@ -1,4 +1,4 @@
-export type ProviderId = 'openai' | 'anthropic' | 'google' | 'ollama' | 'deepseek'
+export type ProviderId = 'openai' | 'anthropic' | 'google' | 'ollama' | 'deepseek' | 'local'
 
 export type BuiltInToolId =
   | 'web-fetch'

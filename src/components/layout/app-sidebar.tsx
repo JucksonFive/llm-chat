@@ -29,6 +29,7 @@ import {
   Sparkles,
   Trash2,
   Waves,
+  Cpu,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -38,6 +39,7 @@ const PROVIDER_ICONS: Record<ProviderId, React.ElementType> = {
   google: Gem,
   ollama: HardDrive,
   deepseek: Waves,
+  local: Cpu,
 }
 
 export function AppSidebar() {

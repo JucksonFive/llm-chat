@@ -42,6 +42,15 @@ export const PROVIDERS: Record<ProviderId, ProviderMeta> = {
     color: '#4d6bfe',
     requiresApiKey: true,
   },
+  local: {
+    id: 'local',
+    name: 'Local (llama.cpp)',
+    models: ['loaded-model'],
+    icon: 'Cpu',
+    color: '#22c55e',
+    requiresApiKey: false,
+    freeTextModel: true,
+  },
 }
 
 export const PROVIDER_LIST = Object.values(PROVIDERS)

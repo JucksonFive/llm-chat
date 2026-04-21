@@ -11,6 +11,7 @@ import type { BuiltInToolId } from './tools/index.js'
 import { MCP_PRESETS } from './mcp-presets.js'
 import { initDb, closeDb, flush } from './db.js'
 import { registerDbRoutes } from './db-routes.js'
+import * as localLlm from './local-llm.js'
 
 const app = express()
 app.use(cors())
@@ -29,6 +30,42 @@ app.post('/api/chat', async (req, res) => {
   let serverTimeout: ReturnType<typeof setTimeout> | undefined
   try {
     const { providerId, model, apiKey, messages, systemPrompt, mcpServers, builtInToolIds } = req.body
+
+    // Local llama.cpp path — bypass the Vercel AI SDK and stream directly
+    if (providerId === 'local') {
+      const writeSSE = (data: string) => {
+        if (!res.headersSent) {
+          res.setHeader('Content-Type', 'text/event-stream')
+          res.setHeader('Cache-Control', 'no-cache')
+          res.setHeader('Connection', 'keep-alive')
+        }
+        res.write(`data: ${data}\n\n`)
+      }
+
+      const abortController = new AbortController()
+      req.on('close', () => abortController.abort())
+
+      try {
+        await localLlm.streamChat({
+          messages: messages as { role: 'user' | 'assistant' | 'system'; content: string }[],
+          systemPrompt: systemPrompt || undefined,
+          signal: abortController.signal,
+          onToken: (text) => writeSSE(JSON.stringify({ type: 'text-delta', text })),
+        })
+        writeSSE('[DONE]')
+        res.end()
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Local inference failed'
+        console.error('[chat] local error:', err)
+        if (!res.headersSent) {
+          res.status(500).json({ error: msg })
+        } else {
+          writeSSE(JSON.stringify({ error: msg }))
+          res.end()
+        }
+      }
+      return
+    }
 
     let llmModel
     switch (providerId) {
@@ -204,6 +241,52 @@ Tool usage guidelines:
 
 app.get('/api/tools/built-in', (_req, res) => {
   res.json({ tools: getBuiltInToolList() })
+})
+
+// ---- Local AI (node-llama-cpp) ----
+app.get('/api/local-llm/status', (_req, res) => {
+  res.json({ ...localLlm.getStatus(), modelsDir: localLlm.getModelsDir() })
+})
+
+app.get('/api/local-llm/models', (_req, res) => {
+  res.json({ modelsDir: localLlm.getModelsDir(), models: localLlm.listLocalModels() })
+})
+
+app.post('/api/local-llm/load', async (req, res) => {
+  try {
+    const { modelPath, gpu, gpuLayers, contextSize, threads } = req.body ?? {}
+    if (!modelPath || typeof modelPath !== 'string') {
+      res.status(400).json({ error: 'modelPath is required' })
+      return
+    }
+    const allowedGpu = ['cpu', 'auto', 'cuda', 'metal', 'vulkan'] as const
+    if (!allowedGpu.includes(gpu)) {
+      res.status(400).json({ error: `gpu must be one of ${allowedGpu.join(', ')}` })
+      return
+    }
+    const status = await localLlm.load({
+      modelPath,
+      gpu,
+      gpuLayers: typeof gpuLayers === 'number' ? gpuLayers : undefined,
+      contextSize: typeof contextSize === 'number' ? contextSize : undefined,
+      threads: typeof threads === 'number' ? threads : undefined,
+    })
+    res.json(status)
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load model'
+    console.error('[local-llm] load error:', err)
+    res.status(500).json({ error: message })
+  }
+})
+
+app.post('/api/local-llm/unload', async (_req, res) => {
+  try {
+    await localLlm.unload()
+    res.json({ loaded: false })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to unload model'
+    res.status(500).json({ error: message })
+  }
 })
 
 app.get('/api/mcp/presets', (_req, res) => {

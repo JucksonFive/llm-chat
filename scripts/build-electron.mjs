@@ -14,7 +14,7 @@ execSync(
 
 // Bundle server with all dependencies included (no externals)
 execSync(
-  'pnpm exec esbuild server/index.ts --bundle --platform=node --outfile=dist-electron/server.cjs --format=cjs',
+  'pnpm exec esbuild server/index.ts --bundle --platform=node --outfile=dist-electron/server.cjs --format=cjs --external:node-llama-cpp',
   { stdio: 'inherit' }
 )
 
