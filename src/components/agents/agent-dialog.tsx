@@ -245,12 +245,29 @@ function AgentForm({
         <div className="grid gap-2">
           <Label>Model</Label>
           {isCustomModel ? (
-            <Input
-              value={customModel}
-              onChange={(e) => { setCustomModel(e.target.value); clearError('model') }}
-              placeholder="e.g. llama3.1, mistral, codellama"
-              className={errors.model ? 'border-destructive' : ''}
-            />
+            <>
+              <Select
+                value={models.includes(customModel) ? customModel : ''}
+                onValueChange={(v) => { setCustomModel(v); clearError('model') }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Pick a popular model…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {models.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                value={customModel}
+                onChange={(e) => { setCustomModel(e.target.value); clearError('model') }}
+                placeholder="…or type any model tag, e.g. llama3.1:70b"
+                className={errors.model ? 'border-destructive' : ''}
+              />
+            </>
           ) : (
             <Select value={effectiveModel} onValueChange={setModel}>
               <SelectTrigger>
