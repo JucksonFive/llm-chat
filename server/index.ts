@@ -11,6 +11,7 @@ import type { BuiltInToolId } from './tools/index.js'
 import { MCP_PRESETS } from './mcp-presets.js'
 import { initDb, closeDb, flush } from './db.js'
 import { registerDbRoutes } from './db-routes.js'
+import { registerRagRoutes } from './rag/routes.js'
 
 const app = express()
 app.use(cors())
@@ -18,6 +19,9 @@ app.use(express.json({ limit: '50mb' }))
 
 // DB REST API routes
 registerDbRoutes(app)
+
+// RAG (semantic search) routes
+registerRagRoutes(app)
 
 // In Electron production, serve the built frontend
 // ELECTRON_DIST_PATH is set by the Electron main process

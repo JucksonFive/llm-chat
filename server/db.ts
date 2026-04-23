@@ -35,7 +35,7 @@ function markDirty() {
   dirty = true
 }
 
-const SCHEMA_VERSION = 6
+const SCHEMA_VERSION = 7
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS agents (
@@ -111,12 +111,25 @@ CREATE TABLE IF NOT EXISTS mcp_servers (
   created_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS vectors (
+  id TEXT PRIMARY KEY,
+  source_type TEXT NOT NULL,
+  source_id TEXT NOT NULL,
+  agent_id TEXT,
+  content TEXT NOT NULL,
+  embedding BLOB NOT NULL,
+  metadata TEXT NOT NULL DEFAULT '{}',
+  created_at INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_conversations_agent ON conversations(agent_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_project ON conversations(project_id);
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_attachments_message ON attachments(message_id);
 CREATE INDEX IF NOT EXISTS idx_memories_agent ON memories(agent_id);
+CREATE INDEX IF NOT EXISTS idx_vectors_source ON vectors(source_type, source_id);
+CREATE INDEX IF NOT EXISTS idx_vectors_agent ON vectors(source_type, agent_id);
 `
 
 export async function initDb(): Promise<Database> {
@@ -176,6 +189,22 @@ export async function initDb(): Promise<Database> {
   try {
     db.exec("ALTER TABLE memories ADD COLUMN type TEXT NOT NULL DEFAULT 'long' CHECK(type IN ('short', 'long'))")
   } catch { /* column may already exist */ }
+
+  // v7: vector store for semantic search (memories, documents, messages).
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS vectors (
+      id TEXT PRIMARY KEY,
+      source_type TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      agent_id TEXT,
+      content TEXT NOT NULL,
+      embedding BLOB NOT NULL,
+      metadata TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER NOT NULL
+    )`)
+    db.exec('CREATE INDEX IF NOT EXISTS idx_vectors_source ON vectors(source_type, source_id)')
+    db.exec('CREATE INDEX IF NOT EXISTS idx_vectors_agent ON vectors(source_type, agent_id)')
+  } catch { /* table may already exist */ }
 
   if (currentVersion < SCHEMA_VERSION) {
     db.run(`PRAGMA user_version = ${SCHEMA_VERSION}`)

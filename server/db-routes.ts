@@ -3,6 +3,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { run, query, queryOne, ATTACHMENTS_DIR } from './db.js'
+import { deleteBySource } from './rag/vector-store.js'
 
 export function registerDbRoutes(app: Express) {
 
@@ -327,11 +328,15 @@ app.post('/api/db/memories', (req, res) => {
 app.put('/api/db/memories/:id', (req, res) => {
   const { content } = req.body
   run('UPDATE memories SET content=$content WHERE id=$id', { id: req.params.id, content })
+  // Invalidate any cached embedding — it will be regenerated lazily on next
+  // semantic search using the new content.
+  deleteBySource('memory', req.params.id)
   res.json({ ok: true })
 })
 
 app.delete('/api/db/memories/:id', (req, res) => {
   run('DELETE FROM memories WHERE id=$id', { id: req.params.id })
+  deleteBySource('memory', req.params.id)
   res.json({ ok: true })
 })
 
