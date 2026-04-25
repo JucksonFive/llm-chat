@@ -23,6 +23,13 @@ export function useChatStream() {
       useApiKeyStore.getState().getKey(agent.id) ||
       useApiKeyStore.getState().findKeyForProvider(agent.providerId, agents)
 
+    if (!apiKey) {
+      toast.error(
+        `No API key set for ${agent.name}. Open the agent settings and add a ${agent.providerId} key.`,
+      )
+      return
+    }
+
     const store = useChatStore.getState()
     let conversationId = store.activeConversationId
 

@@ -45,6 +45,9 @@ function decodeEmbedding(blob: Uint8Array): Float32Array {
 }
 
 function cosine(a: Float32Array, b: Float32Array): number {
+  // text-embedding-3-small returns L2-normalized vectors, so cosine
+  // similarity reduces to a plain dot product. We still defensively divide
+  // by the magnitudes if either vector is non-unit (e.g. a future provider).
   let dot = 0
   let normA = 0
   let normB = 0
@@ -53,6 +56,8 @@ function cosine(a: Float32Array, b: Float32Array): number {
     normA += a[i] * a[i]
     normB += b[i] * b[i]
   }
+  // Treat as unit vectors when both norms are within float tolerance of 1.
+  if (Math.abs(normA - 1) < 1e-3 && Math.abs(normB - 1) < 1e-3) return dot
   const denom = Math.sqrt(normA) * Math.sqrt(normB)
   return denom === 0 ? 0 : dot / denom
 }
@@ -164,14 +169,19 @@ export function searchVectors({ sourceType, agentId, queryEmbedding, k = 5 }: Se
   return scored.slice(0, k)
 }
 
-/** Return which source_ids already have a vector for the given source type. */
+/** Return the subset of `sourceIds` that already have a vector for this type. */
 export function getIndexedSourceIds(sourceType: VectorSourceType, sourceIds: string[]): Set<string> {
   if (sourceIds.length === 0) return new Set()
-  // sql.js does not interpolate arrays well; fall back to a per-type fetch.
+  // sql.js does not expand arrays in named params, so fetch the full set for
+  // this type and filter in JS. The vectors table is small per agent.
   const rows = query<{ source_id: string }>(
     'SELECT source_id FROM vectors WHERE source_type=$sourceType',
     { sourceType },
   )
-  const existing = new Set(rows.map((r) => r.source_id))
-  return new Set(sourceIds.filter((id) => existing.has(id)))
+  const indexed = new Set(rows.map((r) => r.source_id))
+  const result = new Set<string>()
+  for (const id of sourceIds) {
+    if (indexed.has(id)) result.add(id)
+  }
+  return result
 }

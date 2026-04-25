@@ -73,13 +73,17 @@ function AgentForm({
 }) {
   const { agents, addAgent, updateAgent, deleteAgent } = useAgentStore()
   const mcpServers = useMcpStore((s) => s.servers)
-  const apiKeyStore = useApiKeyStore()
+  // Use selectors so this form only re-renders when the action functions
+  // identity changes (i.e. never), not on every keys-record mutation.
+  const getKey = useApiKeyStore((s) => s.getKey)
+  const setKey = useApiKeyStore((s) => s.setKey)
+  const removeKey = useApiKeyStore((s) => s.removeKey)
+  const findKeyForProvider = useApiKeyStore((s) => s.findKeyForProvider)
 
-  const getApiKeyForProvider = (pid: ProviderId) =>
-    apiKeyStore.findKeyForProvider(pid, agents)
+  const getApiKeyForProvider = (pid: ProviderId) => findKeyForProvider(pid, agents)
 
   const initialApiKey = editingAgent
-    ? apiKeyStore.getKey(editingAgent.id) || getApiKeyForProvider(editingAgent.providerId)
+    ? getKey(editingAgent.id) || getApiKeyForProvider(editingAgent.providerId)
     : getApiKeyForProvider('openai')
 
   const [name, setName] = useState(editingAgent?.name ?? '')
@@ -163,7 +167,7 @@ function AgentForm({
         mcpServerIds: selectedMcpIds,
         builtInToolIds: selectedBuiltInTools,
       })
-      apiKeyStore.setKey(editingAgent.id, apiKey.trim())
+      setKey(editingAgent.id, apiKey.trim())
     } else {
       const created = await addAgent({
         name: name.trim(),
@@ -173,14 +177,14 @@ function AgentForm({
         mcpServerIds: selectedMcpIds,
         builtInToolIds: selectedBuiltInTools,
       })
-      apiKeyStore.setKey(created.id, apiKey.trim())
+      setKey(created.id, apiKey.trim())
     }
     onClose()
   }
 
   const handleDelete = async () => {
     if (editingAgent) {
-      apiKeyStore.removeKey(editingAgent.id)
+      removeKey(editingAgent.id)
       await deleteAgent(editingAgent.id)
       onClose()
     }

@@ -5,7 +5,6 @@ import {
   getIndexedSourceIds,
   searchVectors,
   upsertVector,
-  type SearchHit,
 } from './vector-store.js'
 
 /**
@@ -82,25 +81,33 @@ export async function searchMemories(params: {
     queryEmbedding,
     k,
   })
+  if (hits.length === 0) return []
 
-  return hits.map(hitToMemory).filter((m): m is RelevantMemory => m !== null)
-}
+  // Resolve all hit memories in a single query — the vectors cache content,
+  // but the source of truth is the memories table. Any hit pointing at a
+  // deleted memory is cleaned up.
+  const placeholders = hits.map((_, i) => `$id${i}`).join(',')
+  const params2: Record<string, unknown> = {}
+  hits.forEach((h, i) => { params2[`id${i}`] = h.sourceId })
+  const rows = query<MemoryRow>(`SELECT * FROM memories WHERE id IN (${placeholders})`, params2)
+  const byId = new Map(rows.map((r) => [r.id, r]))
 
-function hitToMemory(hit: SearchHit): RelevantMemory | null {
-  // Look up the memory row to get the latest content/type (vectors cache them
-  // but the source of truth is the memories table).
-  const row = query<MemoryRow>('SELECT * FROM memories WHERE id=$id', { id: hit.sourceId })[0]
-  if (!row) {
-    // Vector points to a deleted memory — clean up.
-    deleteBySource('memory', hit.sourceId)
-    return null
+  const result: RelevantMemory[] = []
+  for (const hit of hits) {
+    const row = byId.get(hit.sourceId)
+    if (!row) {
+      // Vector points at a deleted memory — clean up so it stops scoring.
+      deleteBySource('memory', hit.sourceId)
+      continue
+    }
+    result.push({
+      id: row.id,
+      agentId: row.agent_id,
+      content: row.content,
+      type: (row.type as 'short' | 'long') ?? 'long',
+      createdAt: row.created_at,
+      score: hit.score,
+    })
   }
-  return {
-    id: row.id,
-    agentId: row.agent_id,
-    content: row.content,
-    type: (row.type as 'short' | 'long') ?? 'long',
-    createdAt: row.created_at,
-    score: hit.score,
-  }
+  return result
 }

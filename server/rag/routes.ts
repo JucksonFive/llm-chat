@@ -1,6 +1,8 @@
 import type { Express } from 'express'
 import { searchMemories } from './memory-index.js'
 
+export type RagFallbackReason = 'no-api-key' | 'search-failed'
+
 export function registerRagRoutes(app: Express) {
   app.post('/api/rag/memories/search', async (req, res) => {
     try {
@@ -9,13 +11,13 @@ export function registerRagRoutes(app: Express) {
         res.status(400).json({ error: 'agentId is required' })
         return
       }
-      if (!apiKey || typeof apiKey !== 'string') {
-        // No key → signal the client to fall back; not an error.
-        res.json({ memories: [], fallback: true })
-        return
-      }
       if (typeof query !== 'string') {
         res.status(400).json({ error: 'query is required' })
+        return
+      }
+      if (!apiKey || typeof apiKey !== 'string') {
+        // No key → signal the client to fall back. Not an error.
+        res.json({ memories: [], fallback: true, reason: 'no-api-key' satisfies RagFallbackReason })
         return
       }
 
@@ -30,7 +32,12 @@ export function registerRagRoutes(app: Express) {
       console.error('[rag] memories/search failed:', err)
       const message = err instanceof Error ? err.message : 'Search failed'
       // Fall back cleanly: the client will use the non-semantic prompt.
-      res.status(200).json({ memories: [], fallback: true, error: message })
+      res.status(200).json({
+        memories: [],
+        fallback: true,
+        reason: 'search-failed' satisfies RagFallbackReason,
+        error: message,
+      })
     }
   })
 }

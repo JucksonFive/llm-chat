@@ -17,6 +17,11 @@ interface MemoryState {
 }
 
 const MAX_SHORT_TERM = 10
+// Skip semantic search for very short queries — for "ok", "kiitos", a single
+// emoji etc. the embedding is mostly noise and the full memory list is fine.
+const MIN_SEMANTIC_QUERY_LENGTH = 8
+
+type RagFallbackReason = 'no-api-key' | 'search-failed'
 
 async function fetchRelevantLongTerm(
   agentId: string,
@@ -25,7 +30,8 @@ async function fetchRelevantLongTerm(
   k: number,
   longTermCount: number,
 ): Promise<Memory[] | null> {
-  if (!apiKey || longTermCount <= k || !query.trim()) return null
+  if (!apiKey || longTermCount <= k) return null
+  if (query.trim().length < MIN_SEMANTIC_QUERY_LENGTH) return null
   try {
     const res = await fetch('/api/rag/memories/search', {
       method: 'POST',
@@ -33,11 +39,21 @@ async function fetchRelevantLongTerm(
       body: JSON.stringify({ agentId, query, apiKey, k }),
     })
     if (!res.ok) return null
-    const data = (await res.json()) as { memories?: Memory[]; fallback?: boolean }
-    if (data.fallback || !Array.isArray(data.memories)) return null
+    const data = (await res.json()) as {
+      memories?: Memory[]
+      fallback?: boolean
+      reason?: RagFallbackReason
+      error?: string
+    }
+    if (data.fallback || !Array.isArray(data.memories)) {
+      if (data.reason === 'search-failed') {
+        console.warn('[memory] semantic search failed:', data.error)
+      }
+      return null
+    }
     return data.memories
   } catch (err) {
-    console.warn('[memory] semantic search failed, using all memories:', err)
+    console.warn('[memory] semantic search request failed, using all memories:', err)
     return null
   }
 }

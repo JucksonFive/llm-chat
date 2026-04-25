@@ -3,11 +3,36 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { run, query, queryOne, ATTACHMENTS_DIR } from './db.js'
+import { decrypt } from './crypto.js'
 import { deleteBySource } from './rag/vector-store.js'
 
 export function registerDbRoutes(app: Express) {
 
 // ─── Agents ────────────────────────────────────────────
+
+/**
+ * One-time migration: returns decrypted API keys for any agents that still
+ * have a value in the legacy `api_key_encrypted` column. The client (see
+ * `src/stores/api-key-store.ts`) calls this once on startup, copies the keys
+ * into localStorage, and then POSTs to `…/legacy-api-keys/clear` to wipe the
+ * column. After that, keys live only in the browser.
+ */
+app.get('/api/db/agents/legacy-api-keys', (_req, res) => {
+  const rows = query<{ id: string; api_key_encrypted: string }>(
+    "SELECT id, api_key_encrypted FROM agents WHERE api_key_encrypted != ''",
+  )
+  const keys: Record<string, string> = {}
+  for (const row of rows) {
+    const plain = decrypt(row.api_key_encrypted)
+    if (plain) keys[row.id] = plain
+  }
+  res.json({ keys })
+})
+
+app.post('/api/db/agents/legacy-api-keys/clear', (_req, res) => {
+  run("UPDATE agents SET api_key_encrypted='' WHERE api_key_encrypted != ''")
+  res.json({ ok: true })
+})
 
 app.get('/api/db/agents', (_req, res) => {
   const agents = query('SELECT * FROM agents ORDER BY created_at ASC')

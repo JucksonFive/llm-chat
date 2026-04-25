@@ -23,13 +23,37 @@ function deriveKey(password: string, salt: Buffer): Buffer {
   return crypto.scryptSync(password, salt, 32, { N: 16384, r: 8, p: 1 })
 }
 
-let cachedKey: { salt: Buffer; key: Buffer } | null = null
+// Cache derived keys per (password, salt) pair. The DB load uses the salt
+// embedded in the file; subsequent encryptions use a fresh random salt, so
+// the cache must support multiple entries — but only a handful per process.
+const keyCache = new Map<string, Buffer>()
+
+function cacheKey(password: string, salt: Buffer): string {
+  // Hash the password to avoid keeping it in a plain string Map key.
+  const pwHash = crypto.createHash('sha256').update(password).digest('hex')
+  return `${pwHash}:${salt.toString('hex')}`
+}
 
 function getOrDeriveKey(password: string, salt: Buffer): Buffer {
-  if (cachedKey && cachedKey.salt.equals(salt)) return cachedKey.key
+  const k = cacheKey(password, salt)
+  const cached = keyCache.get(k)
+  if (cached) return cached
   const key = deriveKey(password, salt)
-  cachedKey = { salt, key }
+  keyCache.set(k, key)
   return key
+}
+
+// Salt + derived key reused for every encryption in this process.
+let processSalt: { password: string; salt: Buffer; key: Buffer } | null = null
+
+function getOrCreateProcessSalt(password: string): { salt: Buffer; key: Buffer } {
+  if (processSalt && processSalt.password === password) {
+    return { salt: processSalt.salt, key: processSalt.key }
+  }
+  const salt = crypto.randomBytes(SALT_LEN)
+  const key = getOrDeriveKey(password, salt)
+  processSalt = { password, salt, key }
+  return { salt, key }
 }
 
 export function isEncryptionEnabled(): boolean {
@@ -44,9 +68,12 @@ export function encryptDbBlob(plaintext: Buffer): Buffer {
   const password = getPassword()
   if (!password) return plaintext
 
-  const salt = crypto.randomBytes(SALT_LEN)
+  // Reuse the same (salt, derived key) for the lifetime of the process.
+  // scryptSync at N=16384 takes ~100ms and saveToDisk runs every 5s, so
+  // re-deriving on every save burned ~2% of a CPU core for no benefit
+  // (each save still rotates IV + auth tag, so semantic security is fine).
+  const { salt, key } = getOrCreateProcessSalt(password)
   const iv = crypto.randomBytes(IV_LEN)
-  const key = getOrDeriveKey(password, salt)
 
   const cipher = crypto.createCipheriv(ALGO, key, iv)
   const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()])

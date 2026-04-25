@@ -4,6 +4,7 @@ import { DEFAULT_SYSTEM_PROMPT, LEGACY_DEFAULT_SYSTEM_PROMPT } from '@/lib/defau
 import { PROGRAMMER_AGENT_TEMPLATE } from '@/lib/agent-templates'
 import type { Agent } from '@/types'
 import { AVATAR_COLORS } from '@/lib/providers'
+import { useApiKeyStore } from '@/stores/api-key-store'
 
 interface AgentState {
   agents: Agent[]
@@ -26,6 +27,24 @@ export const useAgentStore = create<AgentState>()(
       loadAgents: async () => {
         const res = await fetch('/api/db/agents')
         const agents: Agent[] = await res.json()
+
+        // One-time migration: pull any API keys still stored in the (now
+        // legacy) server-side encrypted column into the browser store, then
+        // wipe the column. Safe to run on every load — the endpoint returns
+        // an empty object once migration is complete.
+        try {
+          const migRes = await fetch('/api/db/agents/legacy-api-keys')
+          if (migRes.ok) {
+            const { keys } = (await migRes.json()) as { keys: Record<string, string> }
+            const entries = Object.entries(keys ?? {})
+            if (entries.length > 0) {
+              useApiKeyStore.getState().mergeKeys(keys)
+              await fetch('/api/db/agents/legacy-api-keys/clear', { method: 'POST' })
+            }
+          }
+        } catch (err) {
+          console.warn('[agent-store] legacy api-key migration failed:', err)
+        }
 
         if (agents.length === 0) {
           await get().addAgent({

@@ -14,6 +14,8 @@ interface ApiKeyState {
   getKey: (agentId: string) => string
   setKey: (agentId: string, apiKey: string) => void
   removeKey: (agentId: string) => void
+  /** Merge a batch of keys (used by the legacy server-side migration). Existing keys are preserved. */
+  mergeKeys: (incoming: Record<string, string>) => void
   /** Find an existing key for the given provider from any agent. */
   findKeyForProvider: (providerId: string, agents: Array<{ id: string; providerId: string }>) => string
 }
@@ -34,6 +36,14 @@ export const useApiKeyStore = create<ApiKeyState>()(
         set((state) => {
           const { [agentId]: _removed, ...rest } = state.keys
           return { keys: rest }
+        }),
+
+      mergeKeys: (incoming) =>
+        set((state) => {
+          // Keep any key already present locally — the user may have updated
+          // it via the agent dialog before the migration ran.
+          const merged: Record<string, string> = { ...incoming, ...state.keys }
+          return { keys: merged }
         }),
 
       findKeyForProvider: (providerId, agents) => {
