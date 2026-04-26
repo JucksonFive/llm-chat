@@ -28,8 +28,9 @@ export interface SearchHit extends VectorRow {
 }
 
 // ─── Serialization ──────────────────────────────────────
+// These helpers are exported for tests; they have no side effects.
 
-function encodeEmbedding(vec: number[]): Uint8Array {
+export function encodeEmbedding(vec: number[]): Uint8Array {
   if (vec.length !== EMBEDDING_DIM) {
     throw new Error(`Embedding length mismatch: expected ${EMBEDDING_DIM}, got ${vec.length}`)
   }
@@ -37,14 +38,14 @@ function encodeEmbedding(vec: number[]): Uint8Array {
   return new Uint8Array(f.buffer, f.byteOffset, f.byteLength)
 }
 
-function decodeEmbedding(blob: Uint8Array): Float32Array {
+export function decodeEmbedding(blob: Uint8Array): Float32Array {
   // Copy to a fresh ArrayBuffer so alignment is guaranteed.
   const copy = new Uint8Array(blob.byteLength)
   copy.set(blob)
   return new Float32Array(copy.buffer)
 }
 
-function cosine(a: Float32Array, b: Float32Array): number {
+export function cosine(a: Float32Array, b: Float32Array): number {
   // text-embedding-3-small returns L2-normalized vectors, so cosine
   // similarity reduces to a plain dot product. We still defensively divide
   // by the magnitudes if either vector is non-unit (e.g. a future provider).
