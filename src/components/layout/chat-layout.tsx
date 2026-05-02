@@ -1,11 +1,11 @@
-import { useEffect } from 'react'
-import { SidebarInset } from '@/components/ui/sidebar'
-import { Header } from '@/components/layout/header'
 import { ChatWindow } from '@/components/chat/chat-window'
-import { MessageInput } from '@/components/chat/message-input'
 import { EmptyState } from '@/components/chat/empty-state'
+import { MessageInput } from '@/components/chat/message-input'
+import { Header } from '@/components/layout/header'
+import { SidebarInset } from '@/components/ui/sidebar'
 import { useAgentStore } from '@/stores/agent-store'
 import { useChatStore } from '@/stores/chat-store'
+import { useEffect } from 'react'
 
 export function ChatLayout() {
   const activeAgentId = useAgentStore((s) => s.activeAgentId)
@@ -21,6 +21,7 @@ export function ChatLayout() {
     if (activeConversationId && conversations[activeConversationId]?.messages.length === 0) {
       loadMessages(activeConversationId)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConversationId, loadMessages])
 
   return (

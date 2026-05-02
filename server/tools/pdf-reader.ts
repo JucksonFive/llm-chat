@@ -12,7 +12,7 @@ export const pdfReaderTool = tool({
     },
     required: ['path'],
   }),
-  execute: async ({ path: filePath, maxPages }) => {
+  execute: async ({ path: filePath }) => {
     try {
       const resolved = path.resolve(filePath)
 

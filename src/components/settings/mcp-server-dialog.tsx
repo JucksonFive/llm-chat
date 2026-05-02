@@ -1,12 +1,11 @@
-import { useState, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -16,9 +15,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Loader2, CheckCircle, XCircle } from 'lucide-react'
 import { useMcpStore } from '@/stores/mcp-store'
 import type { McpServerConfig } from '@/types'
+import { CheckCircle, Loader2, XCircle } from 'lucide-react'
+import { useMemo, useState } from 'react'
 
 interface McpServerDialogProps {
   open: boolean
@@ -32,38 +32,47 @@ export function McpServerDialog({ open, onOpenChange, editServerId }: McpServerD
   const { servers, addServer, updateServer } = useMcpStore()
   const editingServer = editServerId ? servers.find((s) => s.id === editServerId) : null
 
-  const [name, setName] = useState('')
-  const [transport, setTransport] = useState<'stdio' | 'sse' | 'streamable-http'>('stdio')
-  const [command, setCommand] = useState('')
-  const [args, setArgs] = useState('')
-  const [envVars, setEnvVars] = useState('')
-  const [url, setUrl] = useState('')
+  const defaults = useMemo(() => {
+    if (editingServer) {
+      return {
+        name: editingServer.name,
+        transport: editingServer.transport,
+        command: editingServer.command ?? '',
+        args: editingServer.args?.join(' ') ?? '',
+        envVars: Object.entries(editingServer.env ?? {})
+          .map(([k, v]) => `${k}=${v}`)
+          .join('\n'),
+        url: editingServer.url ?? '',
+      }
+    }
+    return { name: '', transport: 'stdio' as const, command: '', args: '', envVars: '', url: '' }
+  }, [editingServer])
+
+  const [name, setName] = useState(defaults.name)
+  const [transport, setTransport] = useState<'stdio' | 'sse' | 'streamable-http'>(defaults.transport)
+  const [command, setCommand] = useState(defaults.command)
+  const [args, setArgs] = useState(defaults.args)
+  const [envVars, setEnvVars] = useState(defaults.envVars)
+  const [url, setUrl] = useState(defaults.url)
   const [testStatus, setTestStatus] = useState<TestStatus>('idle')
   const [testResult, setTestResult] = useState<string>('')
 
-  useEffect(() => {
-    if (editingServer) {
-      setName(editingServer.name)
-      setTransport(editingServer.transport)
-      setCommand(editingServer.command ?? '')
-      setArgs(editingServer.args?.join(' ') ?? '')
-      setEnvVars(
-        Object.entries(editingServer.env ?? {})
-          .map(([k, v]) => `${k}=${v}`)
-          .join('\n')
-      )
-      setUrl(editingServer.url ?? '')
-    } else {
-      setName('')
-      setTransport('stdio')
-      setCommand('')
-      setArgs('')
-      setEnvVars('')
-      setUrl('')
-    }
+  // Adjust state when the dialog switches to a different server.
+  // Tracking the previous prop in state and calling setState during render is
+  // React's recommended replacement for the useEffect-setState pattern:
+  // https://react.dev/reference/react/useState#storing-information-from-previous-renders
+  const [prevEditId, setPrevEditId] = useState<string | null>(editServerId)
+  if (prevEditId !== editServerId) {
+    setPrevEditId(editServerId)
+    setName(defaults.name)
+    setTransport(defaults.transport)
+    setCommand(defaults.command)
+    setArgs(defaults.args)
+    setEnvVars(defaults.envVars)
+    setUrl(defaults.url)
     setTestStatus('idle')
     setTestResult('')
-  }, [editingServer, open])
+  }
 
   const parseEnvVars = (): Record<string, string> => {
     const env: Record<string, string> = {}

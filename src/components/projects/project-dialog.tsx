@@ -1,17 +1,17 @@
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useProjectStore } from '@/stores/project-store'
 import { Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 interface ProjectDialogProps {
   open: boolean
@@ -23,18 +23,16 @@ export function ProjectDialog({ open, onOpenChange, editProjectId }: ProjectDial
   const { projects, addProject, updateProject, deleteProject } = useProjectStore()
   const editingProject = editProjectId ? projects.find((p) => p.id === editProjectId) : null
 
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
+  const [name, setName] = useState(editingProject?.name ?? '')
+  const [description, setDescription] = useState(editingProject?.description ?? '')
 
-  useEffect(() => {
-    if (editingProject) {
-      setName(editingProject.name)
-      setDescription(editingProject.description)
-    } else {
-      setName('')
-      setDescription('')
-    }
-  }, [editingProject, open])
+  // Reset state when the dialog switches to a different project.
+  const [prevEditId, setPrevEditId] = useState<string | null>(editProjectId)
+  if (prevEditId !== editProjectId) {
+    setPrevEditId(editProjectId)
+    setName(editingProject?.name ?? '')
+    setDescription(editingProject?.description ?? '')
+  }
 
   const handleSave = async () => {
     if (!name.trim()) return

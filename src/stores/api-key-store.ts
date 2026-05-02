@@ -34,7 +34,8 @@ export const useApiKeyStore = create<ApiKeyState>()(
 
       removeKey: (agentId) =>
         set((state) => {
-          const { [agentId]: _removed, ...rest } = state.keys
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { [agentId]: _, ...rest } = state.keys
           return { keys: rest }
         }),
 

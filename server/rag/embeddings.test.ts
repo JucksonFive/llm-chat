@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const embedDocuments = vi.fn(async (texts: string[]) => texts.map(() => new Array(1536).fill(0)))
-const embedQuery = vi.fn(async (_text: string) => new Array(1536).fill(0))
+const embedQuery = vi.fn(async () => new Array(1536).fill(0))
 
 vi.mock('@langchain/openai', () => {
   class OpenAIEmbeddings {
     embedDocuments = embedDocuments
     embedQuery = embedQuery
-    constructor(_opts: unknown) {}
+    constructor() {}
   }
   return { OpenAIEmbeddings }
 })
