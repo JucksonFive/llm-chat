@@ -7,24 +7,28 @@ Multi-provider AI chat desktop application built with React, Express, and Electr
 - **Multi-provider support** — OpenAI, Anthropic (Claude), Google Gemini, DeepSeek, Ollama (local)
 - **Agent management** — Create multiple agents with different providers, models, and system prompts
 - **Live model switching** — Change model on the fly from the header without opening settings
-- **Built-in tools** — Web search, web fetch, code executor, file reader/writer, calculator, PDF reader, date & time, image generator, and deep research
-- **MCP tool integration** — Connect Model Context Protocol servers to give agents access to external tools, with curated presets for popular MCP servers
+- **MCP tool integration** — Connect Model Context Protocol servers to give agents access to external tools
+- **Built-in tools** — Web search, code executor, file reader/writer, PDF reader, calculator, image generation, deep research
 - **Streaming responses** — Real-time token streaming with SSE
-- **Agent memory** — Persistent memory per agent for context across conversations
-- **Projects** — Organise conversations into projects to keep work focused
+- **Semantic memory search** — Agent memories are embedded and retrieved by relevance using cosine similarity (OpenAI embeddings)
+- **Agent memory** — Persistent short-term and long-term memory per agent
+- **Database encryption** — Optional AES-256-GCM encryption of the SQLite database at rest
+- **Client-side API key storage** — Keys stay in the browser's localStorage, never persisted on the server
+- **Projects** — Organize conversations into projects
 - **Dark/light theme** — Toggle between themes
 - **Data export/import** — Backup and restore all agents, conversations, and settings
 - **Electron desktop app** — Runs as a native desktop application or in the browser
+- **Production deployment** — Docker + Caddy with automatic HTTPS
 
 ## Tech Stack
 
 **Frontend:** React 19, TypeScript, Vite, TailwindCSS, Radix UI / shadcn, Zustand
 
-**Backend:** Express 5, Vercel AI SDK, MCP SDK, SQLite (better-sqlite3)
+**Backend:** Express 5, Vercel AI SDK, MCP SDK, LangChain (embeddings), sql.js
 
 **Desktop:** Electron, esbuild
 
-**Web Search:** SearXNG (self-hosted, via Docker)
+**Infrastructure:** Docker, Caddy, SearXNG (self-hosted search)
 
 ## Getting Started
 
@@ -32,7 +36,7 @@ Multi-provider AI chat desktop application built with React, Express, and Electr
 
 - Node.js 18+
 - pnpm
-- Docker (required for the SearXNG web search service)
+- Docker (for SearXNG web search)
 
 ### Install
 
@@ -46,7 +50,7 @@ pnpm install
 pnpm dev
 ```
 
-Opens at http://localhost:5173. The Express API server runs on port 3001. Docker is started automatically and runs SearXNG on port 8888.
+Opens at http://localhost:5173. The Express API server runs on port 3001. Docker Compose starts SearXNG for web search.
 
 ### Development (Electron)
 
@@ -56,6 +60,12 @@ pnpm dev:electron
 
 Launches the app as a native desktop window with Vite HMR.
 
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `LLM_CHAT_MASTER_PASSWORD` | No | Enables AES-256-GCM encryption of `~/.llm-chat/data.db` |
+
 ### Build for distribution
 
 ```bash
@@ -64,38 +74,62 @@ pnpm dist
 
 Packages the app for your platform (zip on Linux, dmg/zip on macOS, nsis/portable on Windows).
 
+### Production (Docker)
+
+```bash
+cp .env.example .env   # Set DOMAIN and optionally LLM_CHAT_MASTER_PASSWORD
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Caddy handles TLS certificates automatically.
+
+## Testing
+
+```bash
+pnpm test          # Run all tests (vitest)
+pnpm test:watch    # Watch mode
+pnpm lint          # ESLint
+```
+
 ## Project Structure
 
 ```
-src/                    # React frontend
-  components/           # UI components (chat, agents, settings, layout, projects, memory, MCP)
-  hooks/                # Custom hooks (chat streaming, auto-scroll)
-  stores/               # Zustand stores (agents, chat, MCP, memory, projects, UI)
-  lib/                  # LLM client, providers config, agent templates, utilities
-  types/                # TypeScript type definitions
-server/                 # Express backend
-  index.ts              # API endpoints (/api/chat SSE, /api/mcp/*)
-  db.ts                 # SQLite database initialisation
-  db-routes.ts          # REST routes for agents, conversations, memory, projects
-  mcp-manager.ts        # MCP server connection lifecycle
-  mcp-presets.ts        # Curated list of ready-to-use MCP server presets
-  tool-bridge.ts        # Converts MCP tools to AI SDK format
-  crypto.ts             # Encryption helpers
-  tools/                # Built-in tool implementations
-    web-search.ts       # SearXNG-backed web search
-    web-fetch.ts        # Fetch content from a URL
-    code-executor.ts    # Execute JavaScript, Python, or shell code
-    file-reader.ts      # Read files from the local filesystem
-    file-writer.ts      # Write or create files on the filesystem
-    calculator.ts       # Evaluate mathematical expressions
-    pdf-reader.ts       # Extract text from PDF files
-    datetime.ts         # Current time, timezone conversion, date arithmetic
-    image-generator.ts  # Generate images with OpenAI DALL-E / gpt-image-1
-    deep-research.ts    # Multi-step web research with source compilation
-electron/               # Electron main process
-  main.ts               # Window creation, Express embedding
-  preload.ts            # Context bridge
-scripts/                # Build scripts
+src/                  # React frontend
+  components/         # UI components (chat, agents, settings, layout, MCP, memory, projects)
+  hooks/              # Custom hooks (chat streaming, auto-scroll)
+  stores/             # Zustand stores (agents, chat, MCP, memory, api-keys, projects, UI)
+  lib/                # LLM client, providers config, utilities
+  types/              # TypeScript type definitions
+server/               # Express backend
+  index.ts            # API endpoints (/api/chat SSE, /api/mcp/*, /api/db/*, /api/rag/*)
+  db.ts               # sql.js database (auto-save, migrations)
+  db-encryption.ts    # AES-256-GCM encryption layer
+  db-routes.ts        # CRUD REST API for agents, conversations, memories
+  mcp-manager.ts      # MCP server connection lifecycle
+  mcp-presets.ts      # Pre-configured MCP server templates
+  tool-bridge.ts      # Converts MCP tools to AI SDK format
+  crypto.ts           # Legacy per-field encryption (deprecated, migration only)
+  rag/                # Retrieval-augmented generation
+    embeddings.ts     # OpenAI text-embedding-3-small client (batched, cached)
+    vector-store.ts   # Pure-JS cosine-similarity vector search over sql.js
+    memory-index.ts   # Lazy embedding indexer for agent memories
+    routes.ts         # POST /api/rag/memories/search
+  tools/              # Built-in agent tools
+    web-search.ts     # SearXNG integration
+    web-fetch.ts      # URL content fetcher
+    code-executor.ts  # Sandboxed JS/Python/shell execution
+    file-reader.ts    # Local file reader
+    file-writer.ts    # Local file writer
+    pdf-reader.ts     # PDF text extraction
+    calculator.ts     # Math expression evaluator
+    image-generator.ts # DALL-E / gpt-image-1
+    deep-research.ts  # Multi-step web research
+    datetime.ts       # Time/timezone utilities
+electron/             # Electron main process
+  main.ts             # Window creation, Express embedding
+  preload.ts          # Context bridge
+scripts/              # Build scripts
+plans/                # Implementation plans for upcoming features
 ```
 
 ## Built-in Tools
@@ -136,12 +170,15 @@ One-click setup for popular Model Context Protocol servers:
 | OpenAI | gpt-4o, gpt-4o-mini, gpt-4-turbo, o1, o1-mini, o3-mini |
 | Anthropic | claude-sonnet-4, claude-haiku-4.5, claude-opus-4 |
 | Google | gemini-2.5-pro, gemini-2.5-flash, gemini-2.0-flash |
-| DeepSeek | deepseek-chat, deepseek-reasoner |
+| DeepSeek | deepseek-v4-pro, deepseek-v4-flash |
 | Ollama | Any local model (llama3.1, mistral, codellama, etc.) |
 
-## API Keys
+## Architecture Notes
 
-API keys are stored locally in your browser (localStorage) and are never sent to or stored on the server.
+- **API keys** are stored only in the browser (`localStorage`). The server never persists them — they are passed per-request in the body of `/api/chat` and `/api/rag/memories/search`.
+- **Semantic memory search** uses a lazy embedding strategy: memories are embedded on first search, not on creation. This keeps the memory CRUD free of OpenAI key requirements and degrades gracefully.
+- **Vector search** is a linear cosine scan over the sql.js `vectors` table. This is fast enough for hundreds to low-thousands of vectors per agent and avoids native extension packaging complexity.
+- **Database encryption** uses scrypt key derivation (cached per process) + AES-256-GCM. The salt is stable within a process to avoid repeated 100ms key derivation on each auto-save.
 
 ## License
 

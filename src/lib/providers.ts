@@ -37,7 +37,7 @@ export const PROVIDERS: Record<ProviderId, ProviderMeta> = {
   deepseek: {
     id: 'deepseek',
     name: 'DeepSeek',
-    models: ['deepseek-chat', 'deepseek-reasoner'],
+    models: ['deepseek-v4-pro', 'deepseek-v4-flash'],
     icon: 'Waves',
     color: '#4d6bfe',
     requiresApiKey: true,

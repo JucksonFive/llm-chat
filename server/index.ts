@@ -17,6 +17,49 @@ const app = express()
 app.use(cors())
 app.use(express.json({ limit: '50mb' }))
 
+function normalizeDeepSeekModel(model: string): string {
+  switch (model) {
+    case 'v4-pro':
+    case 'deepseek-v4-pro':
+      return 'deepseek-v4-pro'
+    case 'v4-chat':
+    case 'deepseek-v4-chat':
+    case 'deepseek-v4-flash':
+    case 'deepseek-chat':
+      return 'deepseek-v4-flash'
+    case 'deepseek-reasoner':
+      return 'deepseek-v4-pro'
+    default:
+      return model
+  }
+}
+
+type ToolResultForSummary = { toolName: string; result: unknown }
+
+function stringifyForPrompt(value: unknown): string {
+  if (typeof value === 'string') return value
+  try {
+    return JSON.stringify(value, null, 2) ?? String(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function truncateForPrompt(value: string, maxLength = 6000): string {
+  return value.length > maxLength ? `${value.slice(0, maxLength)}... [truncated]` : value
+}
+
+function buildToolResultsPrompt(toolResults: ToolResultForSummary[]): string {
+  const renderedResults = toolResults
+    .map((toolResult, index) => {
+      const result = truncateForPrompt(stringifyForPrompt(toolResult.result))
+      return `Tool ${index + 1}: ${toolResult.toolName}\n${result}`
+    })
+    .join('\n\n')
+
+  return `The tool calls for this turn have already been executed. Do not call more tools. Use these tool results to answer the user's latest request. If a tool returned an error, explain the limitation and answer from the available information.\n\n${renderedResults}`
+}
+
 // DB REST API routes
 registerDbRoutes(app)
 
@@ -33,31 +76,36 @@ app.post('/api/chat', async (req, res) => {
   let serverTimeout: ReturnType<typeof setTimeout> | undefined
   try {
     const { providerId, model, apiKey, messages, systemPrompt, mcpServers, builtInToolIds } = req.body
+    const normalizedModel = providerId === 'deepseek' ? normalizeDeepSeekModel(model) : model
+    const hasRequestedTools = Boolean((mcpServers?.length ?? 0) > 0 || (builtInToolIds?.length ?? 0) > 0)
+    const effectiveModel = providerId === 'deepseek' && normalizedModel === 'deepseek-v4-pro' && hasRequestedTools
+      ? 'deepseek-v4-flash'
+      : normalizedModel
 
     let llmModel
     switch (providerId) {
       case 'openai':
-        llmModel = createOpenAI({ apiKey })(model)
+        llmModel = createOpenAI({ apiKey })(effectiveModel)
         break
       case 'anthropic':
-        llmModel = createAnthropic({ apiKey })(model)
+        llmModel = createAnthropic({ apiKey })(effectiveModel)
         break
       case 'google':
-        llmModel = createGoogleGenerativeAI({ apiKey })(model)
+        llmModel = createGoogleGenerativeAI({ apiKey })(effectiveModel)
         break
       case 'ollama':
         llmModel = createOpenAI({
           baseURL: 'http://localhost:11434/v1',
           apiKey: 'ollama',
           name: 'ollama',
-        }).chat(model)
+        }).chat(effectiveModel)
         break
       case 'deepseek':
         llmModel = createOpenAI({
           baseURL: 'https://api.deepseek.com',
           apiKey,
           name: 'deepseek',
-        }).chat(model)
+        }).chat(effectiveModel)
         break
       default:
         res.status(400).json({ error: 'Unknown provider' })
@@ -76,7 +124,7 @@ app.post('/api/chat', async (req, res) => {
     const tools = { ...builtIn, ...mcpTools }
     const hasTools = Object.keys(tools).length > 0
 
-    console.log(`[chat] provider=${providerId} model=${model} messages=${messages.length} tools=${Object.keys(tools).join(',') || 'none'} builtInToolIds=${JSON.stringify(builtInToolIds)}`)
+    console.log(`[chat] provider=${providerId} model=${normalizedModel} effectiveModel=${effectiveModel} messages=${messages.length} tools=${Object.keys(tools).join(',') || 'none'} builtInToolIds=${JSON.stringify(builtInToolIds)}`)
 
     const abortController = new AbortController()
     serverTimeout = setTimeout(() => {
@@ -86,7 +134,7 @@ app.post('/api/chat', async (req, res) => {
 
     // For non-reasoning models, inject step-by-step thinking discipline
     let finalSystemPrompt = systemPrompt || undefined
-    const isReasoningModel = providerId === 'anthropic' || /^(o3|o4|o3-mini|o4-mini|deepseek-reasoner)/.test(model)
+    const isReasoningModel = providerId === 'anthropic' || /^(o3|o4|o3-mini|o4-mini|deepseek-v4-pro)/.test(effectiveModel)
     if (finalSystemPrompt && !isReasoningModel) {
       finalSystemPrompt += `\n\n## Mandatory thinking process
 For every non-trivial question, you MUST begin your response with a <think>...</think> block before giving your actual answer. This block is your internal reasoning space. Inside it:
@@ -118,7 +166,7 @@ Tool usage guidelines:
       system: finalSystemPrompt,
       messages,
       tools: hasTools ? tools : undefined,
-      stopWhen: hasTools ? stepCountIs(20) : stepCountIs(1),
+      stopWhen: providerId === 'deepseek' && hasTools ? stepCountIs(1) : hasTools ? stepCountIs(20) : stepCountIs(1),
       abortSignal: abortController.signal,
       ...(providerId === 'anthropic' && {
         providerOptions: {
@@ -143,6 +191,7 @@ Tool usage guidelines:
 
     let chunkCount = 0
     const typeCounts: Record<string, number> = {}
+    const toolResultsForSummary: ToolResultForSummary[] = []
     for await (const part of result.fullStream) {
       typeCounts[part.type] = (typeCounts[part.type] || 0) + 1
       if (chunkCount < 10) {
@@ -156,6 +205,7 @@ Tool usage guidelines:
           }
           break
         case 'tool-call':
+          console.log(`[chat] tool-call: ${part.toolName} (id: ${part.toolCallId})`)
           writeSSE(JSON.stringify({
             type: 'tool-call',
             toolCallId: part.toolCallId,
@@ -164,24 +214,90 @@ Tool usage guidelines:
           }))
           break
         case 'tool-result':
+          console.log(`[chat] tool-result: ${part.toolName} result=${JSON.stringify(part.output).substring(0, 100)}...`)
           writeSSE(JSON.stringify({
             type: 'tool-result',
             toolCallId: part.toolCallId,
             toolName: part.toolName,
             result: part.output,
           }))
+          toolResultsForSummary.push({ toolName: part.toolName, result: part.output })
           break
-        case 'reasoning':
+        case 'tool-error':
+          console.log(`[chat] tool-error: ${part.toolName} error=${part.error}`)
+          writeSSE(JSON.stringify({
+            type: 'tool-error',
+            toolCallId: part.toolCallId,
+            toolName: part.toolName,
+            error: part.error,
+          }))
+          toolResultsForSummary.push({ toolName: part.toolName, result: `Error: ${part.error}` })
+          break
+        case 'reasoning-delta':
           writeSSE(JSON.stringify({
             type: 'reasoning',
             text: part.text,
           }))
           break
-        case 'reasoning-signature':
+        case 'reasoning-start':
+        case 'reasoning-end':
           break
         case 'finish-step':
           writeSSE(JSON.stringify({ type: 'step-finish' }))
           break
+      }
+    }
+
+    if (providerId === 'deepseek' && toolResultsForSummary.length > 0) {
+      console.log(`[chat] Synthesis triggered. toolResultsForSummary.length=${toolResultsForSummary.length}`, toolResultsForSummary)
+      try {
+        const synthesisSystemPrompt = finalSystemPrompt
+          ? `${finalSystemPrompt}\n\nThe available tools were already called in this turn. Write the final answer using the provided tool results without requesting additional tools.`
+          : undefined
+
+        const synthesis = streamText({
+          model: llmModel,
+          system: synthesisSystemPrompt,
+          messages: [
+            ...messages,
+            { role: 'user', content: buildToolResultsPrompt(toolResultsForSummary) },
+          ],
+          stopWhen: stepCountIs(1),
+          abortSignal: abortController.signal,
+        })
+
+        let synthesisChunkCount = 0
+        for await (const part of synthesis.fullStream) {
+          typeCounts[`synthesis:${part.type}`] = (typeCounts[`synthesis:${part.type}`] || 0) + 1
+          chunkCount++
+          synthesisChunkCount++
+          switch (part.type) {
+            case 'text-delta':
+              if (part.text != null) {
+                writeSSE(JSON.stringify({ type: 'text-delta', text: part.text }))
+              }
+              break
+            case 'reasoning-delta':
+              writeSSE(JSON.stringify({
+                type: 'reasoning',
+                text: part.text,
+              }))
+              break
+            case 'reasoning-start':
+            case 'reasoning-end':
+              break
+            case 'finish-step':
+              writeSSE(JSON.stringify({ type: 'step-finish' }))
+              break
+          }
+        }
+        console.log(`[chat] Synthesis stream completed. Received ${synthesisChunkCount} chunks`)
+      } catch (synthesisError) {
+        console.error(`[chat] Synthesis phase error:`, synthesisError)
+        writeSSE(JSON.stringify({
+          type: 'error',
+          message: `Synthesis phase failed: ${synthesisError instanceof Error ? synthesisError.message : String(synthesisError)}`,
+        }))
       }
     }
 
@@ -324,8 +440,10 @@ app.post('/api/extract-pdf', async (req, res) => {
     const { dataUrl } = req.body
     const base64 = dataUrl.split(',')[1]
     const buffer = Buffer.from(base64, 'base64')
-    const { default: pdfParse } = await import('pdf-parse') as { default: (buf: Buffer) => Promise<{ text: string }> }
-    const data = await pdfParse(buffer)
+    const { PDFParse } = await import('pdf-parse')
+    const parser = new PDFParse({ data: new Uint8Array(buffer) })
+    const data = await parser.getText()
+    await parser.destroy()
     res.json({ text: data.text })
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'PDF extraction failed' })
@@ -348,7 +466,7 @@ app.post('/api/extract-memories', async (req, res) => {
         llmModel = createGoogleGenerativeAI({ apiKey })('gemini-2.5-flash-lite')
         break
       case 'deepseek':
-        llmModel = createOpenAI({ baseURL: 'https://api.deepseek.com', apiKey, name: 'deepseek' }).chat('deepseek-chat')
+        llmModel = createOpenAI({ baseURL: 'https://api.deepseek.com', apiKey, name: 'deepseek' }).chat('deepseek-v4-flash')
         break
       default:
         res.json({ memories: [] })

@@ -9,6 +9,50 @@ interface SearchResult {
   content?: string
 }
 
+function decodeHtml(value: string): string {
+  return value
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_match, codePoint) => String.fromCodePoint(Number(codePoint)))
+    .replace(/&#x([a-f0-9]+);/gi, (_match, codePoint) => String.fromCodePoint(Number.parseInt(codePoint, 16)))
+}
+
+function htmlToText(value: string): string {
+  return decodeHtml(value)
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function parseSearXNGHtml(html: string, numResults: number): SearchResult[] {
+  const results: SearchResult[] = []
+  const articlePattern = /<article\b[^>]*class="[^"]*\bresult\b[^"]*"[^>]*>([\s\S]*?)<\/article>/gi
+
+  for (const articleMatch of html.matchAll(articlePattern)) {
+    const article = articleMatch[1]
+    const titleMatch = article.match(/<h3>\s*<a\s+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>\s*<\/h3>/i)
+    if (!titleMatch) continue
+
+    const snippetMatch = article.match(/<p\s+class="content"[^>]*>([\s\S]*?)<\/p>/i)
+    const title = htmlToText(titleMatch[2])
+    const url = decodeHtml(titleMatch[1])
+    const snippet = snippetMatch ? htmlToText(snippetMatch[1]) : ''
+
+    if (title && url) {
+      results.push({ title, url, snippet })
+    }
+    if (results.length >= numResults) break
+  }
+
+  return results
+}
+
 async function fetchPageContent(url: string, maxLength = 15000): Promise<string> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 8000)
@@ -51,6 +95,9 @@ async function searchSearXNG(query: string, numResults: number): Promise<SearchR
   const url = `${SEARXNG_URL}/search?q=${encodeURIComponent(query)}&format=json&categories=general`
   const response = await fetch(url, { headers: { Accept: 'application/json' } })
   if (!response.ok) {
+    if (response.status === 403) {
+      return searchSearXNGHtml(query, numResults)
+    }
     throw new Error(`SearXNG search failed: HTTP ${response.status}`)
   }
   const data = (await response.json()) as { results: { title: string; url: string; content?: string }[] }
@@ -59,6 +106,15 @@ async function searchSearXNG(query: string, numResults: number): Promise<SearchR
     url: r.url || '',
     snippet: r.content || '',
   }))
+}
+
+async function searchSearXNGHtml(query: string, numResults: number): Promise<SearchResult[]> {
+  const url = `${SEARXNG_URL}/search?q=${encodeURIComponent(query)}&categories=general`
+  const response = await fetch(url, { headers: { Accept: 'text/html' } })
+  if (!response.ok) {
+    throw new Error(`SearXNG HTML search failed: HTTP ${response.status}`)
+  }
+  return parseSearXNGHtml(await response.text(), numResults)
 }
 
 export const webSearchTool = tool({
