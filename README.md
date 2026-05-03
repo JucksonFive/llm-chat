@@ -173,6 +173,16 @@ One-click setup for popular Model Context Protocol servers:
 | DeepSeek | deepseek-v4-pro, deepseek-v4-flash |
 | Ollama | Any local model (llama3.1, mistral, codellama, etc.) |
 
+## Screenshots
+
+### Dashboard & Chat Interface
+![LLM Chat dashboard with empty conversation](image.png)
+
+![Chat interface with streaming response](image-1.png)
+
+### Agent Settings & Configuration
+![Agent settings panel showing provider and model selection](image-2.png)
+
 ## Architecture Notes
 
 - **API keys** are stored only in the browser (`localStorage`). The server never persists them — they are passed per-request in the body of `/api/chat` and `/api/rag/memories/search`.
