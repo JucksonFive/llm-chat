@@ -1,53 +1,53 @@
-# Plääni 10 — Evaluointikehikko agenteille ja työkaluille
+# Plan 10 — Evaluation Framework for Agents and Tools
 
-## Tavoite
+## Objective
 
-Automatisoitu regressiotestaus: kun lisätään uusi agenttitemplate tai muokataan työkalua, ajetaan datasetti ja varmistetaan ettei laatu huonontunut. Käyttää LangSmith datasets + LLM-as-judge.
+Automated regression testing: when adding a new agent template or modifying a tool, run a dataset and ensure quality hasn't degraded. Uses LangSmith datasets + LLM-as-judge.
 
-## Nykytila
+## Current State
 
-- Agenttimääritykset [agent-templates.ts](../src/lib/agent-templates.ts) ja työkalut [server/tools/](../server/tools/) — muutoksia testataan vain manuaalisesti chattaamalla.
-- Ei mittaria "huononiko laatu" kun esim. system promptia muokataan.
+- Agent definitions [agent-templates.ts](../src/lib/agent-templates.ts) and tools [server/tools/](../server/tools/) — changes are tested only manually by chatting.
+- No metric for "does quality degrade" when, for example, the system prompt is modified.
 
-## Lopputila
+## End State
 
-`pnpm eval` ajaa:
-1. Dataset LangSmithistä (tai paikallinen JSON).
-2. Jokainen rivi = `{input, expectedOutputShape, expectedToolCalls?}`.
-3. Aja agentti/työkalu → kerää output.
-4. LLM-as-judge arvioi: *"Does the output answer the question correctly and factually?"* → skoori 0–1.
-5. Rule-based checks: vaadittu työkalu kutsuttu? Output JSON valid?
-6. Raportti: regressio per testi + aggregaatti.
+`pnpm eval` runs:
+1. Dataset from LangSmith (or local JSON).
+2. Each row = `{input, expectedOutputShape, expectedToolCalls?}`.
+3. Run agent/tool → collect output.
+4. LLM-as-judge evaluates: *"Does the output answer the question correctly and factually?"* → score 0–1.
+5. Rule-based checks: was the required tool called? Is output JSON valid?
+6. Report: regression per test + aggregate.
 
-CI-integraatio: aja PR:ssä, falttaa jos keskiarvo laskee >5%.
+CI integration: run in PR, fail if average drops >5%.
 
-## Edellytys
+## Prerequisite
 
-- **Plääni 06** — LangSmith käytössä (kirjaudu sisään, API-key).
+- **Plan 06** — LangSmith in use (log in, API key).
 
-## Tekniset muutokset
+## Technical Changes
 
-### 1. Riippuvuudet
+### 1. Dependencies
 ```
 pnpm add -D langsmith @langchain/openai
 ```
 
-### 2. Kansiorakenne
+### 2. Folder Structure
 
 ```
 eval/
   datasets/
-    agent-behavior.json       # 20–50 testikysymystä per agenttityyppi
-    tool-accuracy.json        # työkalukohtaiset (web-search, calculator, ...)
+    agent-behavior.json       # 20–50 test questions per agent type
+    tool-accuracy.json        # per-tool (web-search, calculator, ...)
   runners/
     run-agent-eval.ts
     run-tool-eval.ts
   judges/
-    llm-judge.ts              # kriteerit ja rubric
+    llm-judge.ts              # criteria and rubric
   index.ts                    # pnpm eval entry point
 ```
 
-### 3. Dataset-formaatti
+### 3. Dataset Format
 
 ```jsonc
 {
@@ -109,20 +109,20 @@ for (const item of dataset.items) {
 }
 ```
 
-### 6. LangSmith-integraatio
+### 6. LangSmith Integration
 
-Upload datasets LangSmithiin:
+Upload datasets to LangSmith:
 ```ts
 import { Client } from 'langsmith'
 const client = new Client()
 await client.createDataset('agent-behavior', { items: [...] })
 ```
 
-Aja `Client#evaluate` joka kirjaa LangSmithiin näkyviin trendeinä.
+Run `Client#evaluate` which logs to LangSmith as visible trends.
 
 ### 7. CI
 
-**`.github/workflows/eval.yml`** (jos GitHub Actions käytössä):
+**`.github/workflows/eval.yml`** (if using GitHub Actions):
 ```yaml
 on: pull_request
 jobs:
@@ -135,24 +135,24 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 ```
 
-Failaa build jos `avg_score < baseline - 0.05`.
+Fail build if `avg_score < baseline - 0.05`.
 
-### 8. Kustannus
+### 8. Cost
 
-Jokainen eval-ajo = N × (agentti-LLM + judge-LLM). 50 riviä × 2 kutsua × halvin malli = muutama sentti per ajo. Dokumentoi, ettei kukaan yllättyisi.
+Each eval run = N × (agent-LLM + judge-LLM). 50 rows × 2 calls × cheapest model = a few cents per run. Document so no one is surprised.
 
-## Testaus
+## Testing
 
-- Varmista että tunnetusti rikkinäinen prompt (esim. poista system prompt) FAILAA datasetin.
-- Vain silloin kun deterministisiä vikoja löytyy, datasetti on arvokas.
+- Verify that a known-broken prompt (e.g., remove system prompt) FAILS the dataset.
+- Only if deterministic failures are found is the dataset valuable.
 
-## Työmäärä-arvio
+## Effort Estimate
 
-Keskisuuri–suuri. Pääosa on datasetin kirjoittaminen (50 laadukasta kysymystä eri agenteille). Tämä on jatkuva investointi.
+Medium–large. Most work is writing the dataset (50 quality questions per agent type). This is an ongoing investment.
 
-## Milloin kannattaa
+## When It Makes Sense
 
-**Ei heti** — toteuta vasta kun:
-- Agenttimäärä kasvaa (>5 templatea).
-- Käyttäjät antavat palautetta laaturegressioista.
-- Pläänit 01–03 on toteutettu → niissä on monta paikkaa jossa laatu voi huonontua hiljaa.
+**Not immediately** — implement only when:
+- Agent count grows (>5 templates).
+- Users provide feedback on quality regressions.
+- Plans 01–03 are implemented → they have many places where quality can silently degrade.

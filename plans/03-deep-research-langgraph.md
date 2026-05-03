@@ -1,27 +1,27 @@
-# Plääni 03 — Deep Research -agentin refaktorointi LangGraphiin
+# Plan 03 — Deep Research Agent Refactor to LangGraph
 
-## Tavoite
+## Goal
 
-Korvaa [deep-research.ts](../server/tools/deep-research.ts) nykyinen kiinteä lineaarinen putki LangGraph-tilakoneella joka tukee silmukoita, ehtoja ja refleksiota.
+Replace the current fixed linear pipeline in [deep-research.ts](../server/tools/deep-research.ts) with a LangGraph state machine that supports loops, conditionals, and reflection.
 
-## Nykytila
+## Current State
 
-Nykyinen `deep-research.ts`:
-1. Ottaa topic + 3 kovakoodattua query-varianttia.
-2. Ajaa SearXNG-haun jokaiselle.
-3. Dedupaa URL:t, ottaa top-N.
-4. Fetchaa sivut rinnakkain.
-5. Palauttaa raa'an tekstin LLM:lle.
+Current `deep-research.ts`:
+1. Takes topic + 3 hardcoded query variants.
+2. Runs SearXNG search for each.
+3. Deduplicates URLs, takes top-N.
+4. Fetches pages in parallel.
+5. Returns raw text to LLM.
 
-Puutteita:
-- **Ei evaluointia** — jos lähteet ovat huonoja, ei haeta uudestaan.
-- **Ei suunnitteluvaihetta** — LLM ei osallistu queryjen generointiin älykkäästi (vain string-template).
-- **Ei synteesiä server-puolella** — LLM saa 30k merkkiä dataa × N lähde.
-- **Ei keskeytettävyyttä/resume** — jos verkko pätkii, kaikki menee.
+Limitations:
+- **No evaluation** — if sources are poor, doesn't refetch.
+- **No planning phase** — LLM doesn't participate intelligently in query generation (just string templates).
+- **No synthesis server-side** — LLM gets 30k chars of data × N sources.
+- **No interruption/resume** — network glitch loses all progress.
 
-## Lopputila
+## End State
 
-LangGraph-tilakone:
+LangGraph state machine:
 
 ```
 [start] → plan_queries → search → fetch → evaluate
@@ -33,18 +33,18 @@ LangGraph-tilakone:
                                           [end]
 ```
 
-### Solmut
+### Nodes
 
-| Solmu | Tehtävä |
+| Node | Task |
 |---|---|
-| `plan_queries` | LLM-kutsu: generoi 4–6 laadukasta hakukyselyä eri näkökulmista. |
-| `search` | Aja SearXNG-haut, dedup URL:t. |
-| `fetch` | Fetchaa sivut (Cheerio + HtmlToText, ks. plääni 09). |
-| `evaluate` | LLM arvioi: onko dataa riittävästi vastaamaan topiciin? Palauttaa `{enough: bool, missing: string[]}`. |
-| `refine_queries` | LLM generoi uusia queryjä `missing`-listan perusteella. |
-| `synthesize` | LLM tiivistää lähteet jäsenneltyyn vastaukseen lähteineen. |
+| `plan_queries` | LLM call: generate 4–6 quality search queries from different angles. |
+| `search` | Run SearXNG searches, dedup URLs. |
+| `fetch` | Fetch pages (Cheerio + HtmlToText, see plan 09). |
+| `evaluate` | LLM evaluates: is there enough data to answer the topic? Returns `{enough: bool, missing: string[]}`. |
+| `refine_queries` | LLM generates new queries based on `missing` list. |
+| `synthesize` | LLM summarizes sources into structured response with citations. |
 
-### Tila
+### State
 
 ```ts
 type ResearchState = {
@@ -58,49 +58,50 @@ type ResearchState = {
 }
 ```
 
-## Tekniset muutokset
+## Technical Changes
 
-### 1. Riippuvuudet
+### 1. Dependencies
 ```
 pnpm add @langchain/langgraph @langchain/openai @langchain/anthropic
 ```
 
-### 2. Uudet tiedostot
+### 2. New Files
 
 **`server/tools/deep-research/graph.ts`**
-- Rakentaa `StateGraph<ResearchState>`.
-- Ehdolliset siirrot: `evaluate` → `synthesize` tai `refine_queries` perustuen `evaluation.enough`iin ja `iteration < 3`.
+- Build `StateGraph<ResearchState>`.
+- Conditional transitions: `evaluate` → `synthesize` or `refine_queries` based on `evaluation.enough` and `iteration < 3`.
 
 **`server/tools/deep-research/nodes/`**
-- `plan.ts`, `search.ts`, `fetch.ts`, `evaluate.ts`, `refine.ts`, `synthesize.ts` — kukin export-funktio `(state) => Partial<state>`.
+- `plan.ts`, `search.ts`, `fetch.ts`, `evaluate.ts`, `refine.ts`, `synthesize.ts` — each exports a function `(state) => Partial<state>`.
 
-**`server/tools/deep-research.ts`** (päivitä olemassa olevaa)
-- Tool-määritelmä säilyy samana (API-yhteensopivuus), sisäisesti kutsuu graafin `invoke()`.
-- Streamaa välivaiheita tool-progress-eventeinä (vaatii AI SDK:n custom-event-tuen — jos ei, palauta vain lopullinen tulos).
+**`server/tools/deep-research.ts`** (update existing)
+- Tool definition remains the same (API compatibility), internally calls graph `invoke()`.
+- Stream intermediate steps as tool-progress events (requires AI SDK custom-event support — if not, return only final result).
 
-### 3. LLM-provideri graafin sisällä
+### 3. LLM Provider Inside Graph
 
-Tarve: tarvitsemme LLM-clientin server-puolella suunnittelu/arviointi/synteesi-vaiheisiin.
-- Käytä `ChatOpenAI` / `ChatAnthropic` (LangChain) **tai** kääri AI SDK:n `generateText` LangGraph-solmun sisään.
-- Suositus: LangChainin chat-modelli — parempi integraatio LangGraphiin. Malli ja API-avain välitetään tool-kontekstissa.
+Need: LLM client on server-side for planning/evaluation/synthesis phases.
+- Use `ChatOpenAI` / `ChatAnthropic` (LangChain) **or** wrap AI SDK `generateText` inside LangGraph node.
+- Recommendation: LangChain chat model — better LangGraph integration. Model and API key passed in tool context.
 
-**Huom**: tool-kontekstissa ei ole nyt API-avainta suoraan. Lisää `apiKey` ja `providerId` parametreina tool-definitioniin (katso [server/tools/index.ts](../server/tools/index.ts) `getBuiltInTools`-signature).
+**Note**: tool context doesn't currently have API key directly. Add `apiKey` and `providerId` as parameters to tool definition (see [server/tools/index.ts](../server/tools/index.ts) `getBuiltInTools` signature).
 
-### 4. LangSmith tracing (valinnainen mutta suositeltu)
+### 4. LangSmith Tracing (optional but recommended)
 
-LangGraph-grafi tracetaan automaattisesti jos `LANGCHAIN_TRACING_V2=true` ja `LANGCHAIN_API_KEY` ovat asetettu (ks. plääni 06).
+LangGraph graph is auto-traced if `LANGCHAIN_TRACING_V2=true` and `LANGCHAIN_API_KEY` are set (see plan 06).
 
-## Riskit
+## Risks
 
-- **Kustannus kasvaa** — 3 ekstra LLM-kutsua per deep-research. Dokumentoi tämä.
-- **Latenssi kasvaa** — plan + evaluate + synthesize vievät aikaa. Lievennä: rinnakkaista `fetch` aggressiivisesti, käytä haiku/nano-mallia evaluoinnissa.
-- **Silmukkaraja** — kova 3-iteraation raja ettei mene loputtomaksi.
+- **Cost increases** — 3 extra LLM calls per deep-research. Document this.
+- **Latency increases** — plan + evaluate + synthesize take time. Mitigate: aggressively parallelize `fetch`, use haiku/nano model for evaluation.
+- **Loop limit** — hard 3-iteration cap to prevent infinite loops.
 
-## Testaus
+## Testing
 
-- Vertaa vanhaan: sama topic molemmilla, arvioi vastauksen laatu manuaalisesti.
-- Varmista että `iteration` cap pysäyttää ikuisen silmukan.
+- Compare to old: same topic both ways, manually judge answer quality.
+- Ensure `iteration` cap prevents infinite loops.
 
-## Työmäärä-arvio
+## Effort Estimate
 
-Suurin pläänissä 1–5. Laskisin ~1 päivä koodausta + testaus. Kannattaa tehdä vasta kun plääni 06 (tracing) on paikoillaan, niin debuggaaminen on helpompaa.
+Largest among plans 1–5. Estimate ~1 day coding + testing. Worth doing only after plan 06 (tracing) is in place for easier debugging.
+

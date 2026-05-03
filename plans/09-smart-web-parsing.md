@@ -1,10 +1,10 @@
-# Plääni 09 — Älykkäämpi web-sisällön parsinta
+# Plan 09 — Smart Web Content Parsing
 
-## Tavoite
+## Goal
 
-Korvaa [web-fetch.ts](../server/tools/web-fetch.ts) ja [deep-research.ts](../server/tools/deep-research.ts) regex-pohjainen HTML-strippaus kunnollisella DOM-parsingilla. Tuloksena puhtaampi teksti, boilerplate-filtteröinti (nav, footer, mainokset), ja parempi struktuurin säilytys (otsikot, listat).
+Replace [web-fetch.ts](../server/tools/web-fetch.ts) and [deep-research.ts](../server/tools/deep-research.ts) regex-based HTML stripping with proper DOM parsing. Result: cleaner text, boilerplate filtering (nav, footer, ads), and better structure preservation (headings, lists).
 
-## Nykytila
+## Current State
 
 [deep-research.ts](../server/tools/deep-research.ts#L30-L70) `fetchPageContent`:
 ```ts
@@ -16,29 +16,29 @@ text.replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/\s+/g, ' ')
 ```
 
-Ongelmat:
-- Nav/footer/sidebar/cookie-bannerit jäävät mukaan → kohinaa.
-- Otsikot, listat, linkit menetetään → LLM näkee massan tekstiä.
-- Table/code-lohkot rikkoutuvat.
+Problems:
+- Nav/footer/sidebar/cookie banners remain → noise.
+- Headings, lists, links are lost → LLM sees a mass of text.
+- Table/code blocks break.
 
-## Lopputila
+## End State
 
-Cheerio-pohjainen extraktori joka:
-1. Poistaa tunnetut boilerplate-selektorit (`nav, footer, aside, [role=banner], .ad, .cookie-*`).
-2. Yrittää löytää päänarttikkelin (`article, main, [role=main]`).
-3. Muuntaa semanttiseksi Markdowniksi (`# Heading`, `- list`, `[text](url)`).
+Cheerio-based extractor that:
+1. Removes known boilerplate selectors (`nav, footer, aside, [role=banner], .ad, .cookie-*`).
+2. Attempts to find the main article (`article, main, [role=main]`).
+3. Converts to semantic Markdown (`# Heading`, `- list`, `[text](url)`).
 
-Vaihtoehtona @mozilla/readability (sama algoritmi kuin Firefoxin Reader Modessa) — erityisen hyvä artikkelisisältöön.
+Alternative @mozilla/readability (same algorithm as Firefox's Reader Mode) — especially good for article content.
 
-## Tekniset muutokset
+## Technical Changes
 
-### 1. Riippuvuudet
+### 1. Dependencies
 ```
 pnpm add @langchain/community cheerio @mozilla/readability jsdom
 ```
-(LangChainilla on `CheerioWebBaseLoader` joka kapseloi tämän, mutta suora Cheerio + Readability on ohuempi.)
+(LangChain has `CheerioWebBaseLoader` which wraps this, but direct Cheerio + Readability is lighter.)
 
-### 2. Uusi moduli
+### 2. New Module
 
 **`server/web/extractor.ts`**
 ```ts
@@ -76,9 +76,9 @@ export async function extractArticle(html: string, url: string): Promise<{
 }
 ```
 
-`htmlToMarkdown`: käytä `turndown` ( `pnpm add turndown`) tai kevyt oma implementaatio (h1-h6, p, ul/ol, a, code, pre).
+`htmlToMarkdown`: use `turndown` ( `pnpm add turndown`) or a lightweight custom implementation (h1-h6, p, ul/ol, a, code, pre).
 
-### 3. Käyttö
+### 3. Usage
 
 **[server/tools/web-fetch.ts](../server/tools/web-fetch.ts)**
 ```ts
@@ -91,24 +91,24 @@ return {
 }
 ```
 
-**[server/tools/deep-research.ts](../server/tools/deep-research.ts)**: korvaa `fetchPageContent` käyttämään `extractArticle`.
+**[server/tools/deep-research.ts](../server/tools/deep-research.ts)**: replace `fetchPageContent` to use `extractArticle`.
 
-### 4. Turvallisuus
+### 4. Security
 
-- Timeout 10s per fetch (pysyy).
-- User-Agent säilyy.
-- Max content length säilyy.
-- **Lisää SSRF-suoja**: estä `localhost`, `127.0.0.1`, `169.254.*`, `10.*`, `192.168.*` ellei explicitly salli. Tärkeä kun sovellus pyörii Electronissa käyttäjän koneella.
+- Timeout 10s per fetch (retained).
+- User-Agent retained.
+- Max content length retained.
+- **Add SSRF protection**: block `localhost`, `127.0.0.1`, `169.254.*`, `10.*`, `192.168.*` unless explicitly allowed. Important when the application runs in Electron on the user's machine.
 
-### 5. Electron-yhteensopivuus
+### 5. Electron Compatibility
 
-`jsdom` on iso riippuvuus (~5MB). Tarkista että Electron-bundle ei kasva kohtuuttomasti. Vaihtoehto: pelkkä Cheerio ilman Readabilityä jos koko kasvaa liikaa.
+`jsdom` is a large dependency (~5MB). Check that the Electron bundle doesn't grow excessively. Alternative: Cheerio only without Readability if size grows too much.
 
-## Testaus
+## Testing
 
-- 10 eri sivustoa (blog, news, SPA, wiki, docs), vertaa ennen/jälkeen-tekstin laatua.
-- Varmista SSRF-suoja: yritä fetchata `http://localhost:3001/api/db/agents` → pitää estyä.
+- 10 different websites (blog, news, SPA, wiki, docs), compare text quality before/after.
+- Verify SSRF protection: attempt to fetch `http://localhost:3001/api/db/agents` → must be blocked.
 
-## Työmäärä-arvio
+## Effort Estimate
 
-Pieni. Pääasia on extractor-modulin testaus eri sivuilla.
+Small. The main focus is testing the extractor module on different websites.

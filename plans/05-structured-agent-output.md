@@ -1,32 +1,32 @@
-# Plääni 05 — "Generate agent from description" strukturoidulla outputilla
+# Plan 05 — "Generate Agent from Description" with Structured Output
 
-## Tavoite
+## Goal
 
-Lisää [agent-dialog.tsx](../src/components/agents/agent-dialog.tsx):iin "Generate with AI" -nappi, joka luo agentin konfiguraation (nimi, system prompt, suositellut työkalut, avatar-väri) pelkästä vapaatekstikuvauksesta.
+Add a "Generate with AI" button to [agent-dialog.tsx](../src/components/agents/agent-dialog.tsx) that creates agent configuration (name, system prompt, recommended tools, avatar color) from plain text description alone.
 
-## Nykytila
+## Current State
 
-- Käyttäjä täyttää käsin: name, provider, model, system prompt, MCP servers, built-in tools.
-- Valmiita templaattejä [agent-templates.ts](../src/lib/agent-templates.ts), mutta räätälöinti on käsityötä.
+- User manually fills: name, provider, model, system prompt, MCP servers, built-in tools.
+- Ready-made templates in [agent-templates.ts](../src/lib/agent-templates.ts), but customization is manual work.
 
-## Lopputila
+## End State
 
-1. Käyttäjä klikkaa "Generate agent with AI".
-2. Dialog kysyy kuvauksen, esim. *"Agent that helps me plan weekly grocery shopping and suggests recipes"*.
-3. Backend kutsuu LLM:ää `withStructuredOutput`illa → palauttaa tyyppivarman JSON-rakenteen.
-4. Dialog täytetään esiin generoiduilla arvoilla — käyttäjä voi vielä editoida ennen tallennusta.
+1. User clicks "Generate agent with AI".
+2. Dialog asks for description, e.g. *"Agent that helps me plan weekly grocery shopping and suggests recipes"*.
+3. Backend calls LLM with `withStructuredOutput` → returns type-safe JSON structure.
+4. Dialog populated with generated values — user can still edit before saving.
 
-## Tekniset muutokset
+## Technical Changes
 
-### 1. Riippuvuudet
+### 1. Dependencies
 ```
 pnpm add @langchain/core @langchain/openai @langchain/anthropic zod
 ```
-(Zod on todennäköisesti jo transitiivisesti — tarkista.)
+(Zod likely already transitive — check.)
 
-### 2. Uusi endpoint
+### 2. New Endpoint
 
-**`server/routes/agent-generator.ts`** (uusi) — rekisteröi [server/index.ts](../server/index.ts):ssä.
+**`server/routes/agent-generator.ts`** (new) — register in [server/index.ts](../server/index.ts).
 
 ```ts
 POST /api/agents/generate
@@ -34,7 +34,7 @@ Body: { description: string, providerId, model, apiKey }
 Response: { name, systemPrompt, avatarColor, suggestedToolIds: string[], suggestedMcpPresetIds: string[] }
 ```
 
-Implementaatio:
+Implementation:
 ```ts
 const AgentSchema = z.object({
   name: z.string().max(40),
@@ -50,27 +50,28 @@ const llm = new ChatOpenAI({ apiKey, model })
 const result = await llm.invoke(buildPrompt(description, availableTools, availableMcpPresets))
 ```
 
-Prompt sisältää listan saatavilla olevista built-in tooleista ja MCP-preseteistä (katso [mcp-presets.ts](../server/mcp-presets.ts) ja [server/tools/index.ts](../server/tools/index.ts)).
+Prompt includes list of available built-in tools and MCP presets (see [mcp-presets.ts](../server/mcp-presets.ts) and [server/tools/index.ts](../server/tools/index.ts)).
 
 ### 3. Frontend
 
 **`src/components/agents/agent-dialog.tsx`**
-- Lisää "Generate with AI" -nappi formin yläreunaan.
-- Avaa sub-dialog / textarea kuvaukselle.
-- `POST /api/agents/generate` → täytä form-tilat generoiduilla arvoilla.
-- Näytä "Generated ✨" -badge kenttien vieressä kunnes käyttäjä muokkaa.
+- Add "Generate with AI" button at top of form.
+- Opens sub-dialog / textarea for description.
+- `POST /api/agents/generate` → populate form states with generated values.
+- Show "Generated ✨" badge next to fields until user edits.
 
-### 4. Miksi LangChain eikä pelkkä AI SDK?
+### 4. Why LangChain vs Just AI SDK?
 
-AI SDK:ssa on myös `generateObject` Zod-schemalla. Tämä plääni toimisi yhtä hyvin sillä — **LangChainia ei TÄYDY käyttää tähän**. Pidetään mukana vain jos muut pläänit tuovat LangChainin projektiin, muuten käytä AI SDK:ta.
+AI SDK also has `generateObject` with Zod schema. This plan would work equally well — **LangChain is NOT required**. Keep it only if other plans bring LangChain to the project, otherwise use AI SDK.
 
-**Päätös**: jos pläänejä 01/02/03 on toteutettu → LangChain. Muuten AI SDK `generateObject`.
+**Decision**: if plans 01/02/03 implemented → LangChain. Otherwise use AI SDK `generateObject`.
 
-## Testaus
+## Testing
 
-- 10 kuvausta, tarkista että kaikki kentät täyttyvät järkevästi.
-- Varmista Zod-validointi: malli ei voi palauttaa tuntematonta tool-ID:tä (käytä `z.enum(knownIds)`).
+- 10 descriptions, verify all fields populated sensibly.
+- Ensure Zod validation: model can't return unknown tool-ID (use `z.enum(knownIds)`).
 
-## Työmäärä-arvio
+## Effort Estimate
 
-Pieni. Suurin osa on prompt-engineering ja UX.
+Small. Mostly prompt engineering and UX.
+

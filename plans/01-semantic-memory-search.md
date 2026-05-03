@@ -1,45 +1,45 @@
-# Plääni 01 — Semanttinen muistihaku (RAG muisteille)
+# Plan 01 — Semantic Memory Search (RAG for Memories)
 
-## Tavoite
+## Goal
 
-Korvaa [memory-store.ts](../src/stores/memory-store.ts) `getMemoryPrompt`-funktion "liitä kaikki muistit promptiin" -logiikka semanttisella haulla: noudetaan vain top-K relevantteinta muistia käyttäjän viimeisimmän viestin perusteella.
+Replace the "append all memories to the prompt" logic in [memory-store.ts](../src/stores/memory-store.ts) `getMemoryPrompt` function with semantic search: retrieve only the top-K most relevant memories based on the user's latest message.
 
-## Nykytila
+## Current State
 
-- `MAX_SHORT_TERM = 10` kovakoodattu raja.
-- `getMemoryPrompt(agentId)` liittää KAIKKI agentin long- ja short-muistit jokaiseen promptiin.
-- Skaalautuu huonosti: 200 muistia × jokainen viesti = iso prompt ja korkea kustannus.
+- `MAX_SHORT_TERM = 10` hardcoded limit.
+- `getMemoryPrompt(agentId)` appends ALL agent long-term and short-term memories to every prompt.
+- Scales poorly: 200 memories × every message = large prompt and high cost.
 
-## Lopputila
+## End State
 
-- Kun prompt rakennetaan, kutsutaan `getRelevantMemories(agentId, userMessage, k=5)`.
-- Muistit tallennetaan edelleen `memories`-tauluun, mutta niille lasketaan embedding ja tallennetaan `vectors`-tauluun.
-- `addMemory` / `updateMemory` / `deleteMemory` synkronoivat vektorit automaattisesti.
+- When building the prompt, call `getRelevantMemories(agentId, userMessage, k=5)`.
+- Memories are still stored in the `memories` table, but embeddings are calculated and stored in the `vectors` table.
+- `addMemory` / `updateMemory` / `deleteMemory` automatically sync vectors.
 
-## Tekniset muutokset
+## Technical Changes
 
-### 1. Riippuvuudet
+### 1. Dependencies
 ```
 pnpm add @langchain/core @langchain/openai @langchain/community sqlite-vec
 ```
 
-### 2. Yhteinen RAG-infra (luodaan tässä pläänissä)
+### 2. Shared RAG infrastructure (created in this plan)
 
 **`server/rag/embeddings.ts`**
-- Exportoi `getEmbeddings(apiKey: string)` → palauttaa `OpenAIEmbeddings`-instanssin (`text-embedding-3-small`, 1536 dim).
-- Cachea instanssit API-keyn mukaan.
+- Export `getEmbeddings(apiKey: string)` → returns an `OpenAIEmbeddings` instance (`text-embedding-3-small`, 1536 dim).
+- Cache instances by API key.
 
 **`server/rag/vector-store.ts`**
 - `upsertVector(id, sourceType, sourceId, agentId, content, embedding, metadata)`
-- `searchVectors(agentId, queryEmbedding, k, filter?)` → top-K cosine-similarityllä
+- `searchVectors(agentId, queryEmbedding, k, filter?)` → top-K by cosine similarity
 - `deleteVector(id)` / `deleteBySource(sourceType, sourceId)`
-- Toteutus: `sqlite-vec` laajennus sql.js:n päälle **tai** jos se ei onnistu sql.js:n kanssa, käytä in-memory cosine-laskua (muistimäärät ovat pieniä, riittää hyvin).
+- Implementation: `sqlite-vec` extension on top of sql.js **or** if that doesn't work with sql.js, use in-memory cosine calculation (memory amounts are small, works fine).
 
-**`server/rag/chunker.ts`** (vain liitäntä — käytetään pläänissä 02)
-- Wrapper `RecursiveCharacterTextSplitter`ille.
+**`server/rag/chunker.ts`** (interface only — used in plan 02)
+- Wrapper for `RecursiveCharacterTextSplitter`.
 
-### 3. DB-skeema
-Lisää [server/db.ts](../server/db.ts):
+### 3. DB Schema
+Add to [server/db.ts](../server/db.ts):
 ```sql
 CREATE TABLE IF NOT EXISTS vectors (
   id TEXT PRIMARY KEY,
@@ -54,44 +54,45 @@ CREATE TABLE IF NOT EXISTS vectors (
 CREATE INDEX IF NOT EXISTS idx_vectors_source ON vectors(source_type, source_id);
 CREATE INDEX IF NOT EXISTS idx_vectors_agent ON vectors(agent_id);
 ```
-Bumppaa `SCHEMA_VERSION` → 7.
+Bump `SCHEMA_VERSION` → 7.
 
-### 4. REST-endpointit
-Lisää [server/db-routes.ts](../server/db-routes.ts):
+### 4. REST Endpoints
+Add to [server/db-routes.ts](../server/db-routes.ts):
 - `POST /api/rag/memories/search` — body `{ agentId, query, k, apiKey }` → `{ memories: Memory[] }`
-- `POST /api/rag/memories/reindex` — body `{ agentId, apiKey }` → rakentaa vektorit uudestaan (migraatiolle).
+- `POST /api/rag/memories/reindex` — body `{ agentId, apiKey }` → rebuilds vectors (for migration).
 
-### 5. Backfill existing memoryille
-Kun käyttäjä avaa sovelluksen ensimmäisen kerran uuden version jälkeen:
-- Jos `memories.length > 0` ja `vectors where source_type='memory'` on tyhjä → aja reindex.
-- Näytä progress-toast.
+### 5. Backfill Existing Memories
+When user opens the app for the first time after the new version:
+- If `memories.length > 0` and `vectors where source_type='memory'` is empty → run reindex.
+- Show progress toast.
 
-### 6. Frontend-muutokset
+### 6. Frontend Changes
 
 **`src/stores/memory-store.ts`**
-- Lisää `getRelevantMemories(agentId, query, k): Promise<Memory[]>` joka kutsuu `/api/rag/memories/search`.
-- `addMemory` / `updateMemory` / `deleteMemory`: ei muutoksia rajapintaan — server hoitaa vektorin ylläpidon `POST /api/db/memories` -endpointissa.
+- Add `getRelevantMemories(agentId, query, k): Promise<Memory[]>` which calls `/api/rag/memories/search`.
+- `addMemory` / `updateMemory` / `deleteMemory`: no API changes — server handles vector maintenance in `POST /api/db/memories` endpoint.
 
-**Prompt-rakennus** (etsi missä `getMemoryPrompt` kutsutaan, todennäköisesti [chat-store.ts](../src/stores/chat-store.ts) tai [use-chat-stream.ts](../src/hooks/use-chat-stream.ts)):
-- Korvaa `getMemoryPrompt(agentId)` → `await getMemoryPromptRelevant(agentId, lastUserMessage, k=5)`.
-- Fallback: jos query tyhjä tai API-avainta ei ole, pudottaudu vanhaan käytökseen (kaikki muistit).
+**Prompt building** (find where `getMemoryPrompt` is called, likely [chat-store.ts](../src/stores/chat-store.ts) or [use-chat-stream.ts](../src/hooks/use-chat-stream.ts)):
+- Replace `getMemoryPrompt(agentId)` → `await getMemoryPromptRelevant(agentId, lastUserMessage, k=5)`.
+- Fallback: if query is empty or API key is missing, fall back to old behavior (all memories).
 
-### 7. Server-side muistit-routen muokkaus
-[server/db-routes.ts](../server/db-routes.ts): `POST /api/db/memories` ja `PUT /api/db/memories/:id`:
-- Laske embedding ja kirjoita `vectors`-tauluun saman transaktion yhteydessä.
-- `DELETE` poistaa myös vektorin.
+### 7. Server-side Memories Route Changes
+[server/db-routes.ts](../server/db-routes.ts): `POST /api/db/memories` and `PUT /api/db/memories/:id`:
+- Calculate embedding and write to `vectors` table in the same transaction.
+- `DELETE` also removes the vector.
 
-## Avoimet kysymykset
+## Open Questions
 
-- **Kumpi embeddinggeneraattori**: vaatia käyttäjän OpenAI-avain? Vai antaa vaihtoehtona local (Ollama `nomic-embed-text`)? → MVP OpenAI, lisää Ollama myöhemmin ilmaisena vaihtoehtona.
-- **Short-term vs long-term**: edelleen merkityksellinen erottelu? Ehdotus: short-term liitetään ALWAYS (rullaava ikkuna), long-term haetaan semanttisesti.
+- **Which embedding generator**: require user's OpenAI key? Or offer local option (Ollama `nomic-embed-text`)? → MVP with OpenAI, add Ollama later as free option.
+- **Short-term vs long-term**: still meaningful distinction? Suggestion: short-term appended ALWAYS (sliding window), long-term retrieved semantically.
 
-## Testaus
+## Testing
 
-- Yksikkö: `vector-store.ts` cosine-similarity, upsert/search/delete.
-- Integraatio: lisää 50 muistia, tee query, tarkista että top-K on relevanttia.
-- Manuaalinen: katso että prompt-koko pienenee DevToolsin verkkotabissa.
+- Unit: `vector-store.ts` cosine-similarity, upsert/search/delete.
+- Integration: add 50 memories, run query, verify top-K is relevant.
+- Manual: check that prompt size decreases in DevTools Network tab.
 
-## Työmäärä-arvio
+## Effort Estimate
 
-~2 kokonaisuutta: infra (`rag/*` + DB-skeema + reindex) + memory-wire. Toteutus yhdellä istunnolla kun infra on paikoillaan.
+~2 units: infrastructure (`rag/*` + DB schema + reindex) + memory wiring. Single session implementation once infra is in place.
+

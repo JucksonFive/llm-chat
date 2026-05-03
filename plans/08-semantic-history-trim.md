@@ -1,41 +1,41 @@
-# Plääni 08 — Keskusteluhistorian semanttinen leikkaus
+# Plan 08 — Semantic History Trimming
 
-## Tavoite
+## Goal
 
-Pitkissä keskusteluissa (>50 viestiä) älä lähetä koko historiaa LLM:lle. Hae semanttisesti relevanteimmat aiemmat viestit nykyisen kysymyksen kontekstiin + pidä viimeiset N viestiä aina mukana.
+In long conversations (>50 messages), don't send entire history to LLM. Semantically fetch most relevant older messages to current question + always keep last N messages.
 
-## Nykytila
+## Current State
 
-Oletettu (pitää varmistaa [chat-store.ts](../src/stores/chat-store.ts):sta): kaikki conversation-messages lähetetään jokaisella pyynnöllä. 100 viestin keskustelussa tämä on helposti 20k+ tokenia pelkkää historiaa.
+Assumed (verify in [chat-store.ts](../src/stores/chat-store.ts)): all conversation messages sent on every request. 100-message conversation easily 20k+ tokens of just history.
 
-## Lopputila
+## End State
 
-Prompt-rakennus jokaiselle käyttäjän viestille:
+Prompt building for each user message:
 ```
-system + [relevant older messages, top-5 semanttisesti] + [last 10 messages] + user message
+system + [relevant older messages, top-5 semantically] + [last 10 messages] + user message
 ```
 
-Viimeiset N säilyvät aina (conversational coherence). Vanhempi relevanssilla.
+Last N always retained (conversational coherence). Older by relevance.
 
-## Edellytys
+## Prerequisites
 
-**Plääni 01** — vektori-infra.
+**Plan 01** — vector infrastructure.
 
-## Tekniset muutokset
+## Technical Changes
 
-### 1. Indeksointi
+### 1. Indexing
 
-Kun viesti tallennetaan ([server/db-routes.ts](../server/db-routes.ts) `POST /api/db/messages`):
-- Laske embedding viestin sisällölle.
-- Tallenna `vectors`-tauluun `source_type='message'`, `source_id=messageId`, `metadata={conversationId, role}`.
+When message is saved ([server/db-routes.ts](../server/db-routes.ts) `POST /api/db/messages`):
+- Calculate embedding for message content.
+- Save to `vectors` with `source_type='message'`, `source_id=messageId`, `metadata={conversationId, role}`.
 
-Backfill: rekisterointi-skripti olemassa oleville viesteille (opt-in nappi UI:ssa, jotta ei pakoteta kaikkia).
+Backfill: registration script for existing messages (opt-in button in UI, don't force).
 
-### 2. Prompt-rakennus
+### 2. Prompt Building
 
-Paikka: missä `streamText`ille rakennetaan `messages`-array (todennäköisesti [use-chat-stream.ts](../src/hooks/use-chat-stream.ts) ja/tai [server/index.ts](../server/index.ts)).
+Location: where `messages` array built for `streamText` (likely [use-chat-stream.ts](../src/hooks/use-chat-stream.ts) and/or [server/index.ts](../server/index.ts)).
 
-Logiikka:
+Logic:
 ```ts
 const THRESHOLD = 20
 const LAST_N = 10

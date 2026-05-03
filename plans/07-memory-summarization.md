@@ -1,48 +1,48 @@
-# Plääni 07 — Automaattinen muistien tiivistys
+# Plan 07 — Automatic Memory Summarization
 
-## Tavoite
+## Goal
 
-Kun agentin long-term-muistit ylittävät rajan (esim. 100 kpl tai 50k merkkiä), vanhimmat tiivistetään LLM:llä yhdeksi "summary"-muistiksi. Pitää muistin hyödyllisenä rajattomasti ilman että prompt paisuu.
+When agent's long-term memories exceed a limit (e.g. 100 count or 50k chars), old ones are summarized by LLM into a single "summary" memory. Keeps memory useful indefinitely without prompt bloat.
 
-## Nykytila
+## Current State
 
-- [memory-store.ts](../src/stores/memory-store.ts): long-term-muisteille ei ole ylärajaa.
-- `getMemoryPrompt` liittää kaikki promptiin (pläänin 01 jälkeen vain relevantit top-K, mutta tallennusmäärä kasvaa silti rajatta).
+- [memory-store.ts](../src/stores/memory-store.ts): no upper limit for long-term memories.
+- `getMemoryPrompt` appends all (after plan 01 only relevant top-K, but storage still grows unbounded).
 
-## Lopputila
+## End State
 
-Background-job (cron tai triggeri addMemoryn jälkeen):
-1. Laskee agentin long-term-muistien määrän.
-2. Jos > 100: ottaa 20 vanhinta.
-3. Lähettää LLM:lle prompt: *"Summarize these memories into 1–3 concise key facts, preserving important details"*.
-4. Luo uuden `type='summary'`-muistin (tai tag-metadatalla).
-5. Poistaa alkuperäiset 20.
+Background job (cron or trigger after addMemory):
+1. Count agent's long-term memories.
+2. If > 100: take 20 oldest.
+3. Send to LLM prompt: *"Summarize these memories into 1–3 concise key facts, preserving important details"*.
+4. Create new `type='summary'` memory (or tag in metadata).
+5. Delete the original 20.
 
-## Edellytys
+## Prerequisites
 
-- **Plääni 01** — jotta relevanssihaku toimii myös tiivistelmien kanssa.
-- Suositus: **Plääni 06** — jotta tiivistyksen laatua voi seurata.
+- **Plan 01** — so semantic search also works on summaries.
+- Recommendation: **Plan 06** — so summarization quality can be monitored.
 
-## Tekniset muutokset
+## Technical Changes
 
-### 1. DB-skeema
-Laajenna [server/db.ts](../server/db.ts) `memories`-taulun `type` CHECK-lauseketta:
+### 1. DB Schema
+Expand [server/db.ts](../server/db.ts) `memories` table `type` CHECK clause:
 ```sql
 type TEXT NOT NULL DEFAULT 'long' CHECK(type IN ('short', 'long', 'summary'))
 ```
-Bumppaa `SCHEMA_VERSION`.
+Bump `SCHEMA_VERSION`.
 
-### 2. Uusi moduli
+### 2. New Module
 
 **`server/memory/summarizer.ts`**
 ```ts
 async function summarizeMemories(
   memories: Memory[],
   apiKey: string,
-): Promise<string[]>   // 1–3 summary-stringiä
+): Promise<string[]>   // 1–3 summary strings
 ```
 
-Käyttää `ChatOpenAI`ta + `withStructuredOutput(z.object({ summaries: z.array(z.string()).max(3) }))`.
+Uses `ChatOpenAI` + `withStructuredOutput(z.object({ summaries: z.array(z.string()).max(3) }))`.
 
 Prompt:
 ```
@@ -61,36 +61,37 @@ Memories:
 
 ### 3. Trigger
 
-**Vaihtoehto A — eager (heti lisäyksen jälkeen)**
-[server/db-routes.ts](../server/db-routes.ts): `POST /api/db/memories` -käsittelijä → jos `count > threshold`, kutsu `summarizeMemories` async (älä blokkaa responsea).
+**Option A — eager (right after add)**
+[server/db-routes.ts](../server/db-routes.ts): `POST /api/db/memories` handler → if `count > threshold`, call `summarizeMemories` async (don't block response).
 
-**Vaihtoehto B — cron** (suositus)
-`server/memory/maintenance.ts`: `setInterval(runMaintenance, 1h)`. Käy läpi agentit, tiivistää ylivuotavat.
+**Option B — cron** (recommended)
+`server/memory/maintenance.ts`: `setInterval(runMaintenance, 1h)`. Iterate agents, summarize overflowing.
 
-**Vaihtoehto C — manuaalinen nappi**
-UI:ssa "Compress memories"-nappi agent-settingsissä. Helpoin aloitus.
+**Option C — manual button**
+UI in agent settings: "Compress memories" button. Easiest to start.
 
-**Suositus**: aloita C:stä, lisää B myöhemmin.
+**Recommendation**: start with C, add B later.
 
 ### 4. UI
 
-[src/components/memory/](../src/components/memory/): merkitse summary-muistit erottuvasti (kuvake, "auto-summarized N memories on 23.4.2026" tooltip). Säilytä edit/delete.
+[src/components/memory/](../src/components/memory/): mark summary memories distinctively (icon, "auto-summarized N memories on 23.4.2026" tooltip). Retain edit/delete.
 
-### 5. Vektori-synkronointi
+### 5. Vector Sync
 
-Kun 20 muistia poistetaan ja 1–3 summary-muistia luodaan → vektorit päivittyvät automaattisesti `POST /api/db/memories`-reitin kautta (plääni 01).
+When 20 memories deleted and 1–3 summary memories created → vectors auto-update through `POST /api/db/memories` route (plan 01).
 
-## Edge caset
+## Edge Cases
 
-- LLM-kutsu epäonnistuu: älä poista alkuperäisiä muisteja. Yritä uudestaan seuraavalla maintenance-kierroksella.
-- Käyttäjä editoi summary-muistia → ok, se on nyt "manual".
-- Threshold-tuning: aloita 100, seuraa LangSmithistä miten tiivistys onnistuu.
+- LLM call fails: don't delete original memories. Retry next maintenance cycle.
+- User edits summary memory → ok, now "manual".
+- Threshold tuning: start with 100, monitor summarization quality from LangSmith (plan 06).
 
-## Testaus
+## Testing
 
-- Luo 150 muistia, triggeröi maintenance, tarkista että lopputila on järkevä.
-- Semanttinen haku summaryille: varmista että tiivistetty tieto löytyy edelleen queryillä (plääni 01).
+- Create 150 memories, trigger maintenance, verify end state sensible.
+- Semantic search on summaries: verify summarized info still found by queries (plan 01).
 
-## Työmäärä-arvio
+## Effort Estimate
 
-Pieni–keskisuuri kun plääni 01 on valmis.
+Small–medium if plan 01 is ready.
+

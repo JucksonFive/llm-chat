@@ -1,36 +1,36 @@
-# Plääni 06 — LangSmith tracing & observability
+# Plan 06 — LangSmith Tracing & Observability
 
-## Tavoite
+## Goal
 
-Automaattinen havainnointi kaikille LLM-kutsuille: promptit, tokenit, latenssit, työkalukutsut, kustannukset. Nopeuttaa debuggausta erityisesti multi-step tool-silmukoissa ([server/index.ts](../server/index.ts) `stepCountIs(20)`).
+Automatic observability for all LLM calls: prompts, tokens, latencies, tool calls, costs. Speeds up debugging especially in multi-step tool loops ([server/index.ts](../server/index.ts) `stepCountIs(20)`).
 
-## Nykytila
+## Current State
 
-- `console.log` [server/index.ts](../server/index.ts):ssä chunk-määrille.
-- Ei näkyvyyttä: mitä täsmälleen lähetettiin LLM:lle, mikä oli tool-callin input/output, kauanko mikin kesti.
+- `console.log` in [server/index.ts](../server/index.ts) for chunk counts.
+- No visibility: what exactly was sent to LLM, what was tool-call input/output, how long each step took.
 
-## Lopputila
+## End State
 
-LangSmith-dashboard josta näkee:
-- Jokaisen `/api/chat` -kutsun trace-puu (system prompt, messages, tool calls, responses).
-- Per-step latenssit ja tokenit.
-- Kustannukset per provider.
-- Haku trace-id:llä, käyttäjällä, virheillä.
+LangSmith dashboard showing:
+- Each `/api/chat` call's trace tree (system prompt, messages, tool calls, responses).
+- Per-step latencies and tokens.
+- Costs per provider.
+- Search traces by trace-id, user, errors.
 
-## Kaksi toteutustapaa
+## Two Implementation Approaches
 
-### Tapa A — LangSmith ilman LangChainia (OpenTelemetry)
+### Approach A — LangSmith without LangChain (OpenTelemetry)
 
-Vercel AI SDK tukee OTel-tracingia. LangSmith ottaa OTel-spänit vastaan.
+Vercel AI SDK supports OTel tracing. LangSmith accepts OTel spans.
 
-**Riippuvuudet**
+**Dependencies**
 ```
 pnpm add @opentelemetry/api @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-http langsmith
 ```
 
-**Muutokset**
+**Changes**
 
-**`server/telemetry.ts`** (uusi)
+**`server/telemetry.ts`** (new)
 ```ts
 import { NodeSDK } from '@opentelemetry/sdk-node'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
@@ -46,7 +46,7 @@ if (process.env.LANGSMITH_TRACING === 'true') {
 }
 ```
 
-**`server/index.ts`** `streamText`-kutsu:
+**`server/index.ts`** in `streamText` call:
 ```ts
 const result = streamText({
   ...,
@@ -58,37 +58,38 @@ const result = streamText({
 })
 ```
 
-### Tapa B — LangChain callback handler
+### Approach B — LangChain Callback Handler
 
-Käytössä vain jos käytetään `ChatOpenAI`/`ChatAnthropic`-instansseja (pläänit 03, 04, 05).
-- Aseta `LANGCHAIN_TRACING_V2=true` + `LANGCHAIN_API_KEY` → automaattisesti.
+Used only if using `ChatOpenAI`/`ChatAnthropic` instances (plans 03, 04, 05).
+- Set `LANGCHAIN_TRACING_V2=true` + `LANGCHAIN_API_KEY` → automatic.
 
-## Suositus
+## Recommendation
 
-**Käytä molempia**: tapa A AI SDK:n virtaa varten, tapa B LangChain-osille. Trace-ID:t yhdistyvät.
+**Use both**: approach A for AI SDK streams, approach B for LangChain parts. Trace IDs merge.
 
-## Konfigurointi
+## Configuration
 
-Lisää `.env.example`:
+Add to `.env.example`:
 ```
 LANGSMITH_TRACING=true
 LANGSMITH_API_KEY=ls_...
 LANGSMITH_PROJECT=llm-chat
 ```
 
-UI-toggle "Enable tracing" [src/components/settings/](../src/components/settings/). Oletuksena **pois päältä** (privacy: promptit lähtevät LangSmithin pilveen).
+UI toggle "Enable tracing" in [src/components/settings/](../src/components/settings/). Defaults to **OFF** (privacy: prompts sent to LangSmith cloud).
 
-## Privacy-huomio
+## Privacy Note
 
-- Käyttäjän promptit ja vastaukset lähtevät LangSmithin palvelimille → on **opt-in**.
-- Electron-tuotannossa: näytä varoitus kun toggle aktivoidaan ("Prompts will be sent to LangSmith cloud for observability").
-- Vaihtoehto: self-host LangSmith (Docker, maksullinen).
+- User prompts and responses sent to LangSmith servers → **opt-in only**.
+- Electron production: show warning when toggle activated ("Prompts will be sent to LangSmith cloud for observability").
+- Alternative: self-host LangSmith (Docker, paid).
 
-## Testaus
+## Testing
 
-- Tee chat-sessio, avaa LangSmith UI, tarkista että trace näkyy kokonaisena.
-- Aiheuta virhe (väärä API-avain) → trace näkyy punaisena.
+- Create chat session, open LangSmith UI, verify trace shows completely.
+- Trigger error (wrong API key) → trace shows red.
 
-## Työmäärä-arvio
+## Effort Estimate
 
-Pieni kun osaa Node OTel-instrumentoinnin. Oletus: 2–4h.
+Small if familiar with Node OTel instrumentation. Estimate: 2–4h.
+

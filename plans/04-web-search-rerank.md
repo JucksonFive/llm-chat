@@ -1,85 +1,86 @@
-# Plääni 04 — Web-haun query rewriting + reranking
+# Plan 04 — Web Search Query Rewriting + Reranking
 
-## Tavoite
+## Goal
 
-Paranna [web-search.ts](../server/tools/web-search.ts):n osumatarkkuutta: LLM kirjoittaa queryn uudelleen useaksi variantiksi, tulokset fuusioidaan ja rerankataan.
+Improve precision in [web-search.ts](../server/tools/web-search.ts): LLM rewrites query into multiple variants, results fused and reranked.
 
-## Nykytila
+## Current State
 
-[web-search.ts](../server/tools/web-search.ts) syöttää käyttäjän queryn suoraan SearXNG:lle ja palauttaa top-N tulosta raakajärjestyksessä. Jos käyttäjän kysymys on huonosti muotoiltu, tulokset ovat huonoja.
+[web-search.ts](../server/tools/web-search.ts) passes user query directly to SearXNG and returns top-N results in raw order. If user question is poorly phrased, results are poor.
 
-## Lopputila
+## End State
 
 Pipeline:
 ```
-query → [LLM rewriter] → [3–4 variant queryä]
-      → [rinnakkaiset SearXNG-haut] → [fuusio + dedup]
+query → [LLM rewriter] → [3–4 variant queries]
+      → [parallel SearXNG searches] → [fusion + dedup]
       → [reranker] → [top-K]
 ```
 
-Toteutetaan kahtena vaiheena:
-- **Vaihe A (pieni)**: `MultiQueryRetriever` query rewritingiin.
-- **Vaihe B (suurempi)**: cross-encoder rerank (CohereRerank tai local).
+Implemented in two phases:
+- **Phase A (small)**: `MultiQueryRetriever` for query rewriting.
+- **Phase B (larger)**: cross-encoder rerank (CohereRerank or local).
 
-## Tekniset muutokset
+## Technical Changes
 
-### Vaihe A — Multi-query rewriting
+### Phase A — Multi-query Rewriting
 
-**Riippuvuudet**
+**Dependencies**
 ```
 pnpm add @langchain/core @langchain/openai
 ```
 
-**Muutos**: [web-search.ts](../server/tools/web-search.ts)
-- Ennen SearXNG-kutsua: kutsu `ChatOpenAI` pienellä mallilla (`gpt-4.1-nano` / `haiku`) prompt:
+**Change**: [web-search.ts](../server/tools/web-search.ts)
+- Before SearXNG call: call `ChatOpenAI` with small model (`gpt-4.1-nano` / `haiku`) prompt:
   > "Generate 3 diverse search queries that would help answer this question. Return JSON array of strings. Question: {query}"
-- Käytä `withStructuredOutput(z.object({ queries: z.array(z.string()) }))`.
-- Aja SearXNG rinnakkain kaikille. Fuusioi tulokset **Reciprocal Rank Fusion** -algoritmilla:
+- Use `withStructuredOutput(z.object({ queries: z.array(z.string()) }))`.
+- Run SearXNG in parallel for all. Fuse results using **Reciprocal Rank Fusion** algorithm:
   ```
   score(url) = Σ 1/(k + rank_i(url))   // k=60
   ```
-- Palauta top-N fuusion mukaan.
+- Return top-N by fusion score.
 
-### Vaihe B — Reranking
+### Phase B — Reranking
 
-**Vaihtoehto 1 — Cohere Rerank (helppo, maksullinen)**
+**Option 1 — Cohere Rerank (easy, paid)**
 ```
 pnpm add @langchain/cohere
 ```
-- `CohereRerank` saa API-avaimen env-muuttujasta.
-- Ota vaihe A:n top-20 → rerank → top-5.
+- `CohereRerank` gets API key from env var.
+- Take phase A's top-20 → rerank → top-5.
 
-**Vaihtoehto 2 — Local cross-encoder (ilmainen, raskas)**
+**Option 2 — Local cross-encoder (free, heavy)**
 - `@xenova/transformers` + `Xenova/ms-marco-MiniLM-L-6-v2`.
-- Toimii CPU:lla mutta lisää n. 500MB malliin ja 2–5s latenssia.
-- Ei sovi Electron-bundleen helposti.
+- Works on CPU but adds ~500MB to bundle and 2–5s latency.
+- Not ideal for Electron bundle.
 
-**Vaihtoehto 3 — LLM-as-reranker (oletus)**
-- Ei uutta riippuvuutta. Käytä pikku-LLM:ää:
+**Option 3 — LLM-as-reranker (default)**
+- No new dependency. Use small LLM:
   > "Rank these results by relevance to: {query}. Return JSON array of IDs in order."
-- Halvempi operatiivisesti, lisää 1 LLM-kutsu.
+- Cheaper operationally, adds 1 LLM call.
 
-**Suositus**: aloita LLM-rerankerilla (vaihtoehto 3), tee siitä opt-in `builtInToolIds`-optioksi myöhemmin.
+**Recommendation**: Start with LLM-reranker (option 3), make it opt-in `builtInToolIds` option later.
 
-### 3. Konfigurointi
+### 3. Configuration
 
-Lisää ympäristömuuttujat:
+Add environment variables:
 ```
 WEB_SEARCH_REWRITE=true
 WEB_SEARCH_RERANK=false          # opt-in
 ```
 
-Tai UI-toggle [src/components/settings/](../src/components/settings/).
+Or UI toggle in [src/components/settings/](../src/components/settings/).
 
 ### 4. Fallback
 
-Jos rewriter-LLM epäonnistuu (ei API-avainta, rate-limit): käytä pelkkää alkuperäistä queryä. Ei saa rikkoa peruskäyttöä.
+If rewriter LLM fails (no API key, rate limit): use only original query. Must not break basic usage.
 
-## Testaus
+## Testing
 
-- Evaluointisetti: 20 tunnettua kysymystä + odotettu URL top-5:ssä.
-- Mittaa hit-rate ennen/jälkeen.
+- Evaluation set: 20 known questions + expected URL in top-5.
+- Measure hit-rate before/after.
 
-## Työmäärä-arvio
+## Effort Estimate
 
-Vaihe A: pieni. Vaihe B LLM-rerankerilla: keskisuuri. Yhteensä hallittavissa yhdellä istunnolla.
+Phase A: small. Phase B with LLM-reranker: medium. Total doable in one session.
+
