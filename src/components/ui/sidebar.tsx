@@ -1,4 +1,5 @@
 "use client"
+/* eslint-disable react-refresh/only-export-components */
 
 import { cva, type VariantProps } from "class-variance-authority"
 import { PanelLeftIcon } from "lucide-react"
@@ -599,6 +600,10 @@ function SidebarMenuBadge({
   )
 }
 
+// Widths for skeleton placeholders; cycled through deterministically.
+const skeletonWidths = [65, 78, 52, 88, 71, 60, 83, 55]
+let skeletonCounter = 0
+
 function SidebarMenuSkeleton({
   className,
   showIcon = false,
@@ -606,10 +611,8 @@ function SidebarMenuSkeleton({
 }: React.ComponentProps<"div"> & {
   showIcon?: boolean
 }) {
-  // Random width between 50 to 90%.
-  const width = React.useMemo(() => {
-    return `${Math.floor(Math.random() * 40) + 50}%`
-  }, [])
+  // Deterministic pseudo-random width (50-90%) using a module-level counter.
+  const width = `${skeletonWidths[skeletonCounter++ % skeletonWidths.length]}%`
 
   return (
     <div

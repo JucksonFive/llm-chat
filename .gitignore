@@ -13,6 +13,9 @@ dist-ssr
 dist-electron
 release
 *.local
+.env
+caddy_data
+caddy_config
 
 # Editor directories and files
 .vscode/*

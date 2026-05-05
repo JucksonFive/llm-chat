@@ -18,12 +18,12 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { AGENT_TEMPLATES } from '@/lib/agent-templates'
 import { DEFAULT_SYSTEM_PROMPT, SYSTEM_PROMPT_PRESETS } from '@/lib/default-system-prompt'
 import { PROVIDERS } from '@/lib/providers'
 import { useAgentStore } from '@/stores/agent-store'
+import { useApiKeyStore } from '@/stores/api-key-store'
 import { useMcpStore } from '@/stores/mcp-store'
-import type { BuiltInToolId, ProviderId, Agent } from '@/types'
+import type { Agent, BuiltInToolId, ProviderId } from '@/types'
 import { Eye, EyeOff, Server, Trash2, Wrench } from 'lucide-react'
 import { useState } from 'react'
 
@@ -72,17 +72,24 @@ function AgentForm({
 }) {
   const { agents, addAgent, updateAgent, deleteAgent } = useAgentStore()
   const mcpServers = useMcpStore((s) => s.servers)
+  // Use selectors so this form only re-renders when the action functions
+  // identity changes (i.e. never), not on every keys-record mutation.
+  const getKey = useApiKeyStore((s) => s.getKey)
+  const setKey = useApiKeyStore((s) => s.setKey)
+  const removeKey = useApiKeyStore((s) => s.removeKey)
+  const findKeyForProvider = useApiKeyStore((s) => s.findKeyForProvider)
 
-  const getApiKeyForProvider = (pid: ProviderId) => {
-    const existing = agents.find((a) => a.providerId === pid && a.apiKey)
-    return existing?.apiKey ?? ''
-  }
+  const getApiKeyForProvider = (pid: ProviderId) => findKeyForProvider(pid, agents)
+
+  const initialApiKey = editingAgent
+    ? getKey(editingAgent.id) || getApiKeyForProvider(editingAgent.providerId)
+    : getApiKeyForProvider('openai')
 
   const [name, setName] = useState(editingAgent?.name ?? '')
   const [providerId, setProviderId] = useState<ProviderId>(editingAgent?.providerId ?? 'openai')
   const [model, setModel] = useState(editingAgent?.model ?? 'gpt-4o')
   const [customModel, setCustomModel] = useState(editingAgent?.model ?? '')
-  const [apiKey, setApiKey] = useState(editingAgent?.apiKey ?? getApiKeyForProvider(editingAgent?.providerId ?? 'openai'))
+  const [apiKey, setApiKey] = useState(initialApiKey)
   const [systemPrompt, setSystemPrompt] = useState(editingAgent?.systemPrompt ?? DEFAULT_SYSTEM_PROMPT)
   const [showApiKey, setShowApiKey] = useState(false)
   const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>(editingAgent?.mcpServerIds ?? [])
@@ -103,31 +110,6 @@ function AgentForm({
       setModel(newProvider.models[0])
     }
     setApiKey(getApiKeyForProvider(newProviderId))
-  }
-
-  const applyTemplate = (templateId: string) => {
-    if (templateId === 'custom') {
-      setName('')
-      setProviderId('openai')
-      setModel(PROVIDERS['openai'].models[0])
-      setCustomModel('')
-      setSystemPrompt('')
-      setSelectedBuiltInTools([])
-      setSelectedMcpIds([])
-      return
-    }
-
-    const template = AGENT_TEMPLATES.find((item) => item.id === templateId)
-    if (!template) return
-
-    setName(template.name)
-    setProviderId(template.providerId)
-    setModel(template.model)
-    setCustomModel(template.model)
-    setSystemPrompt(template.systemPrompt)
-    setSelectedBuiltInTools(template.builtInToolIds)
-    setSelectedMcpIds([])
-    setApiKey(getApiKeyForProvider(template.providerId))
   }
 
   const clearError = (field: string) => {
@@ -155,27 +137,28 @@ function AgentForm({
         name: name.trim(),
         providerId,
         model: finalModel.trim(),
-        apiKey: apiKey.trim(),
         systemPrompt: systemPrompt.trim(),
         mcpServerIds: selectedMcpIds,
         builtInToolIds: selectedBuiltInTools,
       })
+      setKey(editingAgent.id, apiKey.trim())
     } else {
-      await addAgent({
+      const created = await addAgent({
         name: name.trim(),
         providerId,
         model: finalModel.trim(),
-        apiKey: apiKey.trim(),
         systemPrompt: systemPrompt.trim(),
         mcpServerIds: selectedMcpIds,
         builtInToolIds: selectedBuiltInTools,
       })
+      setKey(created.id, apiKey.trim())
     }
     onClose()
   }
 
   const handleDelete = async () => {
     if (editingAgent) {
+      removeKey(editingAgent.id)
       await deleteAgent(editingAgent.id)
       onClose()
     }
@@ -190,34 +173,6 @@ function AgentForm({
       </DialogHeader>
 
       <div className="grid gap-4 py-4 overflow-y-auto">
-        <div className="grid gap-2">
-          <Label>Templates</Label>
-          <div className="flex flex-wrap gap-2">
-            {AGENT_TEMPLATES.map((template) => (
-              <Button
-                key={template.id}
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => applyTemplate(template.id)}
-              >
-                {template.name}
-              </Button>
-            ))}
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => applyTemplate('custom')}
-            >
-              Custom
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Load a ready-made agent profile with prompt, model, and tool defaults.
-          </p>
-        </div>
-
         <div className="grid gap-2">
           <Label htmlFor="name">Name</Label>
           <Input

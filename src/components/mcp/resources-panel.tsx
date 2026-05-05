@@ -1,18 +1,18 @@
-import { useState, useEffect } from 'react'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Database, ChevronDown, ChevronRight, Copy, Loader2 } from 'lucide-react'
+import {
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+} from '@/components/ui/sheet'
 import { useAgentStore } from '@/stores/agent-store'
 import { useMcpStore } from '@/stores/mcp-store'
-import { toast } from 'sonner'
 import type { McpResource, McpServerConfig } from '@/types'
+import { ChevronDown, ChevronRight, Copy, Database, Loader2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 interface ResourcesPanelProps {
   open: boolean
@@ -43,6 +43,7 @@ export function ResourcesPanel({ open, onOpenChange, onInsert }: ResourcesPanelP
     if (!open) {
       setExpandedUri(null)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   const loadResources = async () => {

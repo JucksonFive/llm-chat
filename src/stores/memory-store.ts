@@ -12,10 +12,51 @@ interface MemoryState {
   getShortTermMemories: (agentId: string) => Memory[]
   getLongTermMemories: (agentId: string) => Memory[]
   getMemoryPrompt: (agentId: string) => string
+  getRelevantMemoryPrompt: (agentId: string, query: string, apiKey: string, k?: number) => Promise<string>
   clearShortTermMemories: (agentId: string) => Promise<void>
 }
 
 const MAX_SHORT_TERM = 10
+// Skip semantic search for very short queries — for "ok", "kiitos", a single
+// emoji etc. the embedding is mostly noise and the full memory list is fine.
+const MIN_SEMANTIC_QUERY_LENGTH = 8
+
+type RagFallbackReason = 'no-api-key' | 'search-failed'
+
+async function fetchRelevantLongTerm(
+  agentId: string,
+  query: string,
+  apiKey: string,
+  k: number,
+  longTermCount: number,
+): Promise<Memory[] | null> {
+  if (!apiKey || longTermCount <= k) return null
+  if (query.trim().length < MIN_SEMANTIC_QUERY_LENGTH) return null
+  try {
+    const res = await fetch('/api/rag/memories/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentId, query, apiKey, k }),
+    })
+    if (!res.ok) return null
+    const data = (await res.json()) as {
+      memories?: Memory[]
+      fallback?: boolean
+      reason?: RagFallbackReason
+      error?: string
+    }
+    if (data.fallback || !Array.isArray(data.memories)) {
+      if (data.reason === 'search-failed') {
+        console.warn('[memory] semantic search failed:', data.error)
+      }
+      return null
+    }
+    return data.memories
+  } catch (err) {
+    console.warn('[memory] semantic search request failed, using all memories:', err)
+    return null
+  }
+}
 
 export const useMemoryStore = create<MemoryState>()((set, get) => ({
   memories: [],
@@ -94,6 +135,37 @@ export const useMemoryStore = create<MemoryState>()((set, get) => ({
     if (longTerm.length > 0) {
       const items = longTerm.map((m) => `- ${m.content}`).join('\n')
       prompt += `\n\nLong-term memories (persistent facts about the user, preferences, and key information):\n${items}`
+    }
+
+    if (shortTerm.length > 0) {
+      const items = shortTerm.map((m) => `- ${m.content}`).join('\n')
+      prompt += `\n\nShort-term memories (recent context and conversation summaries):\n${items}`
+    }
+
+    return prompt
+  },
+
+  /**
+   * Build a memory prompt using semantic search for long-term memories.
+   * Short-term memories are always included (rolling window). If the semantic
+   * search fails for any reason (no OpenAI key, network error, etc.), falls
+   * back to the full-memory prompt so the feature degrades gracefully.
+   */
+  getRelevantMemoryPrompt: async (agentId, query, apiKey, k = 5) => {
+    const shortTerm = get().getShortTermMemories(agentId)
+    const longTerm = get().getLongTermMemories(agentId)
+    if (shortTerm.length === 0 && longTerm.length === 0) return ''
+
+    const relevantLong = await fetchRelevantLongTerm(agentId, query, apiKey, k, longTerm.length)
+    const longToInclude = relevantLong ?? longTerm
+    let prompt = ''
+
+    if (longToInclude.length > 0) {
+      const items = longToInclude.map((m) => `- ${m.content}`).join('\n')
+      const label = relevantLong
+        ? 'Long-term memories (most relevant to the current question):'
+        : 'Long-term memories (persistent facts about the user, preferences, and key information):'
+      prompt += `\n\n${label}\n${items}`
     }
 
     if (shortTerm.length > 0) {

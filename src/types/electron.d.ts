@@ -37,6 +37,7 @@ interface SpeechRecognitionAlternative {
   confidence: number
 }
 
+// eslint-disable-next-line no-var
 declare var SpeechRecognition: {
   new (): SpeechRecognition
   prototype: SpeechRecognition

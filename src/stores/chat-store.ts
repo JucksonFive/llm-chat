@@ -81,7 +81,8 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   deleteConversation: async (id) => {
     await fetch(`/api/db/conversations/${id}`, { method: 'DELETE' })
     set((state) => {
-      const { [id]: _, ...rest } = state.conversations
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { [id]: _discarded, ...rest } = state.conversations
       return {
         conversations: rest,
         activeConversationId:

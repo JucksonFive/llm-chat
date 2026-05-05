@@ -1,5 +1,5 @@
-import { app, BrowserWindow, Menu, shell, dialog } from 'electron'
-import { execSync, spawn } from 'child_process'
+import { app, BrowserWindow, Menu, shell } from 'electron'
+import { execSync } from 'child_process'
 import path from 'path'
 import fs from 'fs'
 

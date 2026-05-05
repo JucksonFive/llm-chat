@@ -14,8 +14,8 @@ interface McpServerConfig {
 
 export async function buildToolsFromMcpServers(
   serverConfigs: McpServerConfig[]
-): Promise<Record<string, Tool<any, any>>> {
-  const allTools: Record<string, Tool<any, any>> = {}
+): Promise<Record<string, Tool>> {
+  const allTools: Record<string, Tool> = {}
   const toolNameCounts = new Map<string, number>()
 
   // First pass: collect all tools and detect name collisions

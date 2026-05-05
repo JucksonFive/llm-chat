@@ -28,7 +28,7 @@ export interface BuiltInToolMeta {
   description: string
 }
 
-type ToolEntry = { name: string; description: string; tool?: Tool<any, any>; factory?: (apiKey: string) => Tool<any, any> }
+type ToolEntry = { name: string; description: string; tool?: Tool; factory?: (apiKey: string) => Tool }
 
 const BUILT_IN_TOOLS: Record<BuiltInToolId, ToolEntry> = {
   'web-fetch': {
@@ -91,8 +91,8 @@ export function getBuiltInToolList(): BuiltInToolMeta[] {
   }))
 }
 
-export function getBuiltInTools(enabledIds: BuiltInToolId[], apiKey?: string): Record<string, Tool<any, any>> {
-  const result: Record<string, Tool<any, any>> = {}
+export function getBuiltInTools(enabledIds: BuiltInToolId[], apiKey?: string): Record<string, Tool> {
+  const result: Record<string, Tool> = {}
   for (const id of enabledIds) {
     const entry = BUILT_IN_TOOLS[id]
     if (entry) {
