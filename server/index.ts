@@ -60,6 +60,63 @@ function buildToolResultsPrompt(toolResults: ToolResultForSummary[]): string {
   return `The tool calls for this turn have already been executed. Do not call more tools. Use these tool results to answer the user's latest request. If a tool returned an error, explain the limitation and answer from the available information.\n\n${renderedResults}`
 }
 
+/**
+ * Filter out image content from messages for DeepSeek.
+ * DeepSeek API does not support image_url in the messages array.
+ * Images should be handled separately or not used with DeepSeek chat API.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function filterImagesFromMessages(messages: any[], providerId: string): any[] {
+  if (providerId !== 'deepseek') {
+    return messages
+  }
+
+  return messages.map((msg) => {
+    if (!msg.content || typeof msg.content === 'string') {
+      return msg
+    }
+
+    if (Array.isArray(msg.content)) {
+      let hasImages = false
+      const filtered = msg.content.filter((block: unknown) => {
+        if (typeof block === 'string') return true
+        if (typeof block !== 'object' || block === null) return true
+        const blockObj = block as Record<string, unknown>
+        if (blockObj.type === 'text') return true
+        // Remove image_url blocks
+        if (blockObj.type === 'image_url') {
+          hasImages = true
+          return false
+        }
+        return true
+      })
+
+      if (filtered.length === 0) {
+        // If message only had images, add a note
+        return {
+          ...msg,
+          content: '[Image was provided but DeepSeek does not support images in the chat API]'
+        }
+      }
+
+      if (hasImages && filtered.length > 0) {
+        // If there was text + images, keep the text and add a note
+        filtered.push({
+          type: 'text',
+          text: '[Image attachments were removed - DeepSeek does not support images]'
+        })
+      }
+
+      return {
+        ...msg,
+        content: filtered
+      }
+    }
+
+    return msg
+  })
+}
+
 // DB REST API routes
 registerDbRoutes(app)
 
@@ -76,6 +133,10 @@ app.post('/api/chat', async (req, res) => {
   let serverTimeout: ReturnType<typeof setTimeout> | undefined
   try {
     const { providerId, model, apiKey, messages, systemPrompt, mcpServers, builtInToolIds } = req.body
+    
+    // Filter images for providers that don't support them
+    const filteredMessages = filterImagesFromMessages(messages, providerId)
+    
     const normalizedModel = providerId === 'deepseek' ? normalizeDeepSeekModel(model) : model
     const hasRequestedTools = Boolean((mcpServers?.length ?? 0) > 0 || (builtInToolIds?.length ?? 0) > 0)
     const effectiveModel = providerId === 'deepseek' && normalizedModel === 'deepseek-v4-pro' && hasRequestedTools
@@ -164,7 +225,7 @@ Tool usage guidelines:
     const result = streamText({
       model: llmModel,
       system: finalSystemPrompt,
-      messages,
+      messages: filteredMessages,
       tools: hasTools ? tools : undefined,
       stopWhen: providerId === 'deepseek' && hasTools ? stepCountIs(1) : hasTools ? stepCountIs(20) : stepCountIs(1),
       abortSignal: abortController.signal,
@@ -259,7 +320,7 @@ Tool usage guidelines:
           model: llmModel,
           system: synthesisSystemPrompt,
           messages: [
-            ...messages,
+            ...filteredMessages,
             { role: 'user', content: buildToolResultsPrompt(toolResultsForSummary) },
           ],
           stopWhen: stepCountIs(1),
