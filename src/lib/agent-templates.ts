@@ -37,6 +37,8 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       'calculator',
       'code-executor',
       'deep-research',
+      'index-document',
+      'search-document',
     ],
   },
   {

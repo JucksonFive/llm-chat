@@ -35,7 +35,7 @@ function markDirty() {
   dirty = true
 }
 
-const SCHEMA_VERSION = 7
+const SCHEMA_VERSION = 8
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS agents (
@@ -122,6 +122,14 @@ CREATE TABLE IF NOT EXISTS vectors (
   created_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS documents (
+  id TEXT PRIMARY KEY,
+  path TEXT NOT NULL UNIQUE,
+  mtime INTEGER NOT NULL,
+  chunk_count INTEGER NOT NULL,
+  indexed_at INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_conversations_agent ON conversations(agent_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_project ON conversations(project_id);
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
@@ -130,6 +138,7 @@ CREATE INDEX IF NOT EXISTS idx_attachments_message ON attachments(message_id);
 CREATE INDEX IF NOT EXISTS idx_memories_agent ON memories(agent_id);
 CREATE INDEX IF NOT EXISTS idx_vectors_source ON vectors(source_type, source_id);
 CREATE INDEX IF NOT EXISTS idx_vectors_agent ON vectors(source_type, agent_id);
+CREATE INDEX IF NOT EXISTS idx_documents_path ON documents(path);
 `
 
 export async function initDb(): Promise<Database> {
@@ -204,6 +213,20 @@ export async function initDb(): Promise<Database> {
     )`)
     db.exec('CREATE INDEX IF NOT EXISTS idx_vectors_source ON vectors(source_type, source_id)')
     db.exec('CREATE INDEX IF NOT EXISTS idx_vectors_agent ON vectors(source_type, agent_id)')
+  } catch { /* table may already exist */ }
+
+  // v8: document index metadata (path → mtime/chunk count) for the
+  // index_document / search_document tools. Vectors themselves live in the
+  // existing `vectors` table with source_type='document'.
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS documents (
+      id TEXT PRIMARY KEY,
+      path TEXT NOT NULL UNIQUE,
+      mtime INTEGER NOT NULL,
+      chunk_count INTEGER NOT NULL,
+      indexed_at INTEGER NOT NULL
+    )`)
+    db.exec('CREATE INDEX IF NOT EXISTS idx_documents_path ON documents(path)')
   } catch { /* table may already exist */ }
 
   if (currentVersion < SCHEMA_VERSION) {

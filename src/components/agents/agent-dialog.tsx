@@ -38,6 +38,8 @@ const BUILT_IN_TOOL_LIST: { id: BuiltInToolId; name: string; description: string
   { id: 'datetime', name: 'Date & Time', description: 'Get current time, convert timezones, date differences' },
   { id: 'image-generator', name: 'Image Generator', description: 'Generate images with OpenAI DALL-E / gpt-image-1' },
   { id: 'deep-research', name: 'Deep Research', description: 'Multi-step web research with source compilation' },
+  { id: 'index-document', name: 'Index Document', description: 'Embed a large PDF or text file for semantic search' },
+  { id: 'search-document', name: 'Search Document', description: 'Query an indexed document for the most relevant passages' },
 ]
 
 interface AgentDialogProps {

@@ -137,12 +137,19 @@ function parseRow(row: RawRow): VectorRow & { embedding: Float32Array } {
 export interface SearchOptions {
   sourceType: VectorSourceType
   agentId?: string
+  /** Restrict the candidate set to a single source (e.g. one indexed document). */
+  sourceId?: string
   queryEmbedding: number[]
   k?: number
 }
 
-export function searchVectors({ sourceType, agentId, queryEmbedding, k = 5 }: SearchOptions): SearchHit[] {
-  const rows = agentId
+export function searchVectors({ sourceType, agentId, sourceId, queryEmbedding, k = 5 }: SearchOptions): SearchHit[] {
+  const rows = sourceId
+    ? query<RawRow>(
+        'SELECT * FROM vectors WHERE source_type=$sourceType AND source_id=$sourceId',
+        { sourceType, sourceId },
+      )
+    : agentId
     ? query<RawRow>(
         'SELECT * FROM vectors WHERE source_type=$sourceType AND agent_id=$agentId',
         { sourceType, agentId },

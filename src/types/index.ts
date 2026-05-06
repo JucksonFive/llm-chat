@@ -11,6 +11,8 @@ export type BuiltInToolId =
   | 'datetime'
   | 'image-generator'
   | 'deep-research'
+  | 'index-document'
+  | 'search-document'
 
 export interface ProviderMeta {
   id: ProviderId

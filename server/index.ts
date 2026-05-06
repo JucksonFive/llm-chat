@@ -219,7 +219,8 @@ Tool usage guidelines:
 - ALWAYS prefer using web_search to verify claims rather than guessing. If you're not sure whether something exists or is correct, search for it first.
 - When you use web_search, read the fetched page content carefully and cite sources with URLs.
 - If a tool call fails, explain what happened and try an alternative approach.
-- Do not fabricate tool results — only report what the tools actually return.`
+- Do not fabricate tool results — only report what the tools actually return.
+- For large documents (PDFs over ~20 pages or text files over ~50k characters), call index-document once and then search-document with focused queries instead of pdf-reader / file-reader. Pass the documentId from the first result into every search-document call.`
     }
 
     const result = streamText({
