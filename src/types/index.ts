@@ -139,3 +139,11 @@ export interface McpResourceContent {
   blob?: string
   mimeType?: string
 }
+
+export interface IndexedDocument {
+  id: string
+  path: string
+  chunkCount: number
+  mtime: number
+  indexedAt: number
+}

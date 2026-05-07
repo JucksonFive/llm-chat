@@ -1,9 +1,32 @@
 import type { Express } from 'express'
 import { searchMemories } from './memory-index.js'
+import { deleteIndexedDocument, listIndexedDocuments } from './document-index.js'
 
 export type RagFallbackReason = 'no-api-key' | 'search-failed'
 
 export function registerRagRoutes(app: Express) {
+  app.get('/api/rag/documents', (_req, res) => {
+    const rows = listIndexedDocuments()
+    res.json({
+      documents: rows.map((r) => ({
+        id: r.id,
+        path: r.path,
+        chunkCount: r.chunk_count,
+        mtime: r.mtime,
+        indexedAt: r.indexed_at,
+      })),
+    })
+  })
+
+  app.delete('/api/rag/documents/:id', (req, res) => {
+    const ok = deleteIndexedDocument(req.params.id)
+    if (!ok) {
+      res.status(404).json({ error: 'Document not found' })
+      return
+    }
+    res.json({ ok: true })
+  })
+
   app.post('/api/rag/memories/search', async (req, res) => {
     try {
       const { agentId, query, apiKey, k } = req.body ?? {}

@@ -190,3 +190,11 @@ export async function searchDocument(params: {
 export function listIndexedDocuments(): IndexedDocumentRow[] {
   return query<IndexedDocumentRow>('SELECT * FROM documents ORDER BY indexed_at DESC')
 }
+
+export function deleteIndexedDocument(documentId: string): boolean {
+  const existing = queryOne<IndexedDocumentRow>('SELECT * FROM documents WHERE id=$id', { id: documentId })
+  if (!existing) return false
+  deleteBySource('document', documentId)
+  run('DELETE FROM documents WHERE id=$id', { id: documentId })
+  return true
+}

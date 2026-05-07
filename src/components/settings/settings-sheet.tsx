@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator'
 import { Download, Upload } from 'lucide-react'
 import { ThemeToggle } from '@/components/settings/theme-toggle'
 import { McpServersSection } from '@/components/settings/mcp-servers-section'
+import { IndexedDocumentsSection } from '@/components/settings/indexed-documents-section'
 import { useChatStore } from '@/stores/chat-store'
 import { useAgentStore } from '@/stores/agent-store'
 import { useMemoryStore } from '@/stores/memory-store'
@@ -116,6 +117,10 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
           <Separator />
 
           <McpServersSection />
+
+          <Separator />
+
+          <IndexedDocumentsSection />
 
           <Separator />
 
