@@ -98,7 +98,10 @@ export function getBuiltInTools(enabledIds: BuiltInToolId[], apiKey?: string): R
     if (entry) {
       const t = entry.tool ?? (entry.factory && apiKey ? entry.factory(apiKey) : undefined)
       if (t) {
-        result[`builtin__${id.replace(/-/g, '_')}`] = t
+        // Tool name must match what we tell the model in the system prompt.
+        // AI SDK tool names typically use snake_case; we expose the id as-is
+        // with hyphens converted to underscores (e.g. `web-search` -> `web_search`).
+        result[id.replace(/-/g, '_')] = t
       }
     }
   }
