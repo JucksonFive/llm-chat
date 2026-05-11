@@ -1,4 +1,4 @@
-# LLM Chat
+m # LLM Chat
 
 Multi-provider AI chat desktop application built with React, Express, and Electron.
 
