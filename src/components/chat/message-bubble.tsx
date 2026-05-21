@@ -7,6 +7,7 @@ import type { Message } from '@/types'
 import { motion, AnimatePresence } from 'motion/react'
 import { type ReactNode, useState, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
+import { normalizeLatex } from './normalize-latex'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeKatex from 'rehype-katex'
 import remarkGfm from 'remark-gfm'
@@ -80,56 +81,6 @@ function ReasoningBlock({ reasoning, isStreaming }: { reasoning: string; isStrea
       </AnimatePresence>
     </div>
   )
-}
-
-/** Detect LaTeX-like content: backslash commands, superscripts, subscripts, braces */
-const LATEX_RE = /[\\^_{}]|\\[a-zA-Z]+/
-
-/**
- * Normalize various LaTeX notations into $...$ and $$...$$ so remark-math can parse them.
- *
- * remark-math requires:
- *   - display math: $$...$$ on its own lines, separated by blank lines
- *   - inline math: $...$
- *
- * Models produce: \[...\], \(...\), bare [ ... ] on own lines, bare (...) inline.
- */
-function normalizeLatex(text: string): string {
-  // 1. \[...\] → display math (may be multiline)
-  let result = text.replace(/\\\[([\s\S]*?)\\\]/g, (_m, inner) => `\n\n$$\n${inner.trim()}\n$$\n\n`)
-
-  // 2. \(...\) → inline math
-  result = result.replace(/\\\(([\s\S]*?)\\\)/g, (_m, inner) => `$${inner.trim()}$`)
-
-  // 3. Standalone [ ... ] on its own line with LaTeX content → display math
-  result = result.replace(
-    /^[ \t]*\[([ \t]*[\s\S]*?)\][ \t]*$/gm,
-    (_m, inner) => {
-      const trimmed = inner.trim()
-      if (LATEX_RE.test(trimmed)) return `\n\n$$\n${trimmed}\n$$\n\n`
-      return _m // not math, leave as-is
-    },
-  )
-
-  // 4. Inline (...) with LaTeX content → inline math
-  result = result.replace(
-    /\(([^)]+)\)/g,
-    (_m, inner) => {
-      const trimmed = inner.trim()
-      if (LATEX_RE.test(trimmed)) return `$${trimmed}$`
-      return _m
-    },
-  )
-
-  // 5. Ensure $$ display blocks have blank lines around them (remark-math requirement)
-  // Note: '$$' in replacement is special in JS regex, use a function to avoid issues
-  result = result.replace(/([^\n])\n*\$\$/g, (_m, before) => `${before}\n\n$$`)
-  result = result.replace(/\$\$\n*([^\n$])/g, (_m, after) => `$$\n\n${after}`)
-
-  // 6. Collapse excessive blank lines
-  result = result.replace(/\n{4,}/g, '\n\n\n')
-
-  return result
 }
 
 interface MessageBubbleProps {
@@ -216,7 +167,7 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
               <div key={att.id} className="mb-2">
                 {att.type === 'image' ? (
                   <img
-                    src={att.dataUrl}
+                    src={att.dataUrl ?? `/api/db/attachments/${att.id}/file`}
                     alt={att.name}
                     className="max-w-[240px] rounded-lg"
                   />

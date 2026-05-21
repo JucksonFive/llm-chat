@@ -101,7 +101,25 @@ export function useChatStream() {
         const parts: Array<{ type: 'text'; text: string } | { type: 'image'; image: string }> = []
         for (const att of m.attachments) {
           if (att.type === 'image') {
-            parts.push({ type: 'image', image: att.dataUrl })
+            // dataUrl may be missing for attachments loaded from DB — fetch the file as data URL.
+            let dataUrl = att.dataUrl
+            if (!dataUrl) {
+              try {
+                const resp = await fetch(`/api/db/attachments/${att.id}/file`)
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+                const blob = await resp.blob()
+                dataUrl = await new Promise<string>((resolve, reject) => {
+                  const reader = new FileReader()
+                  reader.onload = () => resolve(reader.result as string)
+                  reader.onerror = () => reject(reader.error)
+                  reader.readAsDataURL(blob)
+                })
+              } catch (err) {
+                console.warn(`[chat] Failed to load attachment ${att.id}:`, err)
+                continue
+              }
+            }
+            parts.push({ type: 'image', image: dataUrl })
           } else if (att.type === 'pdf' && att.textContent) {
             parts.push({ type: 'text', text: `[PDF: ${att.name}]\n${att.textContent}` })
           }

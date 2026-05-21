@@ -1,5 +1,5 @@
 import { webFetchTool } from './web-fetch.js'
-import { webSearchTool } from './web-search.js'
+import { createWebSearchTool, webSearchTool } from './web-search.js'
 import { codeExecutorTool } from './code-executor.js'
 import { fileReaderTool } from './file-reader.js'
 import { fileWriterTool } from './file-writer.js'
@@ -42,8 +42,9 @@ const BUILT_IN_TOOLS: Record<BuiltInToolId, ToolEntry> = {
   },
   'web-search': {
     name: 'Web Search',
-    description: 'Search the web for information',
+    description: 'Search the web for information (LLM-rewritten query variants + rank fusion when an OpenAI key is available)',
     tool: webSearchTool,
+    factory: createWebSearchTool,
   },
   'code-executor': {
     name: 'Code Executor',
@@ -110,7 +111,10 @@ export function getBuiltInTools(enabledIds: BuiltInToolId[], apiKey?: string): R
   for (const id of enabledIds) {
     const entry = BUILT_IN_TOOLS[id]
     if (entry) {
-      const t = entry.tool ?? (entry.factory && apiKey ? entry.factory(apiKey) : undefined)
+      // Prefer the factory when an API key is available so the tool can use
+      // LLM-backed features (rewrites, reranks, image generation). Fall back
+      // to the static instance otherwise so the tool still works without a key.
+      const t = (entry.factory && apiKey ? entry.factory(apiKey) : undefined) ?? entry.tool
       if (t) {
         // Tool name must match what we tell the model in the system prompt.
         // AI SDK tool names typically use snake_case; we expose the id as-is

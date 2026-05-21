@@ -49,7 +49,8 @@ export interface Attachment {
   id: string
   type: 'image' | 'pdf'
   name: string
-  dataUrl: string
+  dataUrl?: string
+  filePath?: string
   textContent?: string
 }
 
