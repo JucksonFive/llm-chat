@@ -13,16 +13,24 @@ Tämä kansio sisältää yksittäiset, toisistaan riippumattomat toteutussuunni
 
 Suurin arvo edellä, yhteinen infra ensin:
 
-1. **[01-semantic-memory-search.md](01-semantic-memory-search.md)** — pystyttää embedding + vektorikanta-infran.
-2. **[02-document-rag-tool.md](02-document-rag-tool.md)** — käyttää samaa infraa, PDF/tiedosto-RAG.
-3. **[06-langsmith-tracing.md](06-langsmith-tracing.md)** — observability ennen isoja agenttimuutoksia.
-4. **[04-web-search-rerank.md](04-web-search-rerank.md)** — nopea laatuparannus web-hakuun.
-5. **[09-smart-web-parsing.md](09-smart-web-parsing.md)** — parempi HTML-parsinta, pieni muutos.
-6. **[03-deep-research-langgraph.md](03-deep-research-langgraph.md)** — deep-research refaktorointi.
-7. **[07-memory-summarization.md](07-memory-summarization.md)** — rakentaa #1 päälle.
-8. **[08-semantic-history-trim.md](08-semantic-history-trim.md)** — rakentaa #1 päälle.
-9. **[05-structured-agent-output.md](05-structured-agent-output.md)** — UX-feature.
-10. **[10-evaluation-framework.md](10-evaluation-framework.md)** — kun agenttipintaa kertyy.
+**Status: ✅ valmis · ⏳ kesken · ⬜ ei aloitettu**
+
+1. ✅ **[01-semantic-memory-search.md](01-semantic-memory-search.md)** — pystyttää embedding + vektorikanta-infran.
+2. ✅ **[02-document-rag-tool.md](02-document-rag-tool.md)** — käyttää samaa infraa, PDF/tiedosto-RAG.
+3. ⬜ **[06-langsmith-tracing.md](06-langsmith-tracing.md)** — observability ennen isoja agenttimuutoksia.
+4. ✅ **[04-web-search-rerank.md](04-web-search-rerank.md)** — nopea laatuparannus web-hakuun.
+5. ⬜ **[09-smart-web-parsing.md](09-smart-web-parsing.md)** — parempi HTML-parsinta, pieni muutos.
+6. ⬜ **[03-deep-research-langgraph.md](03-deep-research-langgraph.md)** — deep-research refaktorointi (nykyinen `server/tools/deep-research.ts` käyttää AI SDK:ta, ei vielä LangGraphia).
+7. ⬜ **[07-memory-summarization.md](07-memory-summarization.md)** — rakentaa #1 päälle.
+8. ⬜ **[08-semantic-history-trim.md](08-semantic-history-trim.md)** — rakentaa #1 päälle.
+9. ⬜ **[05-structured-agent-output.md](05-structured-agent-output.md)** — UX-feature.
+10. ⬜ **[10-evaluation-framework.md](10-evaluation-framework.md)** — kun agenttipintaa kertyy.
+
+> Päivitetty 2026-05-21. Tarkistettu repon tilan perusteella:
+> - **Plan 01** valmis — `server/rag/embeddings.ts`, `server/rag/vector-store.ts`, `server/rag/memory-index.ts` olemassa.
+> - **Plan 02** valmis — `server/rag/document-index.ts`, `server/rag/text-splitter.ts`, työkalut `server/tools/document-indexer.ts` + `document-search.ts`.
+> - **Plan 04** valmis — `server/tools/web-search-rewrite.ts` (multi-query rewrite + RRF fusion + valinnainen LLM-rerank).
+> - Pläänit 03, 05–10 odottavat vielä toteutusta.
 
 ## Yhteinen infra (jaettu pläänien 01, 02, 07, 08 välillä)
 
