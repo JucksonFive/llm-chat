@@ -1,4 +1,5 @@
 import { CodeBlock } from '@/components/chat/code-block'
+import { normalizeLatex } from '@/components/chat/normalize-latex'
 import { ToolCallBlock } from '@/components/chat/tool-call-block'
 import { TypingIndicator } from '@/components/chat/typing-indicator'
 import { cn } from '@/lib/utils'
