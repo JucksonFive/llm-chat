@@ -7,7 +7,7 @@ import { calculatorTool } from './calculator.js'
 import { pdfReaderTool } from './pdf-reader.js'
 import { datetimeTool } from './datetime.js'
 import { createImageGeneratorTool } from './image-generator.js'
-import { deepResearchTool } from './deep-research.js'
+import { deepResearchTool, createDeepResearchTool } from './deep-research.js'
 import { createIndexDocumentTool } from './document-indexer.js'
 import { createSearchDocumentTool } from './document-search.js'
 import type { Tool } from 'ai'
@@ -83,8 +83,9 @@ const BUILT_IN_TOOLS: Record<BuiltInToolId, ToolEntry> = {
   },
   'deep-research': {
     name: 'Deep Research',
-    description: 'Multi-step web research with source compilation',
+    description: 'Multi-step web research with LangGraph orchestration, iterative refinement, and source compilation',
     tool: deepResearchTool,
+    factory: createDeepResearchTool,
   },
   'index-document': {
     name: 'Index Document',
