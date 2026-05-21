@@ -84,7 +84,7 @@ describe('buildToolsFromMcpServers', () => {
     callTool.mockResolvedValueOnce({ ok: true })
 
     const tools = await buildToolsFromMcpServers([fsServer])
-    const t = tools.do_thing as { execute: (args: Record<string, unknown>) => Promise<unknown> }
+    const t = tools.do_thing as unknown as { execute: (args: Record<string, unknown>) => Promise<unknown> }
     const result = await t.execute({ a: 1 })
 
     expect(callTool).toHaveBeenCalledWith('fs', 'do_thing', { a: 1 })

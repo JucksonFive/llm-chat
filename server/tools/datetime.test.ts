@@ -17,7 +17,7 @@ type Result = {
   error?: string
 }
 
-async function exec(input: Parameters<typeof datetimeTool.execute>[0]) {
+async function exec(input: Parameters<NonNullable<typeof datetimeTool.execute>>[0]) {
   return (await datetimeTool.execute!(input, {
     toolCallId: 't',
     messages: [],
