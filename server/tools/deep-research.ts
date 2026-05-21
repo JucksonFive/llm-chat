@@ -12,17 +12,21 @@ interface DeepResearchInput {
 }
 
 interface DeepResearchOutput {
-  topic: string
+  /** Final Markdown report — the primary content the calling LLM should surface to the user. */
+  report: string
+  /** Numbered list of sources used for citations in the report. */
+  sources: { n: number; title: string; url: string }[]
+  /** Thread id for resuming this run later via the checkpointer. */
   threadId: string
-  iterations: number
-  queriesUsed: string[]
-  sourcesFound: number
-  sourcesRead: number
-  sources: { title: string; url: string }[]
-  analysis?: { enough: boolean; missing: string[]; notes: string }
-  synthesis?: string
-  report?: string
-  errors?: string[]
+  /** Diagnostic metadata; usually not worth quoting back to the user. */
+  meta: {
+    iterations: number
+    sourcesUsed: number
+    queries: string[]
+    enough: boolean
+    missing: string[]
+    errors?: string[]
+  }
 }
 
 /**
@@ -36,7 +40,7 @@ interface DeepResearchOutput {
 export function createDeepResearchTool(apiKey: string) {
   return tool({
     description:
-      'Perform deep, multi-step web research on a topic using a LangGraph state machine. The graph plans queries, executes parallel SearXNG searches, fetches and analyses sources, loops back to refine queries if material is insufficient (up to maxIterations), then synthesises and formats a Markdown report with citations. Use this for non-trivial research that benefits from iteration and reflection.',
+      'Perform deep, multi-step web research on a topic using a LangGraph state machine. Plans queries, runs parallel SearXNG searches, fetches and analyses sources, loops to refine queries if material is insufficient, then synthesises a Markdown report with [n]-style citations. Returns `{report, sources, threadId, meta}` — present the `report` field verbatim to the user and reference the numbered `sources` list. Treat `meta` as diagnostics only.',
     inputSchema: jsonSchema<DeepResearchInput>({
       type: 'object',
       properties: {
@@ -74,29 +78,37 @@ export function createDeepResearchTool(apiKey: string) {
           recursionLimit: 50,
         })) as ResearchState
 
+        const report =
+          final.report?.trim() ||
+          final.synthesis?.trim() ||
+          `No report was produced for "${topic}". The agent searched ${final.searchResults.length} result(s) and read ${final.sources.length} source(s) over ${final.iteration} iteration(s) but did not gather enough material.`
+
         return {
-          topic: final.topic,
+          report,
+          sources: final.sources.map((s, i) => ({ n: i + 1, title: s.title, url: s.url })),
           threadId: tid,
-          iterations: final.iteration,
-          queriesUsed: final.queries,
-          sourcesFound: final.searchResults.length,
-          sourcesRead: final.sources.length,
-          sources: final.sources.map((s) => ({ title: s.title, url: s.url })),
-          analysis: final.analysis,
-          synthesis: final.synthesis,
-          report: final.report,
-          errors: final.errors.length > 0 ? final.errors : undefined,
+          meta: {
+            iterations: final.iteration,
+            sourcesUsed: final.sources.length,
+            queries: final.queries,
+            enough: final.analysis?.enough ?? false,
+            missing: final.analysis?.missing ?? [],
+            errors: final.errors.length > 0 ? final.errors : undefined,
+          },
         }
       } catch (err) {
         return {
-          topic,
-          threadId: tid,
-          iterations: 0,
-          queriesUsed: searchQueries ?? [],
-          sourcesFound: 0,
-          sourcesRead: 0,
+          report: `Deep research failed for "${topic}": ${err instanceof Error ? err.message : String(err)}`,
           sources: [],
-          errors: [err instanceof Error ? err.message : 'Deep research failed'],
+          threadId: tid,
+          meta: {
+            iterations: 0,
+            sourcesUsed: 0,
+            queries: searchQueries ?? [],
+            enough: false,
+            missing: [],
+            errors: [err instanceof Error ? err.message : 'Deep research failed'],
+          },
         }
       }
     },
