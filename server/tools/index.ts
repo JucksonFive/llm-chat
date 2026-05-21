@@ -8,6 +8,8 @@ import { pdfReaderTool } from './pdf-reader.js'
 import { datetimeTool } from './datetime.js'
 import { createImageGeneratorTool } from './image-generator.js'
 import { deepResearchTool } from './deep-research.js'
+import { createIndexDocumentTool } from './document-indexer.js'
+import { createSearchDocumentTool } from './document-search.js'
 import type { Tool } from 'ai'
 
 export type BuiltInToolId =
@@ -21,6 +23,8 @@ export type BuiltInToolId =
   | 'datetime'
   | 'image-generator'
   | 'deep-research'
+  | 'index-document'
+  | 'search-document'
 
 export interface BuiltInToolMeta {
   id: BuiltInToolId
@@ -80,6 +84,16 @@ const BUILT_IN_TOOLS: Record<BuiltInToolId, ToolEntry> = {
     name: 'Deep Research',
     description: 'Multi-step web research with source compilation',
     tool: deepResearchTool,
+  },
+  'index-document': {
+    name: 'Index Document',
+    description: 'Embed and store a large document (PDF or text) for semantic search',
+    factory: createIndexDocumentTool,
+  },
+  'search-document': {
+    name: 'Search Document',
+    description: 'Semantically query an already-indexed document for relevant passages',
+    factory: createSearchDocumentTool,
   },
 }
 

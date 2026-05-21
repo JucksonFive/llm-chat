@@ -11,6 +11,8 @@ export type BuiltInToolId =
   | 'datetime'
   | 'image-generator'
   | 'deep-research'
+  | 'index-document'
+  | 'search-document'
 
 export interface ProviderMeta {
   id: ProviderId
@@ -136,4 +138,12 @@ export interface McpResourceContent {
   text?: string
   blob?: string
   mimeType?: string
+}
+
+export interface IndexedDocument {
+  id: string
+  path: string
+  chunkCount: number
+  mtime: number
+  indexedAt: number
 }
