@@ -1,148 +1,133 @@
+import crypto from 'node:crypto'
 import { tool, jsonSchema } from 'ai'
+import { getResearchGraph } from './deep-research/graph.js'
+import type { ResearchState } from './deep-research/state.js'
 
-const SEARXNG_URL = process.env.SEARXNG_URL || 'http://localhost:8888'
-
-interface SearchResult {
-  title: string
-  url: string
-  snippet: string
+interface DeepResearchInput {
+  topic: string
+  searchQueries?: string[]
+  maxSources?: number
+  maxIterations?: number
+  threadId?: string
 }
 
-interface Source {
-  title: string
-  url: string
-  content: string
-}
-
-async function searchSearXNG(query: string, numResults: number): Promise<SearchResult[]> {
-  const url = `${SEARXNG_URL}/search?q=${encodeURIComponent(query)}&format=json&categories=general`
-  const response = await fetch(url, { headers: { Accept: 'application/json' } })
-  if (!response.ok) return []
-  const data = (await response.json()) as { results: { title: string; url: string; content?: string }[] }
-  return (data.results || []).slice(0, numResults).map((r) => ({
-    title: r.title || '',
-    url: r.url || '',
-    snippet: r.content || '',
-  }))
-}
-
-async function fetchPageContent(url: string, maxLength = 30000): Promise<string> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 10000)
-
-  try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'LLM-Chat/1.0 (Desktop App)',
-        Accept: 'text/html,application/xhtml+xml,text/plain;q=0.8,*/*;q=0.7',
-      },
-    })
-
-    if (!response.ok) return ''
-
-    const text = await response.text()
-    let content = text
-      .replace(/<script[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[\s\S]*?<\/style>/gi, '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/\s+/g, ' ')
-      .trim()
-
-    if (content.length > maxLength) {
-      content = content.slice(0, maxLength) + ' [truncated]'
-    }
-    return content
-  } catch {
-    return ''
-  } finally {
-    clearTimeout(timeout)
+interface DeepResearchOutput {
+  /** Final Markdown report — the primary content the calling LLM should surface to the user. */
+  report: string
+  /** Numbered list of sources used for citations in the report. */
+  sources: { n: number; title: string; url: string }[]
+  /** Thread id for resuming this run later via the checkpointer. */
+  threadId: string
+  /** Diagnostic metadata; usually not worth quoting back to the user. */
+  meta: {
+    iterations: number
+    sourcesUsed: number
+    queries: string[]
+    enough: boolean
+    missing: string[]
+    errors?: string[]
   }
 }
 
-export const deepResearchTool = tool({
-  description:
-    'Perform deep research on a topic by executing multiple web searches with different angles, fetching and reading the most relevant pages, and compiling findings. Use this for comprehensive research that requires gathering information from many sources.',
-  inputSchema: jsonSchema<{ topic: string; searchQueries?: string[]; maxSources?: number }>({
-    type: 'object',
-    properties: {
-      topic: { type: 'string', description: 'The research topic or question' },
-      searchQueries: {
-        type: 'array',
-        items: { type: 'string' },
-        description: 'Optional list of specific search queries to use. If not provided, will auto-generate queries from the topic.',
+/**
+ * Build the deep-research tool backed by the LangGraph state machine.
+ *
+ * The factory pattern matches other LLM-backed tools (web-search, image-gen):
+ * an API key is injected once and the resulting tool can be used for many
+ * invocations. Each call gets its own `threadId` (auto-generated if not
+ * supplied) so the SQLite checkpointer can resume an interrupted run later.
+ */
+export function createDeepResearchTool(apiKey: string) {
+  return tool({
+    description:
+      'Perform deep, multi-step web research on a topic using a LangGraph state machine. Plans queries, runs parallel SearXNG searches, fetches and analyses sources, loops to refine queries if material is insufficient, then synthesises a Markdown report with [n]-style citations. Returns `{report, sources, threadId, meta}` — present the `report` field verbatim to the user and reference the numbered `sources` list. Treat `meta` as diagnostics only.',
+    inputSchema: jsonSchema<DeepResearchInput>({
+      type: 'object',
+      properties: {
+        topic: { type: 'string', description: 'The research topic or question.' },
+        searchQueries: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Optional starting queries that override the first planner call. The planner will still refine if iterations are needed.',
+        },
+        maxSources: { type: 'number', description: 'Maximum number of sources to fetch and read (default 8, max 15).' },
+        maxIterations: { type: 'number', description: 'Maximum number of plan→search→fetch→analyse loops (default 3, max 5).' },
+        threadId: { type: 'string', description: 'Optional thread id for resuming a prior interrupted run via the checkpointer.' },
       },
-      maxSources: { type: 'number', description: 'Maximum number of sources to fetch and read (default 8, max 15)' },
+      required: ['topic'],
+    }),
+    execute: async (input: DeepResearchInput): Promise<DeepResearchOutput> => {
+      const { topic, searchQueries, maxSources = 8, maxIterations = 3, threadId } = input
+
+      const tid = threadId || crypto.randomUUID()
+      const graph = getResearchGraph()
+
+      try {
+        const initial: Partial<ResearchState> = {
+          topic,
+          apiKey,
+          maxSources: Math.min(Math.max(1, maxSources), 15),
+          maxIterations: Math.min(Math.max(1, maxIterations), 5),
+        }
+        if (searchQueries && searchQueries.length > 0) {
+          initial.queries = searchQueries
+        }
+
+        const final = (await graph.invoke(initial, {
+          configurable: { thread_id: tid },
+          recursionLimit: 50,
+        })) as ResearchState
+
+        const report =
+          final.report?.trim() ||
+          final.synthesis?.trim() ||
+          `No report was produced for "${topic}". The agent searched ${final.searchResults.length} result(s) and read ${final.sources.length} source(s) over ${final.iteration} iteration(s) but did not gather enough material.`
+
+        return {
+          report,
+          sources: final.sources.map((s, i) => ({ n: i + 1, title: s.title, url: s.url })),
+          threadId: tid,
+          meta: {
+            iterations: final.iteration,
+            sourcesUsed: final.sources.length,
+            queries: final.queries,
+            enough: final.analysis?.enough ?? false,
+            missing: final.analysis?.missing ?? [],
+            errors: final.errors.length > 0 ? final.errors : undefined,
+          },
+        }
+      } catch (err) {
+        return {
+          report: `Deep research failed for "${topic}": ${err instanceof Error ? err.message : String(err)}`,
+          sources: [],
+          threadId: tid,
+          meta: {
+            iterations: 0,
+            sourcesUsed: 0,
+            queries: searchQueries ?? [],
+            enough: false,
+            missing: [],
+            errors: [err instanceof Error ? err.message : 'Deep research failed'],
+          },
+        }
+      }
     },
+  })
+}
+
+/**
+ * Backwards-compatible static export: used when no API key is available.
+ * Falls back to a no-op tool that explains the requirement.
+ */
+export const deepResearchTool = tool({
+  description: 'Deep research (LangGraph). Requires an OpenAI API key.',
+  inputSchema: jsonSchema<{ topic: string }>({
+    type: 'object',
+    properties: { topic: { type: 'string' } },
     required: ['topic'],
   }),
-  execute: async ({
+  execute: async ({ topic }) => ({
     topic,
-    searchQueries,
-    maxSources = 8,
-  }) => {
-    const limit = Math.min(maxSources, 15)
-
-    try {
-      const queries = searchQueries && searchQueries.length > 0
-        ? searchQueries
-        : [
-            topic,
-            `${topic} overview explanation`,
-            `${topic} latest news 2026`,
-          ]
-
-      const allResults: SearchResult[] = []
-      const seenUrls = new Set<string>()
-
-      for (const query of queries) {
-        const results = await searchSearXNG(query, 5)
-        for (const result of results) {
-          if (!seenUrls.has(result.url)) {
-            seenUrls.add(result.url)
-            allResults.push(result)
-          }
-        }
-      }
-
-      const topResults = allResults.slice(0, limit)
-
-      const sources: Source[] = []
-      const fetchPromises = topResults.map(async (result) => {
-        const content = await fetchPageContent(result.url)
-        if (content.length > 100) {
-          sources.push({
-            title: result.title,
-            url: result.url,
-            content,
-          })
-        }
-      })
-
-      await Promise.allSettled(fetchPromises)
-
-      const compiledResearch = sources
-        .map(
-          (s, i) =>
-            `--- Source ${i + 1}: ${s.title} ---\nURL: ${s.url}\n\n${s.content}\n`
-        )
-        .join('\n\n')
-
-      return {
-        topic,
-        queriesUsed: queries,
-        sourcesFound: allResults.length,
-        sourcesRead: sources.length,
-        sources: sources.map((s) => ({ title: s.title, url: s.url })),
-        research: compiledResearch,
-      }
-    } catch (err) {
-      return { error: err instanceof Error ? err.message : 'Deep research failed' }
-    }
-  },
+    error: 'Deep research requires an OpenAI API key to drive the planner / analyser / synthesiser LLMs. Configure one in settings.',
+  }),
 })
