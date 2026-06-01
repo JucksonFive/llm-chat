@@ -2,6 +2,7 @@ import { AgentDialog } from '@/components/agents/agent-dialog'
 import { ProjectDialog } from '@/components/projects/project-dialog'
 import { SettingsSheet } from '@/components/settings/settings-sheet'
 import { Separator } from '@/components/ui/separator'
+import { Input } from '@/components/ui/input'
 import {
   Sidebar,
   SidebarContent,
@@ -17,6 +18,7 @@ import { cn } from '@/lib/utils'
 import { useAgentStore } from '@/stores/agent-store'
 import { useChatStore } from '@/stores/chat-store'
 import { useProjectStore } from '@/stores/project-store'
+import { useConversationSearch } from '@/hooks/use-message-search'
 import type { ProviderId } from '@/types'
 import {
   Brain,
@@ -29,6 +31,7 @@ import {
   Sparkles,
   Trash2,
   Waves,
+  Search,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -50,6 +53,7 @@ export function AppSidebar() {
     getConversationsForAgent,
   } = useChatStore()
   const { projects, activeProjectId, setActiveProject, deleteProject } = useProjectStore()
+  const { query, setQuery, filteredConversations, matchCount } = useConversationSearch(activeAgentId || undefined)
   const [agentDialogOpen, setAgentDialogOpen] = useState(false)
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null)
   const [projectDialogOpen, setProjectDialogOpen] = useState(false)
@@ -58,12 +62,12 @@ export function AppSidebar() {
 
   const activeAgent = agents.find((a) => a.id === activeAgentId)
 
-  const allConversations = activeAgentId
-    ? getConversationsForAgent(activeAgentId)
-    : []
-  const conversations = allConversations.filter((c) =>
-    activeProjectId ? c.projectId === activeProjectId : true
-  )
+  // Use filtered conversations if searching, otherwise apply project filter
+  const conversations = query.trim()
+    ? filteredConversations
+    : (activeAgentId ? getConversationsForAgent(activeAgentId) : []).filter((c) =>
+        activeProjectId ? c.projectId === activeProjectId : true
+      )
 
   const handleNewChat = async () => {
     if (!activeAgentId) return
@@ -236,6 +240,25 @@ export function AppSidebar() {
                     <Plus className="h-4 w-4" />
                   </button>
                 </div>
+
+                {/* Search Input */}
+                <div className="px-2 pb-2">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+                    <Input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Search conversations..."
+                      className="h-7 pl-7 pr-2 text-xs"
+                    />
+                  </div>
+                  {query.trim() && (
+                    <div className="mt-1 text-xs text-muted-foreground px-1">
+                      {matchCount} {matchCount === 1 ? 'match' : 'matches'}
+                    </div>
+                  )}
+                </div>
+
                 <SidebarMenu>
                   {conversations.length === 0 && (
                     <p className="px-3 py-2 text-xs text-muted-foreground">

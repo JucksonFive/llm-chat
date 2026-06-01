@@ -58,7 +58,7 @@ describe('addMessage', () => {
   it('sets streamStartTime for streaming messages (Phase 2)', () => {
     seedConversation()
     const beforeTime = Date.now()
-    const id = useChatStore.getState().addMessage('c1', {
+    useChatStore.getState().addMessage('c1', {
       role: 'assistant',
       content: '',
       isStreaming: true,

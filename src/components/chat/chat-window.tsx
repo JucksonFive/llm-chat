@@ -26,13 +26,14 @@ export function ChatWindow({ conversation }: ChatWindowProps) {
         className="h-full overflow-y-auto py-4"
       >
         <AnimatePresence>
-          {conversation.messages.map((message) => (
-            <MessageBubble
-              key={message.id}
-              message={message}
-              agentName={agent?.name}
-              agentColor={agent?.avatarColor}
-            />
+          {conversation.messages.map((message, index) => (
+            <div key={message.id} data-message-index={index}>
+              <MessageBubble
+                message={message}
+                agentName={agent?.name}
+                agentColor={agent?.avatarColor}
+              />
+            </div>
           ))}
         </AnimatePresence>
       </div>

@@ -255,7 +255,7 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
             )}
 
             {/* Token counter for streaming messages */}
-            {!isUser && message.isStreaming && message.isGeneratingContent && tokenCount > 0 && (
+            {!isUser && message.isStreaming && message.isGeneratingContent && tokenCount && tokenCount > 0 && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
