@@ -7,12 +7,14 @@ import { useMemoryStore } from '@/stores/memory-store'
 import { useMcpStore } from '@/stores/mcp-store'
 import { useProjectStore } from '@/stores/project-store'
 import { useUIStore } from '@/stores/ui-store'
+import { useResearchStore } from '@/stores/research-store'
 import { speakText } from '@/stores/ui-store'
 import { streamChat } from '@/lib/llm-client'
 import type { McpServerConfig, Attachment } from '@/types'
 
 export function useChatStream() {
   const abortRef = useRef<AbortController | null>(null)
+  const activeResearchRef = useRef<string | null>(null)
 
   const sendMessage = useCallback(async (text: string, attachments?: Attachment[]) => {
     const { activeAgentId, agents } = useAgentStore.getState()
@@ -209,18 +211,128 @@ export function useChatStream() {
           args,
           status: 'calling',
         })
+
+        // Debug log
+        console.log('[Research Panel] Tool called:', toolName)
+
+        // Start research tracking for deep-research tool (matches both naming conventions)
+        if ((toolName === 'deep-research' || toolName === 'deep_research') && conversationId) {
+          console.log('[Research Panel] Starting research tracking for conversation:', conversationId)
+          const researchStore = useResearchStore.getState()
+          const researchId = researchStore.startResearch(conversationId)
+          activeResearchRef.current = researchId
+
+          // Simulate stage progression and source discovery
+          // In production, this would parse streaming data from the tool
+          const stages = ['planning', 'searching', 'fetching', 'analyzing', 'synthesizing'] as const
+          let currentStageIndex = 0
+
+          const stageInterval = setInterval(() => {
+            const research = useResearchStore.getState().researches[researchId]
+            if (!research) {
+              clearInterval(stageInterval)
+              return
+            }
+
+            currentStageIndex++
+            if (currentStageIndex >= stages.length) {
+              clearInterval(stageInterval)
+              return
+            }
+
+            const nextStage = stages[currentStageIndex]
+            researchStore.updateStage(researchId, nextStage)
+
+            // Add demo sources when in searching/fetching stage
+            if (nextStage === 'searching' || nextStage === 'fetching') {
+              const demoSources = [
+                { url: 'https://example.com/article1', title: 'Relevant Research Article' },
+                { url: 'https://wikipedia.org/wiki/Topic', title: 'Wikipedia - Topic Overview' },
+                { url: 'https://arxiv.org/abs/12345', title: 'Academic Paper on Topic' },
+              ]
+
+              demoSources.forEach((source, idx) => {
+                setTimeout(() => {
+                  researchStore.addSource(researchId, source)
+                  setTimeout(() => {
+                    researchStore.updateSource(researchId, source.url, 'complete')
+                  }, 1000)
+                }, idx * 800)
+              })
+            }
+
+            // Update progress based on stage
+            const progress = ((currentStageIndex + 1) / stages.length) * 90
+            researchStore.updateProgress(researchId, progress)
+          }, 3000)
+        }
       },
       onToolResult: ({ toolCallId, result }) => {
         useChatStore.getState().updateToolCallInLastMessage(conversationId!, toolCallId, {
           result,
           status: 'complete',
         })
+
+        // Complete research tracking
+        if (activeResearchRef.current) {
+          const researchStore = useResearchStore.getState()
+          const research = researchStore.researches[activeResearchRef.current]
+
+          if (research) {
+            // Parse result to extract sources and stages
+            // For now, simulate with demo data
+            if (typeof result === 'object' && result !== null) {
+              const resultObj = result as Record<string, unknown>
+
+              // Extract sources if available
+              if (Array.isArray(resultObj.sources)) {
+                resultObj.sources.forEach((source: unknown) => {
+                  if (typeof source === 'object' && source !== null) {
+                    const sourceObj = source as Record<string, unknown>
+                    if (typeof sourceObj.url === 'string') {
+                      researchStore.addSource(activeResearchRef.current!, {
+                        url: sourceObj.url,
+                        title: typeof sourceObj.title === 'string' ? sourceObj.title : sourceObj.url,
+                      })
+                      // Mark as complete after a short delay
+                      setTimeout(() => {
+                        researchStore.updateSource(
+                          activeResearchRef.current!,
+                          sourceObj.url as string,
+                          'complete'
+                        )
+                      }, 500)
+                    }
+                  }
+                })
+              }
+
+              // Update stages based on result
+              if (typeof resultObj.stage === 'string') {
+                const stage = resultObj.stage as string
+                if (['planning', 'searching', 'fetching', 'analyzing', 'synthesizing', 'reporting'].includes(stage)) {
+                  researchStore.updateStage(activeResearchRef.current, stage as any)
+                }
+              }
+            }
+
+            // Complete the research
+            researchStore.completeResearch(activeResearchRef.current)
+            activeResearchRef.current = null
+          }
+        }
       },
       onToolError: ({ toolCallId, error }) => {
         useChatStore.getState().updateToolCallInLastMessage(conversationId!, toolCallId, {
           error,
           status: 'error',
         })
+
+        // Clear research on error
+        if (activeResearchRef.current) {
+          useResearchStore.getState().clearResearch(activeResearchRef.current)
+          activeResearchRef.current = null
+        }
       },
       onDone: () => {
         // Flush any remaining tag buffer

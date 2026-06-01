@@ -1,6 +1,7 @@
 import { ChatWindow } from '@/components/chat/chat-window'
 import { EmptyState } from '@/components/chat/empty-state'
 import { MessageInput } from '@/components/chat/message-input'
+import { ResearchProgressPanel } from '@/components/chat/research-progress-panel'
 import { Header } from '@/components/layout/header'
 import { SidebarInset } from '@/components/ui/sidebar'
 import { useAgentStore } from '@/stores/agent-store'
@@ -37,6 +38,7 @@ export function ChatLayout() {
           <EmptyState hasAgent={!!activeAgentId} />
         )}
       </div>
+      <ResearchProgressPanel />
     </SidebarInset>
   )
 }
