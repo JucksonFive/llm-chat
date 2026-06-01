@@ -24,7 +24,7 @@ function extractText(node: ReactNode): string {
   return ''
 }
 
-function ReasoningBlock({ reasoning, isStreaming }: { reasoning: string; isStreaming?: boolean }) {
+function ReasoningBlock({ reasoning, isStreaming }: Readonly<{ reasoning: string; isStreaming?: boolean }>) {
   // Auto-open while streaming, auto-collapse when done
   const [userToggled, setUserToggled] = useState(false)
   const isOpen = userToggled ? !isStreaming : isStreaming
