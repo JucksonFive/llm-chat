@@ -5,14 +5,14 @@ import { TypingIndicator } from '@/components/chat/typing-indicator'
 import { cn } from '@/lib/utils'
 import { cleanTextForSpeech } from '@/stores/ui-store'
 import type { Message } from '@/types'
-import { motion, AnimatePresence } from 'motion/react'
-import { type ReactNode, useState, useCallback } from 'react'
+import 'katex/dist/katex.min.css'
+import { AnimatePresence, motion } from 'motion/react'
+import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeKatex from 'rehype-katex'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
-import 'katex/dist/katex.min.css'
 
 function extractText(node: ReactNode): string {
   if (node == null || typeof node === 'boolean') return ''
@@ -37,7 +37,10 @@ function ReasoningBlock({ reasoning, isStreaming }: Readonly<{ reasoning: string
     <div className="mb-3">
       <button
         onClick={handleToggle}
-        className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+        className={cn(
+          'flex items-center gap-1.5 text-xs font-medium transition-colors',
+          isStreaming ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground hover:text-foreground'
+        )}
       >
         <svg
           className={cn('h-3 w-3 transition-transform', isOpen && 'rotate-90')}
@@ -56,9 +59,7 @@ function ReasoningBlock({ reasoning, isStreaming }: Readonly<{ reasoning: string
             </>
           ) : (
             <>
-              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-              </svg>
+              <span className="text-base leading-none">💡</span>
               Thought process
             </>
           )}
@@ -73,7 +74,12 @@ function ReasoningBlock({ reasoning, isStreaming }: Readonly<{ reasoning: string
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="mt-2 rounded-lg border border-border/50 bg-muted/30 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap max-h-[400px] overflow-y-auto">
+            <div className={cn(
+              'mt-2 rounded-lg border px-3 py-2.5 text-xs leading-relaxed whitespace-pre-wrap max-h-[400px] overflow-y-auto',
+              isStreaming
+                ? 'border-amber-500/30 bg-amber-500/5 text-foreground'
+                : 'border-border/50 bg-muted/30 text-muted-foreground'
+            )}>
               {reasoning}
             </div>
           </motion.div>
@@ -136,6 +142,10 @@ function SpeakButton({ text }: { text: string }) {
 
 export function MessageBubble({ message, agentName, agentColor }: MessageBubbleProps) {
   const isUser = message.role === 'user'
+  const tokenCount = useMemo(() => {
+    if (message.isStreaming) return null
+    return message.content.split(/[\s,.!?;:]+/).filter(Boolean).length
+  }, [message.content, message.isStreaming])
 
   const content = (
     <>
@@ -152,7 +162,7 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
         className={cn(
           isUser
             ? 'max-w-[75%] rounded-2xl rounded-br-md px-4 py-2.5 text-sm leading-relaxed bg-blue-600 dark:bg-blue-500 text-white'
-            : 'overflow-hidden py-2 text-[14px] leading-[1.8] text-foreground',
+            : 'relative overflow-hidden py-2 text-[14px] leading-[1.8] text-foreground',
         )}
         style={!isUser ? { flex: '1 1 0%', minWidth: 0 } : undefined}
       >
@@ -242,6 +252,34 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
             ))}
             {!isUser && message.content && !message.isStreaming && (
               <SpeakButton text={message.content} />
+            )}
+
+            {/* Token counter for streaming messages */}
+            {!isUser && message.isStreaming && message.isGeneratingContent && tokenCount > 0 && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 2 }}
+                className="absolute bottom-1 right-2 text-xs text-muted-foreground"
+              >
+                ~{tokenCount} tokens
+              </motion.div>
+            )}
+
+            {/* Streaming status indicator */}
+            {!isUser && message.isStreaming && (
+              <div className="mt-2 flex items-center gap-1.5 text-xs">
+                <span className={cn(
+                  'inline-block h-1.5 w-1.5 rounded-full animate-pulse',
+                  message.isGeneratingContent ? 'bg-blue-500' : 'bg-amber-500'
+                )} />
+                <span className={cn(
+                  'font-medium',
+                  message.isGeneratingContent ? 'text-blue-600 dark:text-blue-500' : 'text-amber-600 dark:text-amber-500'
+                )}>
+                  {message.isGeneratingContent ? 'Generating...' : 'Thinking...'}
+                </span>
+              </div>
             )}
           </>
         )}

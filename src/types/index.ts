@@ -43,6 +43,7 @@ export interface ToolCallInfo {
   result?: unknown
   error?: string
   status: 'calling' | 'complete' | 'error'
+  startTime?: number
 }
 
 export interface Attachment {
@@ -63,6 +64,8 @@ export interface Message {
   reasoning?: string
   toolCalls?: ToolCallInfo[]
   attachments?: Attachment[]
+  streamStartTime?: number
+  isGeneratingContent?: boolean
 }
 
 export interface McpServerConfig {

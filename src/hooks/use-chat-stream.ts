@@ -210,6 +210,7 @@ export function useChatStream() {
           toolName,
           args,
           status: 'calling',
+          startTime: Date.now(),
         })
 
         // Debug log
