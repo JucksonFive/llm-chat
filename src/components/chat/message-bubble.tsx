@@ -9,7 +9,7 @@ import { cleanTextForSpeech } from '@/stores/ui-store'
 import type { Message } from '@/types'
 import 'katex/dist/katex.min.css'
 import { AnimatePresence, motion } from 'motion/react'
-import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useMemo, useState, memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeKatex from 'rehype-katex'
@@ -159,7 +159,7 @@ function SpeakButton({ text }: { text: string }) {
   )
 }
 
-export function MessageBubble({ message, agentName, agentColor }: MessageBubbleProps) {
+function MessageBubbleComponent({ message, agentName, agentColor }: MessageBubbleProps) {
   const isUser = message.role === 'user'
   const activeConversationId = useChatStore((s) => s.activeConversationId)
   const tokenCount = useMemo(() => {
@@ -362,3 +362,43 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
     </div>
   )
 }
+
+/**
+ * Memoized MessageBubble.
+ * Re-renders only when message content, reasoning, toolCalls, error, streaming
+ * state, or memoriesUsedCount actually change. Prevents wasteful re-renders
+ * during streaming when other state (like isStreaming on a different message)
+ * causes the parent to re-render.
+ */
+export const MessageBubble = memo(MessageBubbleComponent, (prev, next) => {
+  if (prev.message.id !== next.message.id) return false
+  if (prev.message.content !== next.message.content) return false
+  if (prev.message.reasoning !== next.message.reasoning) return false
+  if (prev.message.isStreaming !== next.message.isStreaming) return false
+  if (prev.message.isGeneratingContent !== next.message.isGeneratingContent) return false
+  if (prev.message.error !== next.message.error) return false
+  if (prev.message.memoriesUsedCount !== next.message.memoriesUsedCount) return false
+  if (prev.agentName !== next.agentName) return false
+  if (prev.agentColor !== next.agentColor) return false
+
+  // Tool calls — compare references and statuses
+  const prevTools = prev.message.toolCalls ?? []
+  const nextTools = next.message.toolCalls ?? []
+  if (prevTools.length !== nextTools.length) return false
+  for (let i = 0; i < prevTools.length; i++) {
+    if (prevTools[i].id !== nextTools[i].id) return false
+    if (prevTools[i].status !== nextTools[i].status) return false
+    if (prevTools[i].result !== nextTools[i].result) return false
+    if (prevTools[i].error !== nextTools[i].error) return false
+  }
+
+  // Attachments — compare lengths and IDs
+  const prevAtt = prev.message.attachments ?? []
+  const nextAtt = next.message.attachments ?? []
+  if (prevAtt.length !== nextAtt.length) return false
+  for (let i = 0; i < prevAtt.length; i++) {
+    if (prevAtt[i].id !== nextAtt[i].id) return false
+  }
+
+  return true
+})

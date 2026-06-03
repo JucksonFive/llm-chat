@@ -219,12 +219,8 @@ export function useChatStream() {
           startTime: Date.now(),
         })
 
-        // Debug log
-        console.log('[Research Panel] Tool called:', toolName)
-
         // Start research tracking for deep-research tool (matches both naming conventions)
         if ((toolName === 'deep-research' || toolName === 'deep_research') && conversationId) {
-          console.log('[Research Panel] Starting research tracking for conversation:', conversationId)
           const researchStore = useResearchStore.getState()
           const researchId = researchStore.startResearch(conversationId)
           activeResearchRef.current = researchId
