@@ -35,6 +35,10 @@ function ReasoningBlock({ reasoning, isStreaming }: Readonly<{ reasoning: string
     setUserToggled((prev) => !prev)
   }
 
+  // Calculate stats for collapsed preview
+  const wordCount = reasoning.trim().split(/\s+/).filter(Boolean).length
+  const previewText = reasoning.trim().slice(0, 100).replace(/\n+/g, ' ')
+
   return (
     <div className="mb-3">
       <button
@@ -63,10 +67,23 @@ function ReasoningBlock({ reasoning, isStreaming }: Readonly<{ reasoning: string
             <>
               <span className="text-base leading-none">💡</span>
               Thought process
+              {wordCount > 0 && (
+                <span className="text-[10px] text-muted-foreground/70 font-normal">
+                  ({wordCount} words)
+                </span>
+              )}
             </>
           )}
         </span>
       </button>
+      {!isOpen && !isStreaming && previewText && (
+        <button
+          onClick={handleToggle}
+          className="mt-1 ml-4 text-xs text-muted-foreground/60 italic line-clamp-1 text-left hover:text-muted-foreground transition-colors"
+        >
+          {previewText}{reasoning.length > 100 ? '...' : ''}
+        </button>
+      )}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -80,7 +97,7 @@ function ReasoningBlock({ reasoning, isStreaming }: Readonly<{ reasoning: string
               'mt-2 rounded-lg border px-3 py-2.5 text-xs leading-relaxed whitespace-pre-wrap max-h-[400px] overflow-y-auto',
               isStreaming
                 ? 'border-amber-500/30 bg-amber-500/5 text-foreground'
-                : 'border-border/50 bg-muted/30 text-muted-foreground'
+                : 'border-amber-500/20 bg-amber-500/[0.03] text-muted-foreground'
             )}>
               {reasoning}
             </div>

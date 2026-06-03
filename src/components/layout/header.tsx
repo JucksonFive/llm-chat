@@ -11,8 +11,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { BrainCircuit, Volume2, VolumeX } from 'lucide-react'
+import { BrainCircuit, Volume2, VolumeX, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { getModelCapabilities } from '@/lib/model-capabilities'
 import { useAgentStore } from '@/stores/agent-store'
 import { useMemoryStore } from '@/stores/memory-store'
 import { useUIStore } from '@/stores/ui-store'
@@ -34,6 +35,7 @@ export function Header() {
     : 0
   const [memoryOpen, setMemoryOpen] = useState(false)
   const { autoSpeak, toggleAutoSpeak } = useUIStore()
+  const modelCapabilities = activeAgent ? getModelCapabilities(activeAgent.model) : null
 
   const handleProviderChange = (newProviderId: string) => {
     if (activeAgent) {
@@ -94,6 +96,17 @@ export function Header() {
                     ))}
                   </SelectContent>
                 </Select>
+              )}
+              {modelCapabilities?.reasoning && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="hidden sm:flex h-6 items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/30 px-2 text-xs font-medium text-amber-600 dark:text-amber-400 shrink-0">
+                      <Sparkles className="h-3 w-3" />
+                      <span>Reasoning</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>This agent uses extended reasoning for complex questions</TooltipContent>
+                </Tooltip>
               )}
             </div>
             <Tooltip>
