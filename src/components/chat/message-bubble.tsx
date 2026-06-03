@@ -122,7 +122,7 @@ function SpeakButton({ text }: { text: string }) {
   return (
     <button
       onClick={handleSpeak}
-      className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100"
+      className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
       title={isSpeaking ? 'Stop speaking' : 'Read aloud'}
     >
       {isSpeaking ? (
@@ -161,7 +161,7 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
       <div
         className={cn(
           isUser
-            ? 'max-w-[75%] rounded-2xl rounded-br-md px-4 py-2.5 text-sm leading-relaxed bg-blue-600 dark:bg-blue-500 text-white'
+            ? 'max-w-[85%] sm:max-w-[75%] rounded-2xl rounded-br-md px-4 py-2.5 text-sm leading-relaxed bg-blue-600 dark:bg-blue-500 text-white'
             : 'relative overflow-hidden py-2 text-[14px] leading-[1.8] text-foreground',
         )}
         style={!isUser ? { flex: '1 1 0%', minWidth: 0 } : undefined}

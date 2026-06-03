@@ -48,16 +48,16 @@ export function Header() {
 
   return (
     <>
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border/50 bg-background/80 px-4 backdrop-blur-xl">
+      <header className="flex h-14 shrink-0 items-center gap-2 sm:gap-3 border-b border-border/50 bg-background/80 px-2 sm:px-4 backdrop-blur-xl">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="h-5" />
         {activeAgent && provider ? (
           <>
-            <div className="flex items-center gap-2 flex-1">
-              <span className="font-medium text-sm">{activeAgent.name}</span>
+            <div className="flex items-center gap-2 flex-1 min-w-0 overflow-x-auto">
+              <span className="font-medium text-sm truncate hidden sm:inline">{activeAgent.name}</span>
               <Select value={activeAgent.providerId} onValueChange={handleProviderChange}>
                 <SelectTrigger
-                  className="h-7 w-auto gap-1 border-border/50 text-xs font-medium px-2"
+                  className="h-7 w-auto gap-1 border-border/50 text-xs font-medium px-2 shrink-0"
                   style={{ color: provider.color }}
                 >
                   <SelectValue />
@@ -74,11 +74,11 @@ export function Header() {
                 <Input
                   value={activeAgent.model}
                   onChange={(e) => handleModelChange(e.target.value)}
-                  className="h-7 w-40 text-xs"
+                  className="h-7 w-32 sm:w-40 text-xs shrink-0"
                 />
               ) : (
                 <Select value={activeAgent.model} onValueChange={handleModelChange}>
-                  <SelectTrigger className="h-7 w-auto gap-1 border-border/50 text-xs font-mono">
+                  <SelectTrigger className="h-7 w-auto gap-1 border-border/50 text-xs font-mono shrink-0">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

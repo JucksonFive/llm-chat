@@ -242,18 +242,18 @@ export function AppSidebar() {
                 </div>
 
                 {/* Search Input */}
-                <div className="px-2 pb-2">
-                  <div className="relative">
-                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+                <div className="px-2 pt-1 pb-3">
+                  <div className="relative flex items-center">
+                    <Search className="absolute left-2.5 h-3 w-3 text-blue-400 pointer-events-none z-10" />
                     <Input
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Search conversations..."
-                      className="h-7 pl-7 pr-2 text-xs"
+                      placeholder="Search..."
+                      className="h-8 !pl-7 pr-2 text-xs border-blue-500/30 focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:border-purple-500/50 hover:border-blue-500/50 transition-colors"
                     />
                   </div>
                   {query.trim() && (
-                    <div className="mt-1 text-xs text-muted-foreground px-1">
+                    <div className="mt-2 text-xs text-muted-foreground px-1">
                       {matchCount} {matchCount === 1 ? 'match' : 'matches'}
                     </div>
                   )}

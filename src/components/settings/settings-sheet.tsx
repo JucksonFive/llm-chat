@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Download, Upload } from 'lucide-react'
@@ -22,6 +24,8 @@ interface SettingsSheetProps {
 }
 
 export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
+  const [activeTab, setActiveTab] = useState('appearance')
+
   const handleExport = () => {
     const data = {
       agents: useAgentStore.getState().agents,
@@ -79,58 +83,72 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent>
+      <SheetContent className="flex flex-col">
         <SheetHeader>
           <SheetTitle>Settings</SheetTitle>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-6">
-          <div>
-            <h3 className="text-sm font-medium mb-3">Appearance</h3>
-            <ThemeToggle />
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="appearance" className="text-xs">Appearance</TabsTrigger>
+            <TabsTrigger value="data" className="text-xs">Data</TabsTrigger>
+            <TabsTrigger value="mcp" className="text-xs">MCP</TabsTrigger>
+            <TabsTrigger value="documents" className="text-xs">Docs</TabsTrigger>
+          </TabsList>
+
+          <div className="flex-1 overflow-y-auto px-4 py-4">
+            <TabsContent value="appearance" className="mt-0 space-y-4">
+              <div>
+                <h3 className="text-sm font-medium mb-3">Theme</h3>
+                <ThemeToggle />
+              </div>
+
+              <Separator />
+
+              <div>
+                <h3 className="text-sm font-medium mb-1">About</h3>
+                <p className="text-xs text-muted-foreground">
+                  LLM Chat v0.0.1 — A multi-provider AI chat interface.
+                </p>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="data" className="mt-0 space-y-4">
+              <div>
+                <h3 className="text-sm font-medium mb-3">Export & Import</h3>
+                <div className="space-y-2">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={handleExport}
+                  >
+                    <Download className="h-4 w-4" />
+                    Export All Data
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={handleImport}
+                  >
+                    <Upload className="h-4 w-4" />
+                    Import Data
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-3">
+                  Export your agents, conversations, and settings. Import from a previous backup.
+                </p>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="mcp" className="mt-0">
+              <McpServersSection />
+            </TabsContent>
+
+            <TabsContent value="documents" className="mt-0">
+              <IndexedDocumentsSection />
+            </TabsContent>
           </div>
-
-          <Separator />
-
-          <div>
-            <h3 className="text-sm font-medium mb-3">Data</h3>
-            <div className="space-y-2">
-              <Button
-                variant="outline"
-                className="w-full justify-start gap-2"
-                onClick={handleExport}
-              >
-                <Download className="h-4 w-4" />
-                Export All Data
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-start gap-2"
-                onClick={handleImport}
-              >
-                <Upload className="h-4 w-4" />
-                Import Data
-              </Button>
-            </div>
-          </div>
-
-          <Separator />
-
-          <McpServersSection />
-
-          <Separator />
-
-          <IndexedDocumentsSection />
-
-          <Separator />
-
-          <div>
-            <h3 className="text-sm font-medium mb-1">About</h3>
-            <p className="text-xs text-muted-foreground">
-              LLM Chat v0.0.1 — A multi-provider AI chat interface.
-            </p>
-          </div>
-        </div>
+        </Tabs>
       </SheetContent>
     </Sheet>
   )
