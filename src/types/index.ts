@@ -67,6 +67,7 @@ export interface Message {
   streamStartTime?: number
   isGeneratingContent?: boolean
   memoriesUsedCount?: number
+  error?: string
 }
 
 export interface McpServerConfig {

@@ -178,6 +178,33 @@ describe('finalizeLastMessage', () => {
   })
 })
 
+describe('setMessageError (Phase 6)', () => {
+  it('sets error on the last message', () => {
+    seedConversation()
+    useChatStore.getState().addMessage('c1', { role: 'assistant', content: '', isStreaming: true })
+    useChatStore.getState().setMessageError('c1', 'API quota exceeded')
+    expect(useChatStore.getState().conversations.c1.messages[0].error).toBe('API quota exceeded')
+  })
+
+  it('preserves message content when setting error', () => {
+    seedConversation()
+    useChatStore.getState().addMessage('c1', { role: 'assistant', content: 'partial response', isStreaming: true })
+    useChatStore.getState().setMessageError('c1', 'connection lost')
+    const msg = useChatStore.getState().conversations.c1.messages[0]
+    expect(msg.content).toBe('partial response')
+    expect(msg.error).toBe('connection lost')
+  })
+
+  it('is a no-op when there are no messages', () => {
+    seedConversation()
+    expect(() => useChatStore.getState().setMessageError('c1', 'error')).not.toThrow()
+  })
+
+  it('is a no-op when the conversation does not exist', () => {
+    expect(() => useChatStore.getState().setMessageError('missing', 'error')).not.toThrow()
+  })
+})
+
 describe('addToolCallToLastMessage / updateToolCallInLastMessage', () => {
   it('appends a new tool call', () => {
     seedConversation()

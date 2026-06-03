@@ -412,8 +412,8 @@ export function useChatStream() {
       },
       onError: (error) => {
         const store = useChatStore.getState()
-        // Show error inline in the message bubble
-        store.appendToLastMessage(conversationId!, `\n\n**Error:** ${error.message}`)
+        // Mark message with error metadata for retry button
+        store.setMessageError(conversationId!, error.message)
         store.finalizeLastMessage(conversationId!)
         store.setStreaming(false)
         toast.error(error.message)
