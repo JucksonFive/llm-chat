@@ -100,7 +100,7 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
           </TabsList>
 
           <div className="flex-1 overflow-y-auto px-4 py-4">
-            <TabsContent value="appearance" className="mt-0 space-y-4">
+            <TabsContent value="appearance" className="mt-0 space-y-4 data-[state=active]:animate-in data-[state=active]:fade-in-50 data-[state=active]:duration-200">
               <div>
                 <h3 className="text-sm font-medium mb-3">Theme</h3>
                 <ThemeToggle />
@@ -131,7 +131,7 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
               </div>
             </TabsContent>
 
-            <TabsContent value="data" className="mt-0 space-y-4">
+            <TabsContent value="data" className="mt-0 space-y-4 data-[state=active]:animate-in data-[state=active]:fade-in-50 data-[state=active]:duration-200">
               <div>
                 <h3 className="text-sm font-medium mb-3">Export & Import</h3>
                 <div className="space-y-2">
@@ -158,11 +158,11 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
               </div>
             </TabsContent>
 
-            <TabsContent value="mcp" className="mt-0">
+            <TabsContent value="mcp" className="mt-0 data-[state=active]:animate-in data-[state=active]:fade-in-50 data-[state=active]:duration-200">
               <McpServersSection />
             </TabsContent>
 
-            <TabsContent value="documents" className="mt-0">
+            <TabsContent value="documents" className="mt-0 data-[state=active]:animate-in data-[state=active]:fade-in-50 data-[state=active]:duration-200">
               <IndexedDocumentsSection />
             </TabsContent>
           </div>

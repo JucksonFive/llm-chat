@@ -3,6 +3,7 @@ import { ProjectDialog } from '@/components/projects/project-dialog'
 import { SettingsSheet } from '@/components/settings/settings-sheet'
 import { Separator } from '@/components/ui/separator'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Sidebar,
   SidebarContent,
@@ -45,6 +46,7 @@ const PROVIDER_ICONS: Record<ProviderId, React.ElementType> = {
 
 export function AppSidebar() {
   const { agents, activeAgentId, setActiveAgent, deleteAgent } = useAgentStore()
+  const agentsLoaded = useAgentStore((s) => s.loaded)
   const {
     activeConversationId,
     setActiveConversation,
@@ -52,6 +54,7 @@ export function AppSidebar() {
     deleteConversation,
     getConversationsForAgent,
   } = useChatStore()
+  const conversationsLoaded = useChatStore((s) => s.loaded)
   const { projects, activeProjectId, setActiveProject, deleteProject } = useProjectStore()
   const { query, setQuery, filteredConversations, matchCount } = useConversationSearch(activeAgentId || undefined)
   const [agentDialogOpen, setAgentDialogOpen] = useState(false)
@@ -175,7 +178,13 @@ export function AppSidebar() {
                 </button>
               </div>
               <SidebarMenu>
-                {agents.length === 0 && (
+                {!agentsLoaded && (
+                  <div className="space-y-1 px-2">
+                    <Skeleton className="h-7 w-full" />
+                    <Skeleton className="h-7 w-4/5" />
+                  </div>
+                )}
+                {agentsLoaded && agents.length === 0 && (
                   <p className="px-3 py-2 text-xs text-muted-foreground">
                     No agents yet. Create one to start chatting.
                   </p>
@@ -260,9 +269,16 @@ export function AppSidebar() {
                 </div>
 
                 <SidebarMenu>
-                  {conversations.length === 0 && (
+                  {!conversationsLoaded && (
+                    <div className="space-y-1 px-2">
+                      <Skeleton className="h-7 w-full" />
+                      <Skeleton className="h-7 w-4/5" />
+                      <Skeleton className="h-7 w-3/4" />
+                    </div>
+                  )}
+                  {conversationsLoaded && conversations.length === 0 && (
                     <p className="px-3 py-2 text-xs text-muted-foreground">
-                      No conversations yet.
+                      {query.trim() ? 'No matching conversations.' : 'No conversations yet.'}
                     </p>
                   )}
                   {conversations.map((conv) => (

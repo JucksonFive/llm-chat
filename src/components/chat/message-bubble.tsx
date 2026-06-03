@@ -346,9 +346,9 @@ function MessageBubbleComponent({ message, agentName, agentColor }: MessageBubbl
   if (isUser) {
     return (
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2, ease: 'easeOut' }}
+        initial={{ opacity: 0, y: 8, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1.0] }}
         className="flex gap-3 py-2 justify-end px-4"
       >
         {content}
@@ -357,9 +357,15 @@ function MessageBubbleComponent({ message, agentName, agentColor }: MessageBubbl
   }
 
   return (
-    <div className="group flex gap-3 py-2 px-4" style={{ width: '100%' }}>
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
+      className="group flex gap-3 py-2 px-4"
+      style={{ width: '100%' }}
+    >
       {content}
-    </div>
+    </motion.div>
   )
 }
 

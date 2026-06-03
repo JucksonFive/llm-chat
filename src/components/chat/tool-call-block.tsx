@@ -69,7 +69,7 @@ export function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
           <span className="ml-1">{toolCall.status === 'calling' ? 'running' : toolCall.status}</span>
         </Badge>
         <ChevronDown
-          className={`h-3 w-3 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`}
+          className={`h-3 w-3 text-muted-foreground transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
         />
       </button>
       {showProgressBar && (
