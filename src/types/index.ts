@@ -66,6 +66,7 @@ export interface Message {
   attachments?: Attachment[]
   streamStartTime?: number
   isGeneratingContent?: boolean
+  memoriesUsedCount?: number
 }
 
 export interface McpServerConfig {
@@ -118,6 +119,7 @@ export interface Memory {
   content: string
   type: 'short' | 'long'
   createdAt: number
+  lastUsedAt?: number
 }
 
 export interface McpResource {

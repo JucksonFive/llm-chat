@@ -45,13 +45,6 @@ export function useChatStream() {
     const userMsg = useChatStore.getState().conversations[conversationId]?.messages.slice(-1)[0]
     if (userMsg) store.persistMessage(conversationId, userMsg)
 
-    // Add empty assistant message placeholder
-    store.addMessage(conversationId, {
-      role: 'assistant',
-      content: '',
-      isStreaming: true,
-    })
-
     store.setStreaming(true)
 
     // Build memory-augmented system prompt. When an OpenAI key is available
@@ -59,10 +52,23 @@ export function useChatStream() {
     // message via the semantic search endpoint; otherwise we fall back to
     // including all memories (legacy behavior).
     const openAiKey = useApiKeyStore.getState().findKeyForProvider('openai', agents)
-    const memoryPrompt = await useMemoryStore
+    const { prompt: memoryPrompt, usedMemoryIds } = await useMemoryStore
       .getState()
       .getRelevantMemoryPrompt(agent.id, text, openAiKey, 5)
     const systemPrompt = agent.systemPrompt + memoryPrompt
+
+    // Mark memories as used and track count for the assistant message
+    if (usedMemoryIds.length > 0) {
+      useMemoryStore.getState().markMemoriesAsUsed(usedMemoryIds)
+    }
+
+    // Add empty assistant message placeholder with memory count
+    store.addMessage(conversationId, {
+      role: 'assistant',
+      content: '',
+      isStreaming: true,
+      memoriesUsedCount: usedMemoryIds.length > 0 ? usedMemoryIds.length : undefined,
+    })
 
     // Resolve MCP servers for this agent
     const mcpStore = useMcpStore.getState()

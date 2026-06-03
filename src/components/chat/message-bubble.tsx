@@ -251,7 +251,20 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
               <ToolCallBlock key={tc.id} toolCall={tc} />
             ))}
             {!isUser && message.content && !message.isStreaming && (
-              <SpeakButton text={message.content} />
+              <div className="flex items-center gap-3 flex-wrap">
+                <SpeakButton text={message.content} />
+                {message.memoriesUsedCount !== undefined && message.memoriesUsedCount > 0 && (
+                  <div
+                    className="mt-1 flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400"
+                    title={`${message.memoriesUsedCount} ${message.memoriesUsedCount === 1 ? 'memory' : 'memories'} used in this response`}
+                  >
+                    <span className="text-sm leading-none">🧠</span>
+                    <span className="font-medium">
+                      {message.memoriesUsedCount} {message.memoriesUsedCount === 1 ? 'memory' : 'memories'} used
+                    </span>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Token counter for streaming messages */}

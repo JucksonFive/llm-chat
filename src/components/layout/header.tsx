@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { BrainCircuit, Volume2, VolumeX } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { useAgentStore } from '@/stores/agent-store'
 import { useMemoryStore } from '@/stores/memory-store'
 import { useUIStore } from '@/stores/ui-store'
@@ -24,9 +25,13 @@ export function Header() {
   const activeAgent = agents.find((a) => a.id === activeAgentId)
   const provider = activeAgent ? PROVIDERS[activeAgent.providerId] : null
   const allMemories = useMemoryStore((s) => s.memories)
+  const getRecentlyUsedMemories = useMemoryStore((s) => s.getRecentlyUsedMemories)
   const memories = activeAgentId
     ? allMemories.filter((m) => m.agentId === activeAgentId)
     : []
+  const recentlyUsedCount = activeAgentId
+    ? getRecentlyUsedMemories(activeAgentId).length
+    : 0
   const [memoryOpen, setMemoryOpen] = useState(false)
   const { autoSpeak, toggleAutoSpeak } = useUIStore()
 
@@ -113,18 +118,33 @@ export function Header() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="relative"
+                  className={cn(
+                    'relative',
+                    recentlyUsedCount > 0 && 'text-purple-500 dark:text-purple-400'
+                  )}
                   onClick={() => setMemoryOpen(true)}
                 >
-                  <BrainCircuit className="h-4 w-4" />
+                  <BrainCircuit className={cn(
+                    'h-4 w-4',
+                    recentlyUsedCount > 0 && 'animate-pulse'
+                  )} />
                   {memories.length > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-purple-500 text-[10px] text-white">
+                    <span className={cn(
+                      'absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[10px] text-white',
+                      recentlyUsedCount > 0
+                        ? 'bg-gradient-to-br from-purple-500 to-blue-500'
+                        : 'bg-purple-500'
+                    )}>
                       {memories.length}
                     </span>
                   )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Memories</TooltipContent>
+              <TooltipContent>
+                {recentlyUsedCount > 0
+                  ? `Memory: ${recentlyUsedCount} active (${memories.length} total)`
+                  : `Memories: ${memories.length}`}
+              </TooltipContent>
             </Tooltip>
           </>
         ) : (

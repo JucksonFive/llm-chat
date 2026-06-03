@@ -18,6 +18,18 @@ interface MemoryPanelProps {
   onOpenChange: (open: boolean) => void
 }
 
+function formatRelativeTime(timestamp: number): string {
+  const diffMs = Date.now() - timestamp
+  const seconds = Math.floor(diffMs / 1000)
+  if (seconds < 60) return 'just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
+
 export function MemoryPanel({ open, onOpenChange }: MemoryPanelProps) {
   const [newMemory, setNewMemory] = useState('')
   const [activeTab, setActiveTab] = useState<'long' | 'short'>('long')
@@ -138,22 +150,41 @@ export function MemoryPanel({ open, onOpenChange }: MemoryPanelProps) {
                     : 'No short-term memories yet. Add recent context or conversation notes.'}
                 </p>
               )}
-              {memories.map((memory) => (
-                <div
-                  key={memory.id}
-                  className="group flex items-start gap-2 rounded-lg border border-border/50 bg-muted/30 p-3"
-                >
-                  <p className="flex-1 text-sm">{memory.content}</p>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => deleteMemory(memory.id)}
+              {memories.map((memory) => {
+                const wasRecentlyUsed =
+                  memory.lastUsedAt !== undefined &&
+                  Date.now() - memory.lastUsedAt < 5 * 60 * 1000
+
+                return (
+                  <div
+                    key={memory.id}
+                    className={cn(
+                      'group flex items-start gap-2 rounded-lg border p-3 transition-all',
+                      wasRecentlyUsed
+                        ? 'border-l-2 border-l-purple-500 border-border/50 bg-purple-500/5'
+                        : 'border-border/50 bg-muted/30'
+                    )}
                   >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              ))}
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <p className="text-sm">{memory.content}</p>
+                      {wasRecentlyUsed && memory.lastUsedAt && (
+                        <p className="text-xs text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                          <span className="text-sm leading-none">🧠</span>
+                          Used {formatRelativeTime(memory.lastUsedAt)}
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => deleteMemory(memory.id)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )
+              })}
             </div>
           </ScrollArea>
         </div>
