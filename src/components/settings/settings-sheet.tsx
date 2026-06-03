@@ -8,7 +8,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { Download, Upload } from 'lucide-react'
+import { Download, Upload, Keyboard } from 'lucide-react'
+import { KeyboardShortcutsDialog } from '@/components/chat/keyboard-shortcuts-dialog'
 import { ThemeToggle } from '@/components/settings/theme-toggle'
 import { McpServersSection } from '@/components/settings/mcp-servers-section'
 import { IndexedDocumentsSection } from '@/components/settings/indexed-documents-section'
@@ -25,6 +26,7 @@ interface SettingsSheetProps {
 
 export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
   const [activeTab, setActiveTab] = useState('appearance')
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
   const handleExport = () => {
     const data = {
@@ -82,6 +84,7 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
   }
 
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="flex flex-col">
         <SheetHeader>
@@ -101,6 +104,21 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
               <div>
                 <h3 className="text-sm font-medium mb-3">Theme</h3>
                 <ThemeToggle />
+              </div>
+
+              <Separator />
+
+              <div>
+                <h3 className="text-sm font-medium mb-3">Help</h3>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2"
+                  onClick={() => setShortcutsOpen(true)}
+                >
+                  <Keyboard className="h-4 w-4" />
+                  Keyboard Shortcuts
+                  <kbd className="ml-auto text-[10px] px-1 py-0.5 rounded border border-border/50 bg-muted/40 font-mono">?</kbd>
+                </Button>
               </div>
 
               <Separator />
@@ -151,5 +169,7 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
         </Tabs>
       </SheetContent>
     </Sheet>
+    <KeyboardShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+    </>
   )
 }
