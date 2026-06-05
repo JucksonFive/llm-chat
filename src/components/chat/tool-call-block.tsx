@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { Wrench, Check, X, Loader2, ChevronDown } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { Search, Check, X, Loader2, ChevronDown, Globe, Code, FileText } from 'lucide-react'
 import type { ToolCallInfo } from '@/types'
 
 interface ToolCallBlockProps {
@@ -14,11 +13,52 @@ function formatElapsedTime(ms: number): string {
   return `${seconds}.${deciseconds}s`
 }
 
+function getToolIcon(toolName: string) {
+  const name = toolName.toLowerCase()
+  if (name.includes('search') || name.includes('web')) return Search
+  if (name.includes('code')) return Code
+  if (name.includes('file') || name.includes('read')) return FileText
+  return Globe
+}
+
+function getToolDisplayName(toolName: string): string {
+  // Convert snake_case to Title Case
+  return toolName
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+function formatValue(value: unknown): string {
+  if (typeof value === 'string') {
+    // If it looks like a simple string, just return it
+    if (value.length < 200 && !value.includes('{') && !value.includes('[')) {
+      return value
+    }
+  }
+  try {
+    const obj = typeof value === 'string' ? JSON.parse(value) : value
+    // Format as readable key-value pairs instead of raw JSON
+    if (typeof obj === 'object' && obj !== null && !Array.isArray(obj)) {
+      return Object.entries(obj)
+        .map(([key, val]) => {
+          const displayKey = key.replace(/_/g, ' ')
+          let displayVal = String(val)
+          if (displayVal.length > 100) displayVal = displayVal.slice(0, 100) + '...'
+          return `${displayKey}: ${displayVal}`
+        })
+        .join('\n')
+    }
+    return JSON.stringify(obj, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
 export function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
   const [expanded, setExpanded] = useState(false)
   const [elapsed, setElapsed] = useState(0)
 
-  // Update elapsed time for calling status
   useEffect(() => {
     if (toolCall.status === 'calling' && toolCall.startTime) {
       const interval = setInterval(() => {
@@ -28,54 +68,66 @@ export function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
     }
   }, [toolCall.status, toolCall.startTime])
 
-  const statusIcon = {
-    calling: <Loader2 className="h-3 w-3 animate-spin" />,
-    complete: <Check className="h-3 w-3" />,
-    error: <X className="h-3 w-3" />,
-  }[toolCall.status]
+  const Icon = getToolIcon(toolCall.toolName)
+  const displayName = getToolDisplayName(toolCall.toolName)
 
-  const statusColor = {
-    calling: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
-    complete: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-    error: 'bg-red-500/10 text-red-400 border-red-500/30',
+  const statusConfig = {
+    calling: {
+      icon: <Loader2 className="h-3 w-3 animate-spin" />,
+      bg: 'bg-blue-500/5',
+      border: 'border-blue-500/20',
+      text: 'text-blue-600 dark:text-blue-400',
+      badge: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+    },
+    complete: {
+      icon: <Check className="h-3 w-3" />,
+      bg: 'bg-emerald-500/5',
+      border: 'border-emerald-500/20',
+      text: 'text-emerald-600 dark:text-emerald-400',
+      badge: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    },
+    error: {
+      icon: <X className="h-3 w-3" />,
+      bg: 'bg-red-500/5',
+      border: 'border-red-500/20',
+      text: 'text-red-600 dark:text-red-400',
+      badge: 'bg-red-500/10 text-red-600 dark:text-red-400',
+    },
   }[toolCall.status]
-
-  const formatValue = (value: unknown): string => {
-    if (typeof value === 'string') return value
-    try {
-      return JSON.stringify(value, null, 2)
-    } catch {
-      return String(value)
-    }
-  }
 
   const showProgressBar = toolCall.status === 'calling' && elapsed > 5000
 
   return (
-    <div className="my-2 rounded-lg border border-border/50 bg-muted/20 overflow-hidden">
+    <div className={`my-2 rounded-xl border ${statusConfig.border} ${statusConfig.bg} overflow-hidden backdrop-blur-sm`}>
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted/40 transition-colors"
+        className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
       >
-        <Wrench className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-        <code className="font-mono text-xs font-medium flex-1">{toolCall.toolName}</code>
-        {toolCall.status === 'calling' && elapsed > 0 && (
-          <span className="text-[10px] text-muted-foreground mr-1">
-            Executing... {formatElapsedTime(elapsed)}
-          </span>
-        )}
-        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${statusColor}`}>
-          {statusIcon}
-          <span className="ml-1">{toolCall.status === 'calling' ? 'running' : toolCall.status}</span>
-        </Badge>
+        <div className={`p-1.5 rounded-lg ${statusConfig.badge}`}>
+          <Icon className="h-3.5 w-3.5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={`text-sm font-medium ${statusConfig.text}`}>{displayName}</span>
+            {toolCall.status === 'calling' && elapsed > 0 && (
+              <span className="text-[10px] text-muted-foreground">
+                {formatElapsedTime(elapsed)}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full ${statusConfig.badge} text-[10px] font-medium`}>
+          {statusConfig.icon}
+          <span>{toolCall.status === 'calling' ? 'running' : toolCall.status}</span>
+        </div>
         <ChevronDown
-          className={`h-3 w-3 text-muted-foreground transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
+          className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
         />
       </button>
       {showProgressBar && (
-        <div className="h-1 bg-muted/40">
+        <div className="h-0.5 bg-muted/40">
           <motion.div
-            className="h-full bg-blue-500 animate-pulse"
+            className="h-full bg-blue-500"
             initial={{ width: '0%' }}
             animate={{ width: '100%' }}
             transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
@@ -91,25 +143,29 @@ export function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
             transition={{ duration: 0.15 }}
             className="overflow-hidden"
           >
-            <div className="border-t border-border/50 px-3 py-2 space-y-2">
-              <div>
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Input</span>
-                <pre className="mt-1 rounded bg-muted/40 p-2 text-xs overflow-x-auto max-h-40">
-                  <code>{formatValue(toolCall.args)}</code>
-                </pre>
-              </div>
+            <div className="border-t border-border/30 px-4 py-3 space-y-3 text-sm">
+              {toolCall.args && Object.keys(toolCall.args).length > 0 && (
+                <div>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Parameters</span>
+                  <div className="mt-1.5 rounded-lg bg-muted/30 p-3 text-xs leading-relaxed whitespace-pre-wrap font-mono">
+                    {formatValue(toolCall.args)}
+                  </div>
+                </div>
+              )}
               {toolCall.status === 'complete' && toolCall.result !== undefined && (
                 <div>
-                  <span className="text-[10px] uppercase tracking-wider text-emerald-400 font-medium">Output</span>
-                  <pre className="mt-1 rounded bg-muted/40 p-2 text-xs overflow-x-auto max-h-60">
-                    <code>{formatValue(toolCall.result)}</code>
-                  </pre>
+                  <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Result</span>
+                  <div className="mt-1.5 rounded-lg bg-emerald-500/5 p-3 text-xs leading-relaxed whitespace-pre-wrap">
+                    {formatValue(toolCall.result)}
+                  </div>
                 </div>
               )}
               {toolCall.status === 'error' && toolCall.error && (
                 <div>
-                  <span className="text-[10px] uppercase tracking-wider text-red-400 font-medium">Error</span>
-                  <p className="mt-1 text-xs text-red-400">{toolCall.error}</p>
+                  <span className="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">Error</span>
+                  <div className="mt-1.5 rounded-lg bg-red-500/5 p-3 text-xs text-red-600 dark:text-red-400">
+                    {toolCall.error}
+                  </div>
                 </div>
               )}
             </div>
