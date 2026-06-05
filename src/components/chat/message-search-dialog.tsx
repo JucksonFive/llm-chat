@@ -122,7 +122,7 @@ export function MessageSearchDialog({ open, onOpenChange }: MessageSearchDialogP
     }, 100)
   }, [setActiveConversation, loadMessages, onOpenChange])
 
-  const toggleFilter = useCallback((filter: keyof typeof filters, value?: string) => {
+  const toggleFilter = useCallback((filter: keyof typeof filters, value?: 'today' | 'week' | 'month' | 'all') => {
     setFilters((prev) => {
       const current = prev[filter]
       if (filter === 'dateRange') {
