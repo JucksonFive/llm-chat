@@ -55,6 +55,31 @@ describe('addMessage', () => {
     expect(msgs[0].createdAt).toBeTypeOf('number')
   })
 
+  it('sets streamStartTime for streaming messages (Phase 2)', () => {
+    seedConversation()
+    const beforeTime = Date.now()
+    useChatStore.getState().addMessage('c1', {
+      role: 'assistant',
+      content: '',
+      isStreaming: true,
+    })
+    const msgs = useChatStore.getState().conversations.c1.messages
+    expect(msgs[0].streamStartTime).toBeDefined()
+    expect(msgs[0].streamStartTime).toBeGreaterThanOrEqual(beforeTime)
+    expect(msgs[0].streamStartTime).toBeLessThanOrEqual(Date.now())
+  })
+
+  it('does not set streamStartTime for non-streaming messages (Phase 2)', () => {
+    seedConversation()
+    useChatStore.getState().addMessage('c1', {
+      role: 'user',
+      content: 'hello',
+      isStreaming: false,
+    })
+    const msgs = useChatStore.getState().conversations.c1.messages
+    expect(msgs[0].streamStartTime).toBeUndefined()
+  })
+
   it('sets the conversation title from the first user message (truncated)', () => {
     seedConversation()
     const long = 'a'.repeat(80)
@@ -97,6 +122,31 @@ describe('appendToLastMessage', () => {
     expect(msgs[0].content).toBe('Hi, there!')
   })
 
+  it('sets isGeneratingContent=true on first content token (Phase 2)', () => {
+    seedConversation()
+    useChatStore.getState().addMessage('c1', { role: 'assistant', content: '', isStreaming: true })
+    useChatStore.getState().appendToLastMessage('c1', 'First token')
+    const msgs = useChatStore.getState().conversations.c1.messages
+    expect(msgs[0].isGeneratingContent).toBe(true)
+  })
+
+  it('keeps isGeneratingContent=true on subsequent tokens (Phase 2)', () => {
+    seedConversation()
+    useChatStore.getState().addMessage('c1', { role: 'assistant', content: 'Hello', isStreaming: true })
+    useChatStore.getState().appendToLastMessage('c1', ' world')
+    const msgs = useChatStore.getState().conversations.c1.messages
+    expect(msgs[0].content).toBe('Hello world')
+    expect(msgs[0].isGeneratingContent).toBe(true)
+  })
+
+  it('does not set isGeneratingContent for empty content (Phase 2)', () => {
+    seedConversation()
+    useChatStore.getState().addMessage('c1', { role: 'assistant', content: '', isStreaming: true })
+    useChatStore.getState().appendToLastMessage('c1', '')
+    const msgs = useChatStore.getState().conversations.c1.messages
+    expect(msgs[0].isGeneratingContent).toBeUndefined()
+  })
+
   it('is a no-op when there are no messages', () => {
     seedConversation()
     useChatStore.getState().appendToLastMessage('c1', 'x')
@@ -128,6 +178,33 @@ describe('finalizeLastMessage', () => {
   })
 })
 
+describe('setMessageError (Phase 6)', () => {
+  it('sets error on the last message', () => {
+    seedConversation()
+    useChatStore.getState().addMessage('c1', { role: 'assistant', content: '', isStreaming: true })
+    useChatStore.getState().setMessageError('c1', 'API quota exceeded')
+    expect(useChatStore.getState().conversations.c1.messages[0].error).toBe('API quota exceeded')
+  })
+
+  it('preserves message content when setting error', () => {
+    seedConversation()
+    useChatStore.getState().addMessage('c1', { role: 'assistant', content: 'partial response', isStreaming: true })
+    useChatStore.getState().setMessageError('c1', 'connection lost')
+    const msg = useChatStore.getState().conversations.c1.messages[0]
+    expect(msg.content).toBe('partial response')
+    expect(msg.error).toBe('connection lost')
+  })
+
+  it('is a no-op when there are no messages', () => {
+    seedConversation()
+    expect(() => useChatStore.getState().setMessageError('c1', 'error')).not.toThrow()
+  })
+
+  it('is a no-op when the conversation does not exist', () => {
+    expect(() => useChatStore.getState().setMessageError('missing', 'error')).not.toThrow()
+  })
+})
+
 describe('addToolCallToLastMessage / updateToolCallInLastMessage', () => {
   it('appends a new tool call', () => {
     seedConversation()
@@ -141,6 +218,21 @@ describe('addToolCallToLastMessage / updateToolCallInLastMessage', () => {
     expect(useChatStore.getState().conversations.c1.messages[0].toolCalls).toEqual([
       { id: 'tc1', toolName: 'calc', args: {}, status: 'calling' },
     ])
+  })
+
+  it('preserves startTime in tool calls (Phase 2)', () => {
+    seedConversation()
+    const startTime = Date.now()
+    useChatStore.getState().addMessage('c1', { role: 'assistant', content: '' })
+    useChatStore.getState().addToolCallToLastMessage('c1', {
+      id: 'tc1',
+      toolName: 'web-search',
+      args: { query: 'test' },
+      status: 'calling',
+      startTime,
+    })
+    const toolCall = useChatStore.getState().conversations.c1.messages[0].toolCalls![0]
+    expect(toolCall.startTime).toBe(startTime)
   })
 
   it('updates only the matching tool call', () => {
@@ -158,6 +250,26 @@ describe('addToolCallToLastMessage / updateToolCallInLastMessage', () => {
     const tcs = useChatStore.getState().conversations.c1.messages[0].toolCalls!
     expect(tcs[0]).toMatchObject({ id: 'tc1', status: 'calling' })
     expect(tcs[1]).toMatchObject({ id: 'tc2', status: 'complete', result: 42 })
+  })
+
+  it('preserves startTime when updating tool call (Phase 2)', () => {
+    seedConversation()
+    const startTime = Date.now() - 5000
+    useChatStore.getState().addMessage('c1', { role: 'assistant', content: '' })
+    useChatStore.getState().addToolCallToLastMessage('c1', {
+      id: 'tc1',
+      toolName: 'deep_research',
+      args: {},
+      status: 'calling',
+      startTime,
+    })
+    useChatStore.getState().updateToolCallInLastMessage('c1', 'tc1', {
+      status: 'complete',
+      result: { sources: [] },
+    })
+    const toolCall = useChatStore.getState().conversations.c1.messages[0].toolCalls![0]
+    expect(toolCall.startTime).toBe(startTime)
+    expect(toolCall.status).toBe('complete')
   })
 })
 
@@ -294,5 +406,52 @@ describe('loadConversations / loadMessages', () => {
     fetchMock.mockResolvedValueOnce({ json: async () => [] })
     await useChatStore.getState().loadMessages('nope')
     expect(useChatStore.getState().conversations).toEqual({})
+  })
+})
+
+describe('Phase 2 streaming workflow integration', () => {
+  it('simulates thinking → generating transition', () => {
+    seedConversation()
+
+    // Add streaming assistant message with streamStartTime
+    useChatStore.getState().addMessage('c1', {
+      role: 'assistant',
+      content: '',
+      reasoning: '',
+      isStreaming: true,
+    })
+
+    let msgs = useChatStore.getState().conversations.c1.messages
+    expect(msgs[0].streamStartTime).toBeDefined()
+    expect(msgs[0].isGeneratingContent).toBeUndefined()
+
+    // Phase 1: Reasoning tokens (thinking state)
+    useChatStore.getState().appendReasoningToLastMessage('c1', 'Let me analyze')
+    useChatStore.getState().appendReasoningToLastMessage('c1', ' this problem...')
+
+    msgs = useChatStore.getState().conversations.c1.messages
+    expect(msgs[0].reasoning).toBe('Let me analyze this problem...')
+    expect(msgs[0].content).toBe('')
+    expect(msgs[0].isGeneratingContent).toBeUndefined() // Still thinking
+
+    // Phase 2: Content starts (generating state)
+    useChatStore.getState().appendToLastMessage('c1', 'The')
+    msgs = useChatStore.getState().conversations.c1.messages
+    expect(msgs[0].isGeneratingContent).toBe(true) // Now generating!
+
+    useChatStore.getState().appendToLastMessage('c1', ' answer')
+    useChatStore.getState().appendToLastMessage('c1', ' is...')
+
+    msgs = useChatStore.getState().conversations.c1.messages
+    expect(msgs[0].content).toBe('The answer is...')
+    expect(msgs[0].isGeneratingContent).toBe(true)
+
+    // Complete
+    useChatStore.getState().finalizeLastMessage('c1')
+
+    msgs = useChatStore.getState().conversations.c1.messages
+    expect(msgs[0].isStreaming).toBe(false)
+    expect(msgs[0].reasoning).toBe('Let me analyze this problem...')
+    expect(msgs[0].content).toBe('The answer is...')
   })
 })

@@ -12,8 +12,10 @@ interface MemoryState {
   getShortTermMemories: (agentId: string) => Memory[]
   getLongTermMemories: (agentId: string) => Memory[]
   getMemoryPrompt: (agentId: string) => string
-  getRelevantMemoryPrompt: (agentId: string, query: string, apiKey: string, k?: number) => Promise<string>
+  getRelevantMemoryPrompt: (agentId: string, query: string, apiKey: string, k?: number) => Promise<{ prompt: string; usedMemoryIds: string[] }>
   clearShortTermMemories: (agentId: string) => Promise<void>
+  markMemoriesAsUsed: (memoryIds: string[]) => void
+  getRecentlyUsedMemories: (agentId: string, withinMs?: number) => Memory[]
 }
 
 const MAX_SHORT_TERM = 10
@@ -154,10 +156,14 @@ export const useMemoryStore = create<MemoryState>()((set, get) => ({
   getRelevantMemoryPrompt: async (agentId, query, apiKey, k = 5) => {
     const shortTerm = get().getShortTermMemories(agentId)
     const longTerm = get().getLongTermMemories(agentId)
-    if (shortTerm.length === 0 && longTerm.length === 0) return ''
+    if (shortTerm.length === 0 && longTerm.length === 0) return { prompt: '', usedMemoryIds: [] }
 
     const relevantLong = await fetchRelevantLongTerm(agentId, query, apiKey, k, longTerm.length)
     const longToInclude = relevantLong ?? longTerm
+    const usedMemoryIds = [
+      ...longToInclude.map((m) => m.id),
+      ...shortTerm.map((m) => m.id),
+    ]
     let prompt = ''
 
     if (longToInclude.length > 0) {
@@ -173,7 +179,27 @@ export const useMemoryStore = create<MemoryState>()((set, get) => ({
       prompt += `\n\nShort-term memories (recent context and conversation summaries):\n${items}`
     }
 
-    return prompt
+    return { prompt, usedMemoryIds }
+  },
+
+  markMemoriesAsUsed: (memoryIds) => {
+    const now = Date.now()
+    const idSet = new Set(memoryIds)
+    set((state) => ({
+      memories: state.memories.map((m) =>
+        idSet.has(m.id) ? { ...m, lastUsedAt: now } : m
+      ),
+    }))
+  },
+
+  getRecentlyUsedMemories: (agentId, withinMs = 5 * 60 * 1000) => {
+    const now = Date.now()
+    return get().memories.filter(
+      (m) =>
+        m.agentId === agentId &&
+        m.lastUsedAt !== undefined &&
+        now - m.lastUsedAt < withinMs
+    )
   },
 
   clearShortTermMemories: async (agentId) => {

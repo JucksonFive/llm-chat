@@ -11,7 +11,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { BrainCircuit, Volume2, VolumeX } from 'lucide-react'
+import { BrainCircuit, Volume2, VolumeX, Sparkles } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { getModelCapabilities } from '@/lib/model-capabilities'
 import { useAgentStore } from '@/stores/agent-store'
 import { useMemoryStore } from '@/stores/memory-store'
 import { useUIStore } from '@/stores/ui-store'
@@ -24,11 +26,16 @@ export function Header() {
   const activeAgent = agents.find((a) => a.id === activeAgentId)
   const provider = activeAgent ? PROVIDERS[activeAgent.providerId] : null
   const allMemories = useMemoryStore((s) => s.memories)
+  const getRecentlyUsedMemories = useMemoryStore((s) => s.getRecentlyUsedMemories)
   const memories = activeAgentId
     ? allMemories.filter((m) => m.agentId === activeAgentId)
     : []
+  const recentlyUsedCount = activeAgentId
+    ? getRecentlyUsedMemories(activeAgentId).length
+    : 0
   const [memoryOpen, setMemoryOpen] = useState(false)
   const { autoSpeak, toggleAutoSpeak } = useUIStore()
+  const modelCapabilities = activeAgent ? getModelCapabilities(activeAgent.model) : null
 
   const handleProviderChange = (newProviderId: string) => {
     if (activeAgent) {
@@ -48,16 +55,16 @@ export function Header() {
 
   return (
     <>
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border/50 bg-background/80 px-4 backdrop-blur-xl">
+      <header className="flex h-14 shrink-0 items-center gap-2 sm:gap-3 border-b border-border/50 bg-background/80 px-2 sm:px-4 backdrop-blur-xl">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="h-5" />
         {activeAgent && provider ? (
           <>
-            <div className="flex items-center gap-2 flex-1">
-              <span className="font-medium text-sm">{activeAgent.name}</span>
+            <div className="flex items-center gap-2 flex-1 min-w-0 overflow-x-auto">
+              <span className="font-medium text-sm truncate hidden sm:inline">{activeAgent.name}</span>
               <Select value={activeAgent.providerId} onValueChange={handleProviderChange}>
                 <SelectTrigger
-                  className="h-7 w-auto gap-1 border-border/50 text-xs font-medium px-2"
+                  className="h-7 w-auto gap-1 border-border/50 text-xs font-medium px-2 shrink-0"
                   style={{ color: provider.color }}
                 >
                   <SelectValue />
@@ -74,11 +81,11 @@ export function Header() {
                 <Input
                   value={activeAgent.model}
                   onChange={(e) => handleModelChange(e.target.value)}
-                  className="h-7 w-40 text-xs"
+                  className="h-7 w-32 sm:w-40 text-xs shrink-0"
                 />
               ) : (
                 <Select value={activeAgent.model} onValueChange={handleModelChange}>
-                  <SelectTrigger className="h-7 w-auto gap-1 border-border/50 text-xs font-mono">
+                  <SelectTrigger className="h-7 w-auto gap-1 border-border/50 text-xs font-mono shrink-0">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -89,6 +96,17 @@ export function Header() {
                     ))}
                   </SelectContent>
                 </Select>
+              )}
+              {modelCapabilities?.reasoning && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="hidden sm:flex h-6 items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/30 px-2 text-xs font-medium text-amber-600 dark:text-amber-400 shrink-0">
+                      <Sparkles className="h-3 w-3" />
+                      <span>Reasoning</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>This agent uses extended reasoning for complex questions</TooltipContent>
+                </Tooltip>
               )}
             </div>
             <Tooltip>
@@ -113,18 +131,33 @@ export function Header() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="relative"
+                  className={cn(
+                    'relative',
+                    recentlyUsedCount > 0 && 'text-purple-500 dark:text-purple-400'
+                  )}
                   onClick={() => setMemoryOpen(true)}
                 >
-                  <BrainCircuit className="h-4 w-4" />
+                  <BrainCircuit className={cn(
+                    'h-4 w-4',
+                    recentlyUsedCount > 0 && 'animate-pulse'
+                  )} />
                   {memories.length > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-purple-500 text-[10px] text-white">
+                    <span className={cn(
+                      'absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[10px] text-white',
+                      recentlyUsedCount > 0
+                        ? 'bg-gradient-to-br from-purple-500 to-blue-500'
+                        : 'bg-purple-500'
+                    )}>
                       {memories.length}
                     </span>
                   )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Memories</TooltipContent>
+              <TooltipContent>
+                {recentlyUsedCount > 0
+                  ? `Memory: ${recentlyUsedCount} active (${memories.length} total)`
+                  : `Memories: ${memories.length}`}
+              </TooltipContent>
             </Tooltip>
           </>
         ) : (

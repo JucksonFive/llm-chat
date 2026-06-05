@@ -1,3 +1,4 @@
+import { ModelCapabilityBadges } from '@/components/agents/model-capability-badges'
 import { ProviderSelect } from '@/components/agents/provider-select'
 import { Button } from '@/components/ui/button'
 import {
@@ -218,6 +219,7 @@ function AgentForm({
             </Select>
           )}
           {errors.model && <p className="text-xs text-destructive">{errors.model}</p>}
+          <ModelCapabilityBadges model={isCustomModel ? customModel : effectiveModel} className="mt-1" />
         </div>
 
         {provider.requiresApiKey && (

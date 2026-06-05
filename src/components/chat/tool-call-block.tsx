@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { Wrench, Check, X, Loader2, ChevronDown } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -8,8 +8,25 @@ interface ToolCallBlockProps {
   toolCall: ToolCallInfo
 }
 
+function formatElapsedTime(ms: number): string {
+  const seconds = Math.floor(ms / 1000)
+  const deciseconds = Math.floor((ms % 1000) / 100)
+  return `${seconds}.${deciseconds}s`
+}
+
 export function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
   const [expanded, setExpanded] = useState(false)
+  const [elapsed, setElapsed] = useState(0)
+
+  // Update elapsed time for calling status
+  useEffect(() => {
+    if (toolCall.status === 'calling' && toolCall.startTime) {
+      const interval = setInterval(() => {
+        setElapsed(Date.now() - toolCall.startTime!)
+      }, 100)
+      return () => clearInterval(interval)
+    }
+  }, [toolCall.status, toolCall.startTime])
 
   const statusIcon = {
     calling: <Loader2 className="h-3 w-3 animate-spin" />,
@@ -32,6 +49,8 @@ export function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
     }
   }
 
+  const showProgressBar = toolCall.status === 'calling' && elapsed > 5000
+
   return (
     <div className="my-2 rounded-lg border border-border/50 bg-muted/20 overflow-hidden">
       <button
@@ -40,14 +59,29 @@ export function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
       >
         <Wrench className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
         <code className="font-mono text-xs font-medium flex-1">{toolCall.toolName}</code>
+        {toolCall.status === 'calling' && elapsed > 0 && (
+          <span className="text-[10px] text-muted-foreground mr-1">
+            Executing... {formatElapsedTime(elapsed)}
+          </span>
+        )}
         <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${statusColor}`}>
           {statusIcon}
-          <span className="ml-1">{toolCall.status}</span>
+          <span className="ml-1">{toolCall.status === 'calling' ? 'running' : toolCall.status}</span>
         </Badge>
         <ChevronDown
-          className={`h-3 w-3 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`}
+          className={`h-3 w-3 text-muted-foreground transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
         />
       </button>
+      {showProgressBar && (
+        <div className="h-1 bg-muted/40">
+          <motion.div
+            className="h-full bg-blue-500 animate-pulse"
+            initial={{ width: '0%' }}
+            animate={{ width: '100%' }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+          />
+        </div>
+      )}
       <AnimatePresence>
         {expanded && (
           <motion.div

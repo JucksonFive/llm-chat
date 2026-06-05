@@ -7,12 +7,14 @@ import { useMemoryStore } from '@/stores/memory-store'
 import { useMcpStore } from '@/stores/mcp-store'
 import { useProjectStore } from '@/stores/project-store'
 import { useUIStore } from '@/stores/ui-store'
+import { useResearchStore } from '@/stores/research-store'
 import { speakText } from '@/stores/ui-store'
 import { streamChat } from '@/lib/llm-client'
 import type { McpServerConfig, Attachment } from '@/types'
 
 export function useChatStream() {
   const abortRef = useRef<AbortController | null>(null)
+  const activeResearchRef = useRef<string | null>(null)
 
   const sendMessage = useCallback(async (text: string, attachments?: Attachment[]) => {
     const { activeAgentId, agents } = useAgentStore.getState()
@@ -43,13 +45,6 @@ export function useChatStream() {
     const userMsg = useChatStore.getState().conversations[conversationId]?.messages.slice(-1)[0]
     if (userMsg) store.persistMessage(conversationId, userMsg)
 
-    // Add empty assistant message placeholder
-    store.addMessage(conversationId, {
-      role: 'assistant',
-      content: '',
-      isStreaming: true,
-    })
-
     store.setStreaming(true)
 
     // Build memory-augmented system prompt. When an OpenAI key is available
@@ -57,10 +52,23 @@ export function useChatStream() {
     // message via the semantic search endpoint; otherwise we fall back to
     // including all memories (legacy behavior).
     const openAiKey = useApiKeyStore.getState().findKeyForProvider('openai', agents)
-    const memoryPrompt = await useMemoryStore
+    const { prompt: memoryPrompt, usedMemoryIds } = await useMemoryStore
       .getState()
       .getRelevantMemoryPrompt(agent.id, text, openAiKey, 5)
     const systemPrompt = agent.systemPrompt + memoryPrompt
+
+    // Mark memories as used and track count for the assistant message
+    if (usedMemoryIds.length > 0) {
+      useMemoryStore.getState().markMemoriesAsUsed(usedMemoryIds)
+    }
+
+    // Add empty assistant message placeholder with memory count
+    store.addMessage(conversationId, {
+      role: 'assistant',
+      content: '',
+      isStreaming: true,
+      memoriesUsedCount: usedMemoryIds.length > 0 ? usedMemoryIds.length : undefined,
+    })
 
     // Resolve MCP servers for this agent
     const mcpStore = useMcpStore.getState()
@@ -208,19 +216,127 @@ export function useChatStream() {
           toolName,
           args,
           status: 'calling',
+          startTime: Date.now(),
         })
+
+        // Start research tracking for deep-research tool (matches both naming conventions)
+        if ((toolName === 'deep-research' || toolName === 'deep_research') && conversationId) {
+          const researchStore = useResearchStore.getState()
+          const researchId = researchStore.startResearch(conversationId)
+          activeResearchRef.current = researchId
+
+          // Simulate stage progression and source discovery
+          // In production, this would parse streaming data from the tool
+          const stages = ['planning', 'searching', 'fetching', 'analyzing', 'synthesizing'] as const
+          let currentStageIndex = 0
+
+          const stageInterval = setInterval(() => {
+            const research = useResearchStore.getState().researches[researchId]
+            if (!research) {
+              clearInterval(stageInterval)
+              return
+            }
+
+            currentStageIndex++
+            if (currentStageIndex >= stages.length) {
+              clearInterval(stageInterval)
+              return
+            }
+
+            const nextStage = stages[currentStageIndex]
+            researchStore.updateStage(researchId, nextStage)
+
+            // Add demo sources when in searching/fetching stage
+            if (nextStage === 'searching' || nextStage === 'fetching') {
+              const demoSources = [
+                { url: 'https://example.com/article1', title: 'Relevant Research Article' },
+                { url: 'https://wikipedia.org/wiki/Topic', title: 'Wikipedia - Topic Overview' },
+                { url: 'https://arxiv.org/abs/12345', title: 'Academic Paper on Topic' },
+              ]
+
+              demoSources.forEach((source, idx) => {
+                setTimeout(() => {
+                  researchStore.addSource(researchId, source)
+                  setTimeout(() => {
+                    researchStore.updateSource(researchId, source.url, 'complete')
+                  }, 1000)
+                }, idx * 800)
+              })
+            }
+
+            // Update progress based on stage
+            const progress = ((currentStageIndex + 1) / stages.length) * 90
+            researchStore.updateProgress(researchId, progress)
+          }, 3000)
+        }
       },
       onToolResult: ({ toolCallId, result }) => {
         useChatStore.getState().updateToolCallInLastMessage(conversationId!, toolCallId, {
           result,
           status: 'complete',
         })
+
+        // Complete research tracking
+        if (activeResearchRef.current) {
+          const researchStore = useResearchStore.getState()
+          const research = researchStore.researches[activeResearchRef.current]
+
+          if (research) {
+            // Parse result to extract sources and stages
+            // For now, simulate with demo data
+            if (typeof result === 'object' && result !== null) {
+              const resultObj = result as Record<string, unknown>
+
+              // Extract sources if available
+              if (Array.isArray(resultObj.sources)) {
+                resultObj.sources.forEach((source: unknown) => {
+                  if (typeof source === 'object' && source !== null) {
+                    const sourceObj = source as Record<string, unknown>
+                    if (typeof sourceObj.url === 'string') {
+                      researchStore.addSource(activeResearchRef.current!, {
+                        url: sourceObj.url,
+                        title: typeof sourceObj.title === 'string' ? sourceObj.title : sourceObj.url,
+                      })
+                      // Mark as complete after a short delay
+                      setTimeout(() => {
+                        researchStore.updateSource(
+                          activeResearchRef.current!,
+                          sourceObj.url as string,
+                          'complete'
+                        )
+                      }, 500)
+                    }
+                  }
+                })
+              }
+
+              // Update stages based on result
+              if (typeof resultObj.stage === 'string') {
+                const stage = resultObj.stage as string
+                const validStages = ['planning', 'searching', 'fetching', 'analyzing', 'synthesizing', 'reporting'] as const
+                if (validStages.includes(stage as typeof validStages[number])) {
+                  researchStore.updateStage(activeResearchRef.current, stage as typeof validStages[number])
+                }
+              }
+            }
+
+            // Complete the research
+            researchStore.completeResearch(activeResearchRef.current)
+            activeResearchRef.current = null
+          }
+        }
       },
       onToolError: ({ toolCallId, error }) => {
         useChatStore.getState().updateToolCallInLastMessage(conversationId!, toolCallId, {
           error,
           status: 'error',
         })
+
+        // Clear research on error
+        if (activeResearchRef.current) {
+          useResearchStore.getState().clearResearch(activeResearchRef.current)
+          activeResearchRef.current = null
+        }
       },
       onDone: () => {
         // Flush any remaining tag buffer
@@ -293,8 +409,8 @@ export function useChatStream() {
       },
       onError: (error) => {
         const store = useChatStore.getState()
-        // Show error inline in the message bubble
-        store.appendToLastMessage(conversationId!, `\n\n**Error:** ${error.message}`)
+        // Mark message with error metadata for retry button
+        store.setMessageError(conversationId!, error.message)
         store.finalizeLastMessage(conversationId!)
         store.setStreaming(false)
         toast.error(error.message)

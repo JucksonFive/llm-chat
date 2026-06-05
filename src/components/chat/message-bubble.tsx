@@ -1,18 +1,20 @@
 import { CodeBlock } from '@/components/chat/code-block'
+import { ErrorRetryButton } from '@/components/chat/error-retry-button'
 import { normalizeLatex } from '@/components/chat/normalize-latex'
 import { ToolCallBlock } from '@/components/chat/tool-call-block'
 import { TypingIndicator } from '@/components/chat/typing-indicator'
 import { cn } from '@/lib/utils'
+import { useChatStore } from '@/stores/chat-store'
 import { cleanTextForSpeech } from '@/stores/ui-store'
 import type { Message } from '@/types'
-import { motion, AnimatePresence } from 'motion/react'
-import { type ReactNode, useState, useCallback } from 'react'
+import 'katex/dist/katex.min.css'
+import { AnimatePresence, motion } from 'motion/react'
+import { type ReactNode, useCallback, useMemo, useState, memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeKatex from 'rehype-katex'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
-import 'katex/dist/katex.min.css'
 
 function extractText(node: ReactNode): string {
   if (node == null || typeof node === 'boolean') return ''
@@ -33,11 +35,18 @@ function ReasoningBlock({ reasoning, isStreaming }: Readonly<{ reasoning: string
     setUserToggled((prev) => !prev)
   }
 
+  // Calculate stats for collapsed preview
+  const wordCount = reasoning.trim().split(/\s+/).filter(Boolean).length
+  const previewText = reasoning.trim().slice(0, 100).replace(/\n+/g, ' ')
+
   return (
     <div className="mb-3">
       <button
         onClick={handleToggle}
-        className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+        className={cn(
+          'flex items-center gap-1.5 text-xs font-medium transition-colors',
+          isStreaming ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground hover:text-foreground'
+        )}
       >
         <svg
           className={cn('h-3 w-3 transition-transform', isOpen && 'rotate-90')}
@@ -56,14 +65,25 @@ function ReasoningBlock({ reasoning, isStreaming }: Readonly<{ reasoning: string
             </>
           ) : (
             <>
-              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-              </svg>
+              <span className="text-base leading-none">💡</span>
               Thought process
+              {wordCount > 0 && (
+                <span className="text-[10px] text-muted-foreground/70 font-normal">
+                  ({wordCount} words)
+                </span>
+              )}
             </>
           )}
         </span>
       </button>
+      {!isOpen && !isStreaming && previewText && (
+        <button
+          onClick={handleToggle}
+          className="mt-1 ml-4 text-xs text-muted-foreground/60 italic line-clamp-1 text-left hover:text-muted-foreground transition-colors"
+        >
+          {previewText}{reasoning.length > 100 ? '...' : ''}
+        </button>
+      )}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -73,7 +93,12 @@ function ReasoningBlock({ reasoning, isStreaming }: Readonly<{ reasoning: string
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="mt-2 rounded-lg border border-border/50 bg-muted/30 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap max-h-[400px] overflow-y-auto">
+            <div className={cn(
+              'mt-2 rounded-lg border px-3 py-2.5 text-xs leading-relaxed whitespace-pre-wrap max-h-[400px] overflow-y-auto',
+              isStreaming
+                ? 'border-amber-500/30 bg-amber-500/5 text-foreground'
+                : 'border-amber-500/20 bg-amber-500/[0.03] text-muted-foreground'
+            )}>
               {reasoning}
             </div>
           </motion.div>
@@ -116,7 +141,7 @@ function SpeakButton({ text }: { text: string }) {
   return (
     <button
       onClick={handleSpeak}
-      className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100"
+      className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
       title={isSpeaking ? 'Stop speaking' : 'Read aloud'}
     >
       {isSpeaking ? (
@@ -134,8 +159,13 @@ function SpeakButton({ text }: { text: string }) {
   )
 }
 
-export function MessageBubble({ message, agentName, agentColor }: MessageBubbleProps) {
+function MessageBubbleComponent({ message, agentName, agentColor }: MessageBubbleProps) {
   const isUser = message.role === 'user'
+  const activeConversationId = useChatStore((s) => s.activeConversationId)
+  const tokenCount = useMemo(() => {
+    if (message.isStreaming) return null
+    return message.content.split(/[\s,.!?;:]+/).filter(Boolean).length
+  }, [message.content, message.isStreaming])
 
   const content = (
     <>
@@ -151,13 +181,23 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
       <div
         className={cn(
           isUser
-            ? 'max-w-[75%] rounded-2xl rounded-br-md px-4 py-2.5 text-sm leading-relaxed bg-blue-600 dark:bg-blue-500 text-white'
-            : 'overflow-hidden py-2 text-[14px] leading-[1.8] text-foreground',
+            ? 'max-w-[85%] sm:max-w-[75%] rounded-2xl rounded-br-md px-4 py-2.5 text-sm leading-relaxed bg-blue-600 dark:bg-blue-500 text-white'
+            : 'relative overflow-hidden py-2 text-[14px] leading-[1.8] text-foreground',
         )}
         style={!isUser ? { flex: '1 1 0%', minWidth: 0 } : undefined}
       >
         {message.isStreaming && !message.content && !message.toolCalls?.length && !message.reasoning ? (
           <TypingIndicator />
+        ) : message.error && !message.content ? (
+          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
+            <svg className="h-4 w-4 shrink-0 mt-0.5 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-destructive mb-0.5">Failed to generate response</div>
+              <div className="text-xs text-muted-foreground break-words">{message.error}</div>
+            </div>
+          </div>
         ) : (
           <>
             {!isUser && message.reasoning && (
@@ -240,8 +280,56 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
             {message.toolCalls?.map((tc) => (
               <ToolCallBlock key={tc.id} toolCall={tc} />
             ))}
-            {!isUser && message.content && !message.isStreaming && (
-              <SpeakButton text={message.content} />
+            {!isUser && message.content && !message.isStreaming && !message.error && (
+              <div className="flex items-center gap-3 flex-wrap">
+                <SpeakButton text={message.content} />
+                {message.memoriesUsedCount !== undefined && message.memoriesUsedCount > 0 && (
+                  <div
+                    className="mt-1 flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400"
+                    title={`${message.memoriesUsedCount} ${message.memoriesUsedCount === 1 ? 'memory' : 'memories'} used in this response`}
+                  >
+                    <span className="text-sm leading-none">🧠</span>
+                    <span className="font-medium">
+                      {message.memoriesUsedCount} {message.memoriesUsedCount === 1 ? 'memory' : 'memories'} used
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!isUser && message.error && !message.isStreaming && activeConversationId && (
+              <ErrorRetryButton
+                conversationId={activeConversationId}
+                errorMessage={message.error}
+              />
+            )}
+
+            {/* Token counter for streaming messages */}
+            {!isUser && message.isStreaming && message.isGeneratingContent && tokenCount && tokenCount > 0 && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 2 }}
+                className="absolute bottom-1 right-2 text-xs text-muted-foreground"
+              >
+                ~{tokenCount} tokens
+              </motion.div>
+            )}
+
+            {/* Streaming status indicator */}
+            {!isUser && message.isStreaming && (
+              <div className="mt-2 flex items-center gap-1.5 text-xs">
+                <span className={cn(
+                  'inline-block h-1.5 w-1.5 rounded-full animate-pulse',
+                  message.isGeneratingContent ? 'bg-blue-500' : 'bg-amber-500'
+                )} />
+                <span className={cn(
+                  'font-medium',
+                  message.isGeneratingContent ? 'text-blue-600 dark:text-blue-500' : 'text-amber-600 dark:text-amber-500'
+                )}>
+                  {message.isGeneratingContent ? 'Generating...' : 'Thinking...'}
+                </span>
+              </div>
             )}
           </>
         )}
@@ -258,9 +346,9 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
   if (isUser) {
     return (
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2, ease: 'easeOut' }}
+        initial={{ opacity: 0, y: 8, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1.0] }}
         className="flex gap-3 py-2 justify-end px-4"
       >
         {content}
@@ -269,8 +357,54 @@ export function MessageBubble({ message, agentName, agentColor }: MessageBubbleP
   }
 
   return (
-    <div className="group flex gap-3 py-2 px-4" style={{ width: '100%' }}>
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
+      className="group flex gap-3 py-2 px-4"
+      style={{ width: '100%' }}
+    >
       {content}
-    </div>
+    </motion.div>
   )
 }
+
+/**
+ * Memoized MessageBubble.
+ * Re-renders only when message content, reasoning, toolCalls, error, streaming
+ * state, or memoriesUsedCount actually change. Prevents wasteful re-renders
+ * during streaming when other state (like isStreaming on a different message)
+ * causes the parent to re-render.
+ */
+export const MessageBubble = memo(MessageBubbleComponent, (prev, next) => {
+  if (prev.message.id !== next.message.id) return false
+  if (prev.message.content !== next.message.content) return false
+  if (prev.message.reasoning !== next.message.reasoning) return false
+  if (prev.message.isStreaming !== next.message.isStreaming) return false
+  if (prev.message.isGeneratingContent !== next.message.isGeneratingContent) return false
+  if (prev.message.error !== next.message.error) return false
+  if (prev.message.memoriesUsedCount !== next.message.memoriesUsedCount) return false
+  if (prev.agentName !== next.agentName) return false
+  if (prev.agentColor !== next.agentColor) return false
+
+  // Tool calls — compare references and statuses
+  const prevTools = prev.message.toolCalls ?? []
+  const nextTools = next.message.toolCalls ?? []
+  if (prevTools.length !== nextTools.length) return false
+  for (let i = 0; i < prevTools.length; i++) {
+    if (prevTools[i].id !== nextTools[i].id) return false
+    if (prevTools[i].status !== nextTools[i].status) return false
+    if (prevTools[i].result !== nextTools[i].result) return false
+    if (prevTools[i].error !== nextTools[i].error) return false
+  }
+
+  // Attachments — compare lengths and IDs
+  const prevAtt = prev.message.attachments ?? []
+  const nextAtt = next.message.attachments ?? []
+  if (prevAtt.length !== nextAtt.length) return false
+  for (let i = 0; i < prevAtt.length; i++) {
+    if (prevAtt[i].id !== nextAtt[i].id) return false
+  }
+
+  return true
+})

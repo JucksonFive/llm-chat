@@ -17,6 +17,7 @@ interface ChatState {
   appendToLastMessage: (conversationId: string, token: string) => void
   appendReasoningToLastMessage: (conversationId: string, token: string) => void
   finalizeLastMessage: (conversationId: string) => void
+  setMessageError: (conversationId: string, error: string) => void
   setStreaming: (streaming: boolean) => void
   addToolCallToLastMessage: (conversationId: string, toolCall: ToolCallInfo) => void
   updateToolCallInLastMessage: (conversationId: string, toolCallId: string, updates: Partial<ToolCallInfo>) => void
@@ -100,6 +101,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       ...message,
       id: msgId,
       createdAt: Date.now(),
+      streamStartTime: message.isStreaming ? Date.now() : undefined,
     }
     set((state) => {
       const conv = state.conversations[conversationId]
@@ -142,6 +144,10 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       const messages = [...conv.messages]
       const last = { ...messages[messages.length - 1] }
       last.content += token
+      // Mark that content generation has started (for "Generating..." indicator)
+      if (!last.isGeneratingContent && last.content.length > 0) {
+        last.isGeneratingContent = true
+      }
       messages[messages.length - 1] = last
       return {
         conversations: {
@@ -176,6 +182,23 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       const messages = [...conv.messages]
       const last = { ...messages[messages.length - 1] }
       last.isStreaming = false
+      messages[messages.length - 1] = last
+      return {
+        conversations: {
+          ...state.conversations,
+          [conversationId]: { ...conv, messages },
+        },
+      }
+    })
+  },
+
+  setMessageError: (conversationId, error) => {
+    set((state) => {
+      const conv = state.conversations[conversationId]
+      if (!conv || conv.messages.length === 0) return state
+      const messages = [...conv.messages]
+      const last = { ...messages[messages.length - 1] }
+      last.error = error
       messages[messages.length - 1] = last
       return {
         conversations: {

@@ -293,16 +293,16 @@ export function MessageInput() {
                   </span>
                   <button
                     onClick={() => removeAttachment(att.id)}
-                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute -top-1.5 -right-1.5 h-6 w-6 sm:h-5 sm:w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                   >
-                    <X className="h-3 w-3" />
+                    <X className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
                   </button>
                 </div>
               ))}
             </div>
           )}
 
-          <div className="relative flex items-end gap-2">
+          <div className="relative flex flex-col sm:flex-row items-end gap-2">
             <Textarea
               ref={textareaRef}
               value={input}
@@ -317,46 +317,49 @@ export function MessageInput() {
               }}
               placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
               className={cn(
-                'min-h-[44px] max-h-[200px] resize-none pr-12',
+                'min-h-[44px] max-h-[200px] resize-none w-full',
+                'sm:pr-12', // Only add padding on desktop
                 'transition-shadow duration-200',
                 'focus-visible:ring-primary/50 focus-visible:shadow-[0_0_15px_rgba(59,130,246,0.15)]',
               )}
               rows={1}
             />
-            {hasSpeechRecognition && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant={isListening ? 'destructive' : 'ghost'}
-                    className={cn(
-                      'h-[44px] w-[44px] shrink-0',
-                      isListening && 'animate-pulse',
-                    )}
-                    onClick={toggleListening}
-                  >
-                    {isListening ? (
-                      <MicOff className="h-4 w-4" />
-                    ) : (
-                      <Mic className="h-4 w-4" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{isListening ? 'Stop recording' : 'Voice input'}</TooltipContent>
-              </Tooltip>
-            )}
-            <Button
-              size="icon"
-              className="h-[44px] w-[44px] shrink-0"
-              onClick={isStreaming ? abort : handleSend}
-              disabled={!isStreaming && (!input.trim() && attachments.length === 0)}
-            >
-              {isStreaming ? (
-                <Square className="h-4 w-4" />
-              ) : (
-                <Send className="h-4 w-4" />
+            <div className="flex gap-2 w-full sm:w-auto">
+              {hasSpeechRecognition && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant={isListening ? 'destructive' : 'ghost'}
+                      className={cn(
+                        'h-12 w-12 sm:h-[44px] sm:w-[44px] shrink-0',
+                        isListening && 'animate-pulse',
+                      )}
+                      onClick={toggleListening}
+                    >
+                      {isListening ? (
+                        <MicOff className="h-5 w-5 sm:h-4 sm:w-4" />
+                      ) : (
+                        <Mic className="h-5 w-5 sm:h-4 sm:w-4" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{isListening ? 'Stop recording' : 'Voice input'}</TooltipContent>
+                </Tooltip>
               )}
-            </Button>
+              <Button
+                size="icon"
+                className="h-12 w-12 sm:h-[44px] sm:w-[44px] shrink-0 flex-1 sm:flex-none"
+                onClick={isStreaming ? abort : handleSend}
+                disabled={!isStreaming && (!input.trim() && attachments.length === 0)}
+              >
+                {isStreaming ? (
+                  <Square className="h-5 w-5 sm:h-4 sm:w-4" />
+                ) : (
+                  <Send className="h-5 w-5 sm:h-4 sm:w-4" />
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </div>

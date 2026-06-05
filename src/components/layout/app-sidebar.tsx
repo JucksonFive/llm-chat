@@ -2,6 +2,8 @@ import { AgentDialog } from '@/components/agents/agent-dialog'
 import { ProjectDialog } from '@/components/projects/project-dialog'
 import { SettingsSheet } from '@/components/settings/settings-sheet'
 import { Separator } from '@/components/ui/separator'
+import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Sidebar,
   SidebarContent,
@@ -17,6 +19,7 @@ import { cn } from '@/lib/utils'
 import { useAgentStore } from '@/stores/agent-store'
 import { useChatStore } from '@/stores/chat-store'
 import { useProjectStore } from '@/stores/project-store'
+import { useConversationSearch } from '@/hooks/use-message-search'
 import type { ProviderId } from '@/types'
 import {
   Brain,
@@ -29,6 +32,7 @@ import {
   Sparkles,
   Trash2,
   Waves,
+  Search,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -42,6 +46,7 @@ const PROVIDER_ICONS: Record<ProviderId, React.ElementType> = {
 
 export function AppSidebar() {
   const { agents, activeAgentId, setActiveAgent, deleteAgent } = useAgentStore()
+  const agentsLoaded = useAgentStore((s) => s.loaded)
   const {
     activeConversationId,
     setActiveConversation,
@@ -49,7 +54,9 @@ export function AppSidebar() {
     deleteConversation,
     getConversationsForAgent,
   } = useChatStore()
+  const conversationsLoaded = useChatStore((s) => s.loaded)
   const { projects, activeProjectId, setActiveProject, deleteProject } = useProjectStore()
+  const { query, setQuery, filteredConversations, matchCount } = useConversationSearch(activeAgentId || undefined)
   const [agentDialogOpen, setAgentDialogOpen] = useState(false)
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null)
   const [projectDialogOpen, setProjectDialogOpen] = useState(false)
@@ -58,12 +65,12 @@ export function AppSidebar() {
 
   const activeAgent = agents.find((a) => a.id === activeAgentId)
 
-  const allConversations = activeAgentId
-    ? getConversationsForAgent(activeAgentId)
-    : []
-  const conversations = allConversations.filter((c) =>
-    activeProjectId ? c.projectId === activeProjectId : true
-  )
+  // Use filtered conversations if searching, otherwise apply project filter
+  const conversations = query.trim()
+    ? filteredConversations
+    : (activeAgentId ? getConversationsForAgent(activeAgentId) : []).filter((c) =>
+        activeProjectId ? c.projectId === activeProjectId : true
+      )
 
   const handleNewChat = async () => {
     if (!activeAgentId) return
@@ -171,7 +178,13 @@ export function AppSidebar() {
                 </button>
               </div>
               <SidebarMenu>
-                {agents.length === 0 && (
+                {!agentsLoaded && (
+                  <div className="space-y-1 px-2">
+                    <Skeleton className="h-7 w-full" />
+                    <Skeleton className="h-7 w-4/5" />
+                  </div>
+                )}
+                {agentsLoaded && agents.length === 0 && (
                   <p className="px-3 py-2 text-xs text-muted-foreground">
                     No agents yet. Create one to start chatting.
                   </p>
@@ -236,10 +249,36 @@ export function AppSidebar() {
                     <Plus className="h-4 w-4" />
                   </button>
                 </div>
+
+                {/* Search Input */}
+                <div className="px-2 pt-1 pb-3">
+                  <div className="relative flex items-center">
+                    <Search className="absolute left-2.5 h-3 w-3 text-blue-400 pointer-events-none z-10" />
+                    <Input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Search..."
+                      className="h-8 !pl-7 pr-2 text-xs border-blue-500/30 focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:border-purple-500/50 hover:border-blue-500/50 transition-colors"
+                    />
+                  </div>
+                  {query.trim() && (
+                    <div className="mt-2 text-xs text-muted-foreground px-1">
+                      {matchCount} {matchCount === 1 ? 'match' : 'matches'}
+                    </div>
+                  )}
+                </div>
+
                 <SidebarMenu>
-                  {conversations.length === 0 && (
+                  {!conversationsLoaded && (
+                    <div className="space-y-1 px-2">
+                      <Skeleton className="h-7 w-full" />
+                      <Skeleton className="h-7 w-4/5" />
+                      <Skeleton className="h-7 w-3/4" />
+                    </div>
+                  )}
+                  {conversationsLoaded && conversations.length === 0 && (
                     <p className="px-3 py-2 text-xs text-muted-foreground">
-                      No conversations yet.
+                      {query.trim() ? 'No matching conversations.' : 'No conversations yet.'}
                     </p>
                   )}
                   {conversations.map((conv) => (
