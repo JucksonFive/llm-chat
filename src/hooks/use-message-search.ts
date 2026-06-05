@@ -41,8 +41,9 @@ export function useMessageSearch(agentId?: string) {
     )
 
     // Apply date range filter
+    // eslint-disable-next-line react-hooks/purity -- intentionally computing current time for date filtering
     const now = Date.now()
-    const dateThresholds = {
+    const dateThresholds: Record<string, number> = {
       today: now - 24 * 60 * 60 * 1000,
       week: now - 7 * 24 * 60 * 60 * 1000,
       month: now - 30 * 24 * 60 * 60 * 1000,

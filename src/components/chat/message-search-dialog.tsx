@@ -45,24 +45,33 @@ export function MessageSearchDialog({ open, onOpenChange }: MessageSearchDialogP
 
   // Load messages for all conversations when dialog opens
   useEffect(() => {
-    if (open && activeAgentId) {
-      const agentConversations = getConversationsForAgent(activeAgentId)
-      const conversationsNeedingMessages = agentConversations.filter((conv) => conv.messages.length === 0)
+    if (!open || !activeAgentId) return
 
-      if (conversationsNeedingMessages.length > 0) {
-        setIsLoadingMessages(true)
+    const agentConversations = getConversationsForAgent(activeAgentId)
+    const conversationsNeedingMessages = agentConversations.filter((conv) => conv.messages.length === 0)
 
-        // Load messages for all conversations in parallel
-        Promise.all(
-          conversationsNeedingMessages.map((conv) =>
-            loadMessages(conv.id).catch((err) => {
-              console.warn(`Failed to load messages for conversation ${conv.id}:`, err)
-            })
-          )
-        ).finally(() => {
-          setIsLoadingMessages(false)
+    if (conversationsNeedingMessages.length === 0) return
+
+    let cancelled = false
+
+    // Load messages for all conversations in parallel
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional loading state
+    setIsLoadingMessages(true)
+
+    Promise.all(
+      conversationsNeedingMessages.map((conv) =>
+        loadMessages(conv.id).catch((err) => {
+          console.warn(`Failed to load messages for conversation ${conv.id}:`, err)
         })
+      )
+    ).finally(() => {
+      if (!cancelled) {
+        setIsLoadingMessages(false)
       }
+    })
+
+    return () => {
+      cancelled = true
     }
   }, [open, activeAgentId, getConversationsForAgent, loadMessages])
 
@@ -113,7 +122,7 @@ export function MessageSearchDialog({ open, onOpenChange }: MessageSearchDialogP
     }, 100)
   }, [setActiveConversation, loadMessages, onOpenChange])
 
-  const toggleFilter = useCallback((filter: keyof typeof filters, value?: any) => {
+  const toggleFilter = useCallback((filter: keyof typeof filters, value?: string) => {
     setFilters((prev) => {
       const current = prev[filter]
       if (filter === 'dateRange') {

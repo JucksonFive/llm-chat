@@ -151,9 +151,11 @@ export function MemoryPanel({ open, onOpenChange }: MemoryPanelProps) {
                 </p>
               )}
               {memories.map((memory) => {
+                // eslint-disable-next-line react-hooks/purity -- intentionally computing current time for recency check
+                const now = Date.now()
                 const wasRecentlyUsed =
                   memory.lastUsedAt !== undefined &&
-                  Date.now() - memory.lastUsedAt < 5 * 60 * 1000
+                  now - memory.lastUsedAt < 5 * 60 * 1000
 
                 return (
                   <div

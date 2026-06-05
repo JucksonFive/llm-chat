@@ -151,14 +151,24 @@ function SourceItem({ url, title, status }: { url: string; title: string; status
 
 export function ResearchProgressPanel() {
   const { activeResearchId, researches, togglePanel, clearResearch } = useResearchStore()
+  const research = activeResearchId ? researches[activeResearchId] : null
 
-  if (!activeResearchId) return null
+  const [totalElapsed, setTotalElapsed] = useState(0)
 
-  const research = researches[activeResearchId]
-  if (!research) return null
+  useEffect(() => {
+    if (!research) return
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial elapsed time calculation
+    setTotalElapsed(Date.now() - research.startTime)
+    const interval = setInterval(() => {
+      setTotalElapsed(Date.now() - research.startTime)
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [research?.startTime, research])
+
+  if (!activeResearchId || !research) return null
 
   const currentStageIndex = STAGE_ORDER.indexOf(research.stage)
-  const totalElapsed = Date.now() - research.startTime
 
   return (
     <AnimatePresence>

@@ -313,8 +313,9 @@ export function useChatStream() {
               // Update stages based on result
               if (typeof resultObj.stage === 'string') {
                 const stage = resultObj.stage as string
-                if (['planning', 'searching', 'fetching', 'analyzing', 'synthesizing', 'reporting'].includes(stage)) {
-                  researchStore.updateStage(activeResearchRef.current, stage as any)
+                const validStages = ['planning', 'searching', 'fetching', 'analyzing', 'synthesizing', 'reporting'] as const
+                if (validStages.includes(stage as typeof validStages[number])) {
+                  researchStore.updateStage(activeResearchRef.current, stage as typeof validStages[number])
                 }
               }
             }
