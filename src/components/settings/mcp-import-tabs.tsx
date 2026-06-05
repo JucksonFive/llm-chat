@@ -1,0 +1,263 @@
+import { useState, useCallback } from 'react'
+import { Upload, Link as LinkIcon, Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { toast } from 'sonner'
+import { McpImportPreview } from './mcp-import-preview'
+import { validateMcpImport, parseImportPayload } from '@/lib/mcp-import-validator'
+import { useMcpStore } from '@/stores/mcp-store'
+import type { McpServerImport } from '@/types'
+
+interface McpImportTabsProps {
+  onSuccess?: () => void
+}
+
+export function FileImportTab({ onSuccess }: McpImportTabsProps) {
+  const [importedConfigs, setImportedConfigs] = useState<McpServerImport[]>([])
+  const [dragOver, setDragOver] = useState(false)
+  const addServer = useMcpStore((s) => s.addServer)
+
+  const handleFile = useCallback((file: File) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string
+        const data = JSON.parse(text)
+        const { servers, error } = parseImportPayload(data)
+
+        if (error) {
+          toast.error(error)
+          return
+        }
+
+        if (servers.length === 0) {
+          toast.error('No valid server configurations found')
+          return
+        }
+
+        setImportedConfigs(servers)
+        toast.success(`Loaded ${servers.length} configuration(s)`)
+      } catch (error) {
+        toast.error(`Failed to parse JSON: ${error instanceof Error ? error.message : 'Invalid JSON'}`)
+      }
+    }
+    reader.onerror = () => {
+      toast.error('Failed to read file')
+    }
+    reader.readAsText(file)
+  }, [])
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      setDragOver(false)
+
+      const file = e.dataTransfer.files[0]
+      if (!file) return
+
+      if (!file.name.endsWith('.json')) {
+        toast.error('Please select a JSON file')
+        return
+      }
+
+      handleFile(file)
+    },
+    [handleFile]
+  )
+
+  const handleFileInput = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+      handleFile(file)
+    },
+    [handleFile]
+  )
+
+  const handleInstall = async (config: McpServerImport) => {
+    try {
+      await addServer({
+        name: config.name,
+        transport: config.transport,
+        command: config.command,
+        args: config.args,
+        env: config.env,
+        url: config.url,
+      })
+      toast.success(`${config.name} installed successfully`)
+
+      // Remove from list after install
+      setImportedConfigs((prev) => prev.filter((c) => c.name !== config.name))
+
+      if (importedConfigs.length === 1) {
+        onSuccess?.()
+      }
+    } catch (error) {
+      toast.error(`Failed to install: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {importedConfigs.length === 0 ? (
+        <div
+          className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+            dragOver ? 'border-blue-500 bg-blue-500/5' : 'border-border'
+          }`}
+          onDrop={handleDrop}
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDragOver(true)
+          }}
+          onDragLeave={() => setDragOver(false)}
+        >
+          <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+          <h3 className="text-lg font-semibold mb-2">Import from File</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Drag and drop a JSON file here, or click to browse
+          </p>
+          <label>
+            <input
+              type="file"
+              accept=".json"
+              onChange={handleFileInput}
+              className="hidden"
+            />
+            <Button variant="outline" size="sm" asChild>
+              <span>Select File</span>
+            </Button>
+          </label>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {importedConfigs.map((config, idx) => {
+            const validation = validateMcpImport(config)
+            return (
+              <McpImportPreview
+                key={idx}
+                config={config}
+                validation={validation}
+                onInstall={handleInstall}
+                onCancel={() => setImportedConfigs((prev) => prev.filter((_, i) => i !== idx))}
+              />
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function UrlImportTab({ onSuccess }: McpImportTabsProps) {
+  const [url, setUrl] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [importedConfigs, setImportedConfigs] = useState<McpServerImport[]>([])
+  const addServer = useMcpStore((s) => s.addServer)
+
+  const handleFetch = async () => {
+    if (!url.trim()) {
+      toast.error('Please enter a URL')
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      const { servers, error } = parseImportPayload(data)
+
+      if (error) {
+        toast.error(error)
+        return
+      }
+
+      if (servers.length === 0) {
+        toast.error('No valid server configurations found')
+        return
+      }
+
+      setImportedConfigs(servers)
+      toast.success(`Loaded ${servers.length} configuration(s)`)
+    } catch (error) {
+      toast.error(`Failed to fetch: ${error instanceof Error ? error.message : 'Network error'}`)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleInstall = async (config: McpServerImport) => {
+    try {
+      await addServer({
+        name: config.name,
+        transport: config.transport,
+        command: config.command,
+        args: config.args,
+        env: config.env,
+        url: config.url,
+      })
+      toast.success(`${config.name} installed successfully`)
+
+      // Remove from list after install
+      setImportedConfigs((prev) => prev.filter((c) => c.name !== config.name))
+
+      if (importedConfigs.length === 1) {
+        setUrl('')
+        onSuccess?.()
+      }
+    } catch (error) {
+      toast.error(`Failed to install: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {importedConfigs.length === 0 ? (
+        <div className="space-y-4">
+          <div className="rounded-lg border border-border p-8 text-center">
+            <LinkIcon className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <h3 className="text-lg font-semibold mb-2">Import from URL</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Paste a URL to a JSON configuration file
+            </p>
+            <div className="flex gap-2 max-w-xl mx-auto">
+              <Input
+                placeholder="https://example.com/mcp-config.json"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleFetch()}
+              />
+              <Button onClick={handleFetch} disabled={isLoading || !url.trim()}>
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Fetch
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {importedConfigs.map((config, idx) => {
+            const validation = validateMcpImport(config)
+            return (
+              <McpImportPreview
+                key={idx}
+                config={config}
+                validation={validation}
+                onInstall={handleInstall}
+                onCancel={() => {
+                  setImportedConfigs((prev) => prev.filter((_, i) => i !== idx))
+                  if (importedConfigs.length === 1) {
+                    setUrl('')
+                  }
+                }}
+              />
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
