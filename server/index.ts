@@ -188,7 +188,7 @@ app.post('/api/chat', async (req, res) => {
         console.log(`[chat] provider=bedrock model=${effectiveModel} messages=${bedrockMessages.length} tools=${toolNames.join(',') || 'none'} hasCustomCredentials=${!!awsCredentials}`)
 
         // Tool calling loop - continue until model stops requesting tools
-        let conversationMessages = [...bedrockMessages]
+        const conversationMessages = [...bedrockMessages]
         let turnCount = 0
         const MAX_TURNS = 20 // Prevent infinite loops
 
