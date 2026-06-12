@@ -14,3 +14,9 @@ export function deriveServerName(input: string): string {
   const candidate = parts.at(-1) ?? trimmed
   return candidate.replace(/^@[^/]+\//, '').replace(/-mcp$|^mcp-/, '')
 }
+
+export function buildConnectionSummary(toolCount: number, resourceCount: number): string {
+  const parts = [`${toolCount} tool${toolCount !== 1 ? 's' : ''}`]
+  if (resourceCount > 0) parts.push(`${resourceCount} resource${resourceCount !== 1 ? 's' : ''}`)
+  return `Connected — found ${parts.join(', ')}`
+}

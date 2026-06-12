@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { Upload, Link as LinkIcon, Loader2, Terminal } from 'lucide-react'
-import { parseCommand, deriveServerName } from './mcp-npx-utils'
+import { parseCommand, deriveServerName, buildConnectionSummary } from './mcp-npx-utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
@@ -264,34 +264,70 @@ export function UrlImportTab({ onSuccess }: McpImportTabsProps) {
   )
 }
 
+type InstallPhase = 'idle' | 'saving' | 'connecting' | 'done' | 'error'
+
 export function NpxInstallTab({ onSuccess }: McpImportTabsProps) {
   const [input, setInput] = useState('')
   const [serverName, setServerName] = useState('')
-  const [isInstalling, setIsInstalling] = useState(false)
+  const [phase, setPhase] = useState<InstallPhase>('idle')
+  const [testResult, setTestResult] = useState<string>('')
   const addServer = useMcpStore((s) => s.addServer)
 
   const parsed = input.trim() ? parseCommand(input) : null
   const derivedName = serverName || (input.trim() ? deriveServerName(input) : '')
+  const busy = phase === 'saving' || phase === 'connecting'
 
   const handleInstall = async () => {
     if (!parsed) return
 
-    setIsInstalling(true)
+    setPhase('saving')
+    setTestResult('')
+    let serverId: string
     try {
-      await addServer({
+      const server = await addServer({
         name: derivedName || input.trim(),
         transport: 'stdio',
         command: parsed.command,
         args: parsed.args,
       })
-      toast.success(`${derivedName || input.trim()} installed`)
-      setInput('')
-      setServerName('')
-      onSuccess?.()
+      serverId = server.id
     } catch (error) {
-      toast.error(`Failed to install: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    } finally {
-      setIsInstalling(false)
+      setPhase('error')
+      setTestResult(error instanceof Error ? error.message : 'Failed to save')
+      return
+    }
+
+    setPhase('connecting')
+    try {
+      const res = await fetch('/api/mcp/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: serverId,
+          name: derivedName || input.trim(),
+          transport: 'stdio',
+          command: parsed.command,
+          args: parsed.args,
+          createdAt: Date.now(),
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setTestResult(buildConnectionSummary(data.toolCount, data.resourceCount))
+        setPhase('done')
+        setInput('')
+        setServerName('')
+        setTimeout(() => {
+          setPhase('idle')
+          onSuccess?.()
+        }, 1500)
+      } else {
+        setPhase('error')
+        setTestResult(data.error ?? 'Connection failed')
+      }
+    } catch (error) {
+      setPhase('error')
+      setTestResult(error instanceof Error ? error.message : 'Connection failed')
     }
   }
 
@@ -309,9 +345,10 @@ export function NpxInstallTab({ onSuccess }: McpImportTabsProps) {
             <Input
               placeholder="obsidian-mcp-seekstone  or  npx skillfish add repo/name"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => { setInput(e.target.value); setPhase('idle'); setTestResult('') }}
               onKeyDown={(e) => e.key === 'Enter' && handleInstall()}
               className="font-mono text-sm"
+              disabled={busy}
             />
           </div>
           <div className="space-y-1.5">
@@ -324,6 +361,7 @@ export function NpxInstallTab({ onSuccess }: McpImportTabsProps) {
               onChange={(e) => setServerName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleInstall()}
               className="text-sm"
+              disabled={busy}
             />
           </div>
           {parsed && (
@@ -332,13 +370,28 @@ export function NpxInstallTab({ onSuccess }: McpImportTabsProps) {
               <code className="text-xs font-mono">{parsed.preview}</code>
             </div>
           )}
+          {phase !== 'idle' && (
+            <div className={`flex items-start gap-2 text-xs rounded-md px-3 py-2 ${
+              phase === 'done' ? 'text-emerald-400 bg-emerald-500/5' :
+              phase === 'error' ? 'text-red-400 bg-red-500/5' :
+              'text-muted-foreground bg-muted/40'
+            }`}>
+              {busy && <Loader2 className="h-3.5 w-3.5 mt-0.5 shrink-0 animate-spin" />}
+              <span>
+                {phase === 'saving' && 'Saving configuration…'}
+                {phase === 'connecting' && 'Connecting (this may take a moment while npx downloads the package)…'}
+                {phase === 'done' && testResult}
+                {phase === 'error' && testResult}
+              </span>
+            </div>
+          )}
           <Button
             className="w-full"
             onClick={handleInstall}
-            disabled={!input.trim() || isInstalling}
+            disabled={!input.trim() || busy}
           >
-            {isInstalling && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Install
+            {busy && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {phase === 'saving' ? 'Saving…' : phase === 'connecting' ? 'Connecting…' : 'Install'}
           </Button>
         </div>
       </div>

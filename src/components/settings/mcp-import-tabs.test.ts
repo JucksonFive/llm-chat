@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseCommand, deriveServerName } from './mcp-npx-utils'
+import { parseCommand, deriveServerName, buildConnectionSummary } from './mcp-npx-utils'
 
 describe('parseCommand', () => {
   it('wraps a bare package name with npx -y', () => {
@@ -59,5 +59,27 @@ describe('deriveServerName', () => {
 
   it('handles leading/trailing whitespace', () => {
     expect(deriveServerName('  seekstone  ')).toBe('seekstone')
+  })
+})
+
+describe('buildConnectionSummary', () => {
+  it('singular tool, no resources', () => {
+    expect(buildConnectionSummary(1, 0)).toBe('Connected — found 1 tool')
+  })
+
+  it('plural tools, no resources', () => {
+    expect(buildConnectionSummary(3, 0)).toBe('Connected — found 3 tools')
+  })
+
+  it('zero tools, no resources', () => {
+    expect(buildConnectionSummary(0, 0)).toBe('Connected — found 0 tools')
+  })
+
+  it('tools and singular resource', () => {
+    expect(buildConnectionSummary(2, 1)).toBe('Connected — found 2 tools, 1 resource')
+  })
+
+  it('tools and plural resources', () => {
+    expect(buildConnectionSummary(2, 4)).toBe('Connected — found 2 tools, 4 resources')
   })
 })
