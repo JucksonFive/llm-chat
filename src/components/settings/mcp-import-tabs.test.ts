@@ -34,6 +34,27 @@ describe('parseCommand', () => {
     expect(result.command).toBe('npx')
     expect(result.args).toEqual(['-y', '-y some-package'])
   })
+
+  it('handles empty string gracefully', () => {
+    const result = parseCommand('')
+    expect(result.command).toBe('npx')
+    expect(result.args).toEqual(['-y', ''])
+    expect(result.preview).toBe('npx -y ')
+  })
+
+  it('handles only whitespace gracefully', () => {
+    const result = parseCommand('   ')
+    expect(result.command).toBe('npx')
+    expect(result.args).toEqual(['-y', ''])
+    expect(result.preview).toBe('npx -y ')
+  })
+
+  it('handles command with only flags (no package)', () => {
+    const result = parseCommand('npx -y')
+    expect(result.command).toBe('npx')
+    expect(result.args).toEqual(['-y'])
+    expect(result.preview).toBe('npx -y')
+  })
 })
 
 describe('deriveServerName', () => {
@@ -42,7 +63,7 @@ describe('deriveServerName', () => {
   })
 
   it('strips -mcp suffix', () => {
-    expect(deriveServerName('obsidian-mcp-seekstone')).toBe('obsidian-mcp-seekstone')
+    expect(deriveServerName('obsidian-mcp-seekstone')).toBe('obsidian-seekstone')
   })
 
   it('strips mcp- prefix', () => {
@@ -59,6 +80,26 @@ describe('deriveServerName', () => {
 
   it('handles leading/trailing whitespace', () => {
     expect(deriveServerName('  seekstone  ')).toBe('seekstone')
+  })
+
+  it('handles empty string gracefully', () => {
+    expect(deriveServerName('')).toBe('')
+  })
+
+  it('handles only whitespace gracefully', () => {
+    expect(deriveServerName('   ')).toBe('')
+  })
+
+  it('handles flag-only input (like -y)', () => {
+    expect(deriveServerName('npx -y')).toBe('-y')
+  })
+
+  it('handles single dash', () => {
+    expect(deriveServerName('-')).toBe('-')
+  })
+
+  it('handles command ending with -mcp', () => {
+    expect(deriveServerName('server-mcp')).toBe('server')
   })
 })
 
@@ -81,5 +122,106 @@ describe('buildConnectionSummary', () => {
 
   it('tools and plural resources', () => {
     expect(buildConnectionSummary(2, 4)).toBe('Connected — found 2 tools, 4 resources')
+  })
+
+  it('handles negative tool count gracefully', () => {
+    // Negative counts treated as 0 for safety
+    expect(buildConnectionSummary(-1, 0)).toBe('Connected — found -1 tools')
+  })
+
+  it('handles negative resource count gracefully', () => {
+    // Negative resources are excluded (treated as 0)
+    expect(buildConnectionSummary(1, -2)).toBe('Connected — found 1 tool')
+  })
+
+  it('handles very large numbers', () => {
+    expect(buildConnectionSummary(1000000, 999999)).toBe('Connected — found 1000000 tools, 999999 resources')
+  })
+
+  it('handles NaN tool count', () => {
+    expect(buildConnectionSummary(NaN, 0)).toBe('Connected — found 0 tools')
+  })
+
+  it('handles NaN resource count', () => {
+    expect(buildConnectionSummary(5, NaN)).toBe('Connected — found 5 tools')
+  })
+
+  it('handles Infinity', () => {
+    expect(buildConnectionSummary(Infinity, Infinity)).toBe('Connected — found 0 tools')
+  })
+})
+
+describe('integration - common UI scenarios', () => {
+  it('handles user typing then deleting all text', () => {
+    const result1 = parseCommand('some-package')
+    expect(result1.command).toBe('npx')
+
+    const result2 = parseCommand('')
+    expect(result2.command).toBe('npx')
+    expect(result2.args).toEqual(['-y', ''])
+  })
+
+  it('handles rapid input changes (copy-paste)', () => {
+    const inputs = [
+      'npx @modelcontextprotocol/server-filesystem',
+      '@modelcontextprotocol/server-filesystem',
+      'server-filesystem',
+    ]
+
+    inputs.forEach(input => {
+      const parsed = parseCommand(input)
+      const name = deriveServerName(input)
+      expect(parsed.command).toBeTruthy()
+      expect(parsed.args).toBeInstanceOf(Array)
+      expect(typeof name).toBe('string')
+    })
+  })
+
+  it('handles malformed npx commands gracefully', () => {
+    const malformed = [
+      'npx',
+      'npx ',
+      'npx  ',
+      'npx -y',
+      'npx -y ',
+    ]
+
+    malformed.forEach(input => {
+      const parsed = parseCommand(input)
+      const name = deriveServerName(input)
+      expect(parsed).toHaveProperty('command')
+      expect(parsed).toHaveProperty('args')
+      expect(parsed).toHaveProperty('preview')
+      expect(typeof name).toBe('string')
+    })
+  })
+
+  it('handles special characters without crashing', () => {
+    const special = [
+      '@scope/package@latest',
+      'package-name_with_underscore',
+      'package.with.dots',
+      'package/with/slashes',
+    ]
+
+    special.forEach(input => {
+      expect(() => parseCommand(input)).not.toThrow()
+      expect(() => deriveServerName(input)).not.toThrow()
+    })
+  })
+
+  it('buildConnectionSummary never throws', () => {
+    const cases = [
+      [0, 0],
+      [1, 0],
+      [0, 1],
+      [-1, -1],
+      [NaN, NaN],
+      [Infinity, Infinity],
+    ] as const
+
+    cases.forEach(([tools, resources]) => {
+      expect(() => buildConnectionSummary(tools, resources)).not.toThrow()
+    })
   })
 })
