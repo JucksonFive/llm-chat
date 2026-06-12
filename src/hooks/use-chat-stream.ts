@@ -29,17 +29,12 @@ export function useChatStream() {
     let awsCredentials: { accessKeyId: string; secretAccessKey: string; region: string } | undefined
 
     if (agent.providerId === 'bedrock') {
+      // AWS credentials are optional - if not provided, server will use its AWS config
       awsCredentials =
         useApiKeyStore.getState().getAwsCredentials(agent.id) ||
         useApiKeyStore.getState().findAwsCredentialsForBedrock(agents) ||
         undefined
-
-      if (provider.requiresApiKey && !awsCredentials) {
-        toast.error(
-          `No AWS credentials set for ${agent.name}. Open the agent settings and add AWS credentials.`,
-        )
-        return
-      }
+      // No validation needed - server will fall back to environment/IAM if credentials missing
     } else {
       apiKey =
         useApiKeyStore.getState().getKey(agent.id) ||
@@ -77,7 +72,18 @@ export function useChatStream() {
     const { prompt: memoryPrompt, usedMemoryIds } = await useMemoryStore
       .getState()
       .getRelevantMemoryPrompt(agent.id, text, openAiKey, 5)
-    const systemPrompt = agent.systemPrompt + memoryPrompt
+
+    // Add current date context so models know what day it is
+    const now = new Date()
+    const dateString = now.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
+    const dateContext = `\n\nCurrent date: ${dateString}`
+
+    const systemPrompt = agent.systemPrompt + memoryPrompt + dateContext
 
     // Mark memories as used and track count for the assistant message
     if (usedMemoryIds.length > 0) {

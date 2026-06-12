@@ -153,9 +153,14 @@ function AgentForm({
 
     // Validate credentials based on provider
     if (providerId === 'bedrock') {
-      if (!awsAccessKeyId.trim()) newErrors.awsAccessKeyId = 'AWS Access Key ID is required'
-      if (!awsSecretAccessKey.trim()) newErrors.awsSecretAccessKey = 'AWS Secret Access Key is required'
-      if (!awsRegion.trim()) newErrors.awsRegion = 'AWS Region is required'
+      // AWS credentials are optional - if not provided, server will use its AWS config
+      // But if user starts filling them in, validate that all three are present
+      const hasAnyAwsCred = awsAccessKeyId.trim() || awsSecretAccessKey.trim()
+      if (hasAnyAwsCred) {
+        if (!awsAccessKeyId.trim()) newErrors.awsAccessKeyId = 'Access Key ID required when providing credentials'
+        if (!awsSecretAccessKey.trim()) newErrors.awsSecretAccessKey = 'Secret Key required when providing credentials'
+        if (!awsRegion.trim()) newErrors.awsRegion = 'Region required when providing credentials'
+      }
     } else if (provider.requiresApiKey && !apiKey.trim()) {
       newErrors.apiKey = 'API key is required'
     }
@@ -176,11 +181,14 @@ function AgentForm({
         builtInToolIds: selectedBuiltInTools,
       })
       if (providerId === 'bedrock') {
-        setAwsCredentials(editingAgent.id, {
-          accessKeyId: awsAccessKeyId.trim(),
-          secretAccessKey: awsSecretAccessKey.trim(),
-          region: awsRegion.trim(),
-        })
+        // Only save credentials if they were provided
+        if (awsAccessKeyId.trim() && awsSecretAccessKey.trim() && awsRegion.trim()) {
+          setAwsCredentials(editingAgent.id, {
+            accessKeyId: awsAccessKeyId.trim(),
+            secretAccessKey: awsSecretAccessKey.trim(),
+            region: awsRegion.trim(),
+          })
+        }
       } else {
         setKey(editingAgent.id, apiKey.trim())
       }
@@ -194,11 +202,14 @@ function AgentForm({
         builtInToolIds: selectedBuiltInTools,
       })
       if (providerId === 'bedrock') {
-        setAwsCredentials(created.id, {
-          accessKeyId: awsAccessKeyId.trim(),
-          secretAccessKey: awsSecretAccessKey.trim(),
-          region: awsRegion.trim(),
-        })
+        // Only save credentials if they were provided
+        if (awsAccessKeyId.trim() && awsSecretAccessKey.trim() && awsRegion.trim()) {
+          setAwsCredentials(created.id, {
+            accessKeyId: awsAccessKeyId.trim(),
+            secretAccessKey: awsSecretAccessKey.trim(),
+            region: awsRegion.trim(),
+          })
+        }
       } else {
         setKey(created.id, apiKey.trim())
       }
@@ -272,22 +283,31 @@ function AgentForm({
         {providerId === 'bedrock' ? (
           <>
             <div className="grid gap-2">
-              <Label htmlFor="awsAccessKeyId">AWS Access Key ID</Label>
+              <Label htmlFor="awsAccessKeyId">
+                AWS Access Key ID <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+              </Label>
               <Input
                 id="awsAccessKeyId"
                 type="text"
                 value={awsAccessKeyId}
                 onChange={(e) => { setAwsAccessKeyId(e.target.value); clearError('awsAccessKeyId') }}
-                placeholder="AKIA..."
+                placeholder="AKIA... (leave empty to use server's AWS config)"
                 className={errors.awsAccessKeyId ? 'border-destructive' : ''}
                 autoComplete="off"
                 data-form-type="other"
               />
               {errors.awsAccessKeyId && <p className="text-xs text-destructive">{errors.awsAccessKeyId}</p>}
+              {!awsAccessKeyId && !awsSecretAccessKey && (
+                <p className="text-xs text-muted-foreground">
+                  Leave empty to use the server's AWS credentials (environment variables or IAM role)
+                </p>
+              )}
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="awsSecretAccessKey">AWS Secret Access Key</Label>
+              <Label htmlFor="awsSecretAccessKey">
+                AWS Secret Access Key <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+              </Label>
               <div className="relative">
                 <Input
                   id="awsSecretAccessKey"

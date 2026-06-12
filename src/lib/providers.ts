@@ -53,7 +53,7 @@ export const PROVIDERS: Record<ProviderId, ProviderMeta> = {
     ],
     icon: 'Cloud',
     color: '#ff9900',
-    requiresApiKey: true, // AWS credentials required (Access Key ID, Secret Access Key, Region)
+    requiresApiKey: false, // AWS credentials are optional - falls back to server's AWS config
   },
 }
 
