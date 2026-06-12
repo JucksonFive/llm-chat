@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { Upload, Link as LinkIcon, Loader2, Terminal } from 'lucide-react'
+import { parseCommand, deriveServerName } from './mcp-npx-utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
@@ -264,27 +265,27 @@ export function UrlImportTab({ onSuccess }: McpImportTabsProps) {
 }
 
 export function NpxInstallTab({ onSuccess }: McpImportTabsProps) {
-  const [packageName, setPackageName] = useState('')
+  const [input, setInput] = useState('')
   const [serverName, setServerName] = useState('')
   const [isInstalling, setIsInstalling] = useState(false)
   const addServer = useMcpStore((s) => s.addServer)
 
-  const derivedName = serverName || packageName.replace(/^@[^/]+\//, '').replace(/-mcp$|^mcp-/, '')
+  const parsed = input.trim() ? parseCommand(input) : null
+  const derivedName = serverName || (input.trim() ? deriveServerName(input) : '')
 
   const handleInstall = async () => {
-    const pkg = packageName.trim()
-    if (!pkg) return
+    if (!parsed) return
 
     setIsInstalling(true)
     try {
       await addServer({
-        name: derivedName || pkg,
+        name: derivedName || input.trim(),
         transport: 'stdio',
-        command: 'npx',
-        args: ['-y', pkg],
+        command: parsed.command,
+        args: parsed.args,
       })
-      toast.success(`${derivedName || pkg} installed`)
-      setPackageName('')
+      toast.success(`${derivedName || input.trim()} installed`)
+      setInput('')
       setServerName('')
       onSuccess?.()
     } catch (error) {
@@ -300,15 +301,15 @@ export function NpxInstallTab({ onSuccess }: McpImportTabsProps) {
         <Terminal className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
         <h3 className="text-lg font-semibold mb-2">Install via npx</h3>
         <p className="text-sm text-muted-foreground mb-6">
-          Install any MCP server available as an npm package
+          Paste a package name or full install command
         </p>
         <div className="space-y-3 max-w-sm mx-auto text-left">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Package name</label>
+            <label className="text-xs font-medium text-muted-foreground">Package or command</label>
             <Input
-              placeholder="obsidian-mcp-seekstone"
-              value={packageName}
-              onChange={(e) => setPackageName(e.target.value)}
+              placeholder="obsidian-mcp-seekstone  or  npx skillfish add repo/name"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleInstall()}
               className="font-mono text-sm"
             />
@@ -325,16 +326,16 @@ export function NpxInstallTab({ onSuccess }: McpImportTabsProps) {
               className="text-sm"
             />
           </div>
-          {packageName.trim() && (
+          {parsed && (
             <div className="rounded-md bg-muted/50 border border-border/50 px-3 py-2">
               <p className="text-xs text-muted-foreground mb-0.5">Command preview</p>
-              <code className="text-xs font-mono">npx -y {packageName.trim()}</code>
+              <code className="text-xs font-mono">{parsed.preview}</code>
             </div>
           )}
           <Button
             className="w-full"
             onClick={handleInstall}
-            disabled={!packageName.trim() || isInstalling}
+            disabled={!input.trim() || isInstalling}
           >
             {isInstalling && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Install
