@@ -82,11 +82,23 @@ export interface McpServerConfig {
   presetId?: string
 }
 
+export type McpCategory =
+  | 'filesystem'
+  | 'search'
+  | 'database'
+  | 'developer'
+  | 'productivity'
+  | 'diagrams'
+  | 'drawing'
+  | 'visualization'
+  | 'ai-tools'
+  | 'communication'
+
 export interface McpPreset {
   id: string
   name: string
   description: string
-  category: string
+  category: McpCategory
   transport: 'stdio' | 'sse' | 'streamable-http'
   command?: string
   args?: string[]
@@ -95,6 +107,26 @@ export interface McpPreset {
   envPlaceholders?: { key: string; label: string; description: string; required: boolean }[]
   homepage?: string
 }
+
+export interface McpServerImport {
+  name: string
+  description?: string
+  category?: McpCategory
+  transport: 'stdio' | 'sse' | 'streamable-http'
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  url?: string
+  envPlaceholders?: Array<{
+    key: string
+    label: string
+    description: string
+    required: boolean
+  }>
+  homepage?: string
+}
+
+export type McpImportPayload = McpServerImport | McpServerImport[]
 
 export interface Project {
   id: string

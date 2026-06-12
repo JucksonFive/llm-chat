@@ -1,7 +1,13 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Pencil, Trash2, Server, Package } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Plus, Pencil, Trash2, Server, Package, Upload, Link as LinkIcon, ChevronDown, Terminal } from 'lucide-react'
 import { useMcpStore } from '@/stores/mcp-store'
 import { McpServerDialog } from '@/components/settings/mcp-server-dialog'
 import { McpPresetsDialog } from '@/components/settings/mcp-presets-dialog'
@@ -11,6 +17,7 @@ export function McpServersSection() {
   const deleteServer = useMcpStore((s) => s.deleteServer)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [presetsOpen, setPresetsOpen] = useState(false)
+  const [presetsTab, setPresetsTab] = useState<'browse' | 'file' | 'url' | 'npx'>('browse')
   const [editingServerId, setEditingServerId] = useState<string | null>(null)
 
   const handleAdd = () => {
@@ -32,10 +39,33 @@ export function McpServersSection() {
             <h3 className="text-sm font-medium">MCP Servers</h3>
           </div>
           <div className="flex gap-1">
-            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setPresetsOpen(true)}>
-              <Package className="h-3.5 w-3.5 mr-1" />
-              Presets
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
+                  <Package className="h-3.5 w-3.5 mr-1" />
+                  Import
+                  <ChevronDown className="h-3 w-3 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => { setPresetsTab('browse'); setPresetsOpen(true); }}>
+                  <Package className="h-3.5 w-3.5 mr-2" />
+                  Browse Presets
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setPresetsTab('npx'); setPresetsOpen(true); }}>
+                  <Terminal className="h-3.5 w-3.5 mr-2" />
+                  Install via npx
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setPresetsTab('file'); setPresetsOpen(true); }}>
+                  <Upload className="h-3.5 w-3.5 mr-2" />
+                  Import from File
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setPresetsTab('url'); setPresetsOpen(true); }}>
+                  <LinkIcon className="h-3.5 w-3.5 mr-2" />
+                  Import from URL
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleAdd}>
               <Plus className="h-3.5 w-3.5" />
             </Button>
@@ -99,6 +129,7 @@ export function McpServersSection() {
       <McpPresetsDialog
         open={presetsOpen}
         onOpenChange={setPresetsOpen}
+        defaultTab={presetsTab}
       />
     </>
   )

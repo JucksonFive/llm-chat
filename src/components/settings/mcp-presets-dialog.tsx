@@ -5,6 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,11 +14,13 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Check, Download, Loader2 } from 'lucide-react'
 import { useMcpStore } from '@/stores/mcp-store'
 import { toast } from 'sonner'
+import { FileImportTab, UrlImportTab, NpxInstallTab } from './mcp-import-tabs'
 import type { McpPreset } from '@/types'
 
 interface McpPresetsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  defaultTab?: 'browse' | 'file' | 'url' | 'npx'
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -26,9 +29,14 @@ const CATEGORY_COLORS: Record<string, string> = {
   database: 'text-purple-400 border-purple-400/30',
   developer: 'text-orange-400 border-orange-400/30',
   productivity: 'text-cyan-400 border-cyan-400/30',
+  diagrams: 'text-pink-400 border-pink-400/30',
+  drawing: 'text-yellow-400 border-yellow-400/30',
+  visualization: 'text-indigo-400 border-indigo-400/30',
+  'ai-tools': 'text-violet-400 border-violet-400/30',
+  communication: 'text-teal-400 border-teal-400/30',
 }
 
-export function McpPresetsDialog({ open, onOpenChange }: McpPresetsDialogProps) {
+export function McpPresetsDialog({ open, onOpenChange, defaultTab = 'browse' }: McpPresetsDialogProps) {
   const { servers, addServer } = useMcpStore()
   const [presets, setPresets] = useState<McpPreset[]>([])
   const [loading, setLoading] = useState(false)
@@ -101,17 +109,26 @@ export function McpPresetsDialog({ open, onOpenChange }: McpPresetsDialogProps) 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>MCP Server Presets</DialogTitle>
+          <DialogTitle>MCP Servers</DialogTitle>
         </DialogHeader>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : (
-          <ScrollArea className="flex-1 -mx-6 px-6">
-            <div className="space-y-5 pb-4">
-              {Object.entries(grouped).map(([category, categoryPresets]) => (
+        <Tabs defaultValue={defaultTab} className="flex-1 flex flex-col">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="browse">Browse</TabsTrigger>
+            <TabsTrigger value="npx">npx</TabsTrigger>
+            <TabsTrigger value="file">File</TabsTrigger>
+            <TabsTrigger value="url">URL</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="browse" className="flex-1 mt-4">
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <ScrollArea className="flex-1 -mx-6 px-6">
+                <div className="space-y-5 pb-4">
+                  {Object.entries(grouped).map(([category, categoryPresets]) => (
                 <div key={category}>
                   <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                     {category}
@@ -218,6 +235,20 @@ export function McpPresetsDialog({ open, onOpenChange }: McpPresetsDialogProps) 
             </div>
           </ScrollArea>
         )}
+          </TabsContent>
+
+          <TabsContent value="npx" className="flex-1 mt-4 overflow-auto">
+            <NpxInstallTab onSuccess={() => onOpenChange(false)} />
+          </TabsContent>
+
+          <TabsContent value="file" className="flex-1 mt-4 overflow-auto">
+            <FileImportTab onSuccess={() => onOpenChange(false)} />
+          </TabsContent>
+
+          <TabsContent value="url" className="flex-1 mt-4 overflow-auto">
+            <UrlImportTab onSuccess={() => onOpenChange(false)} />
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   )

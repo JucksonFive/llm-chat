@@ -13,12 +13,12 @@ function formatElapsedTime(ms: number): string {
   return `${seconds}.${deciseconds}s`
 }
 
-function getToolIcon(toolName: string) {
+function renderToolIcon(toolName: string, className: string) {
   const name = toolName.toLowerCase()
-  if (name.includes('search') || name.includes('web')) return Search
-  if (name.includes('code')) return Code
-  if (name.includes('file') || name.includes('read')) return FileText
-  return Globe
+  if (name.includes('search') || name.includes('web')) return <Search className={className} />
+  if (name.includes('code')) return <Code className={className} />
+  if (name.includes('file') || name.includes('read')) return <FileText className={className} />
+  return <Globe className={className} />
 }
 
 function getToolDisplayName(toolName: string): string {
@@ -68,7 +68,6 @@ export function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
     }
   }, [toolCall.status, toolCall.startTime])
 
-  const Icon = getToolIcon(toolCall.toolName)
   const displayName = getToolDisplayName(toolCall.toolName)
 
   const statusConfig = {
@@ -104,7 +103,7 @@ export function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
         className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
       >
         <div className={`p-1.5 rounded-lg ${statusConfig.badge}`}>
-          <Icon className="h-3.5 w-3.5" />
+          {renderToolIcon(toolCall.toolName, "h-3.5 w-3.5")}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
