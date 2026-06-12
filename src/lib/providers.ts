@@ -46,6 +46,10 @@ export const PROVIDERS: Record<ProviderId, ProviderMeta> = {
     id: 'bedrock',
     name: 'AWS Bedrock',
     models: [
+      'eu.anthropic.claude-opus-4-8',
+      'eu.anthropic.claude-opus-4-7',
+      'eu.anthropic.claude-sonnet-4-6',
+      'eu.anthropic.claude-haiku-4-5-20251001-v1:0',
       'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
       'us.anthropic.claude-3-5-haiku-20241022-v1:0',
       'anthropic.claude-3-5-sonnet-20240620-v1:0',
@@ -57,7 +61,6 @@ export const PROVIDERS: Record<ProviderId, ProviderMeta> = {
     icon: 'Cloud',
     color: '#ff9900',
     requiresApiKey: false,
-    freeTextModel: true,
   },
 }
 

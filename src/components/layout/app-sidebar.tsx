@@ -23,6 +23,7 @@ import { useConversationSearch } from '@/hooks/use-message-search'
 import type { ProviderId } from '@/types'
 import {
   Brain,
+  Cloud,
   FolderOpen,
   Gem,
   HardDrive,
@@ -42,6 +43,7 @@ const PROVIDER_ICONS: Record<ProviderId, React.ElementType> = {
   google: Gem,
   ollama: HardDrive,
   deepseek: Waves,
+  bedrock: Cloud,
 }
 
 export function AppSidebar() {
