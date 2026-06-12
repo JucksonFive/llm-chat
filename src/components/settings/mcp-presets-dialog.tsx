@@ -14,13 +14,13 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Check, Download, Loader2 } from 'lucide-react'
 import { useMcpStore } from '@/stores/mcp-store'
 import { toast } from 'sonner'
-import { FileImportTab, UrlImportTab } from './mcp-import-tabs'
+import { FileImportTab, UrlImportTab, NpxInstallTab } from './mcp-import-tabs'
 import type { McpPreset } from '@/types'
 
 interface McpPresetsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  defaultTab?: 'browse' | 'file' | 'url'
+  defaultTab?: 'browse' | 'file' | 'url' | 'npx'
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -113,10 +113,11 @@ export function McpPresetsDialog({ open, onOpenChange, defaultTab = 'browse' }: 
         </DialogHeader>
 
         <Tabs defaultValue={defaultTab} className="flex-1 flex flex-col">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="browse">Browse Presets</TabsTrigger>
-            <TabsTrigger value="file">Import File</TabsTrigger>
-            <TabsTrigger value="url">Import URL</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="browse">Browse</TabsTrigger>
+            <TabsTrigger value="npx">npx</TabsTrigger>
+            <TabsTrigger value="file">File</TabsTrigger>
+            <TabsTrigger value="url">URL</TabsTrigger>
           </TabsList>
 
           <TabsContent value="browse" className="flex-1 mt-4">
@@ -234,6 +235,10 @@ export function McpPresetsDialog({ open, onOpenChange, defaultTab = 'browse' }: 
             </div>
           </ScrollArea>
         )}
+          </TabsContent>
+
+          <TabsContent value="npx" className="flex-1 mt-4 overflow-auto">
+            <NpxInstallTab onSuccess={() => onOpenChange(false)} />
           </TabsContent>
 
           <TabsContent value="file" className="flex-1 mt-4 overflow-auto">

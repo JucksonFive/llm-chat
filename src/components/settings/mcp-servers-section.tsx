@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Plus, Pencil, Trash2, Server, Package, Upload, Link as LinkIcon, ChevronDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, Server, Package, Upload, Link as LinkIcon, ChevronDown, Terminal } from 'lucide-react'
 import { useMcpStore } from '@/stores/mcp-store'
 import { McpServerDialog } from '@/components/settings/mcp-server-dialog'
 import { McpPresetsDialog } from '@/components/settings/mcp-presets-dialog'
@@ -17,7 +17,7 @@ export function McpServersSection() {
   const deleteServer = useMcpStore((s) => s.deleteServer)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [presetsOpen, setPresetsOpen] = useState(false)
-  const [presetsTab, setPresetsTab] = useState<'browse' | 'file' | 'url'>('browse')
+  const [presetsTab, setPresetsTab] = useState<'browse' | 'file' | 'url' | 'npx'>('browse')
   const [editingServerId, setEditingServerId] = useState<string | null>(null)
 
   const handleAdd = () => {
@@ -51,6 +51,10 @@ export function McpServersSection() {
                 <DropdownMenuItem onClick={() => { setPresetsTab('browse'); setPresetsOpen(true); }}>
                   <Package className="h-3.5 w-3.5 mr-2" />
                   Browse Presets
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setPresetsTab('npx'); setPresetsOpen(true); }}>
+                  <Terminal className="h-3.5 w-3.5 mr-2" />
+                  Install via npx
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => { setPresetsTab('file'); setPresetsOpen(true); }}>
                   <Upload className="h-3.5 w-3.5 mr-2" />

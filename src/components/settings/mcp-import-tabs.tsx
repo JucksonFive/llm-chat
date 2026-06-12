@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Upload, Link as LinkIcon, Loader2 } from 'lucide-react'
+import { Upload, Link as LinkIcon, Loader2, Terminal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
@@ -219,6 +219,7 @@ export function UrlImportTab({ onSuccess }: McpImportTabsProps) {
         <div className="space-y-4">
           <div className="rounded-lg border border-border p-8 text-center">
             <LinkIcon className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+
             <h3 className="text-lg font-semibold mb-2">Import from URL</h3>
             <p className="text-sm text-muted-foreground mb-4">
               Paste a URL to a JSON configuration file
@@ -258,6 +259,88 @@ export function UrlImportTab({ onSuccess }: McpImportTabsProps) {
           })}
         </div>
       )}
+    </div>
+  )
+}
+
+export function NpxInstallTab({ onSuccess }: McpImportTabsProps) {
+  const [packageName, setPackageName] = useState('')
+  const [serverName, setServerName] = useState('')
+  const [isInstalling, setIsInstalling] = useState(false)
+  const addServer = useMcpStore((s) => s.addServer)
+
+  const derivedName = serverName || packageName.replace(/^@[^/]+\//, '').replace(/-mcp$|^mcp-/, '')
+
+  const handleInstall = async () => {
+    const pkg = packageName.trim()
+    if (!pkg) return
+
+    setIsInstalling(true)
+    try {
+      await addServer({
+        name: derivedName || pkg,
+        transport: 'stdio',
+        command: 'npx',
+        args: ['-y', pkg],
+      })
+      toast.success(`${derivedName || pkg} installed`)
+      setPackageName('')
+      setServerName('')
+      onSuccess?.()
+    } catch (error) {
+      toast.error(`Failed to install: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setIsInstalling(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-border p-8 text-center">
+        <Terminal className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+        <h3 className="text-lg font-semibold mb-2">Install via npx</h3>
+        <p className="text-sm text-muted-foreground mb-6">
+          Install any MCP server available as an npm package
+        </p>
+        <div className="space-y-3 max-w-sm mx-auto text-left">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Package name</label>
+            <Input
+              placeholder="obsidian-mcp-seekstone"
+              value={packageName}
+              onChange={(e) => setPackageName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleInstall()}
+              className="font-mono text-sm"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              Server name <span className="text-muted-foreground/60">(optional)</span>
+            </label>
+            <Input
+              placeholder={derivedName || 'my-server'}
+              value={serverName}
+              onChange={(e) => setServerName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleInstall()}
+              className="text-sm"
+            />
+          </div>
+          {packageName.trim() && (
+            <div className="rounded-md bg-muted/50 border border-border/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground mb-0.5">Command preview</p>
+              <code className="text-xs font-mono">npx -y {packageName.trim()}</code>
+            </div>
+          )}
+          <Button
+            className="w-full"
+            onClick={handleInstall}
+            disabled={!packageName.trim() || isInstalling}
+          >
+            {isInstalling && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Install
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }
