@@ -14,6 +14,18 @@ export type BuiltInToolId =
   | 'index-document'
   | 'search-document'
 
+export type ToolRiskLevel = 'safe' | 'costly' | 'destructive'
+export type ToolExecutionPolicy = 'auto' | 'approvalRequired' | 'disabled'
+
+export interface BuiltInToolMeta {
+  id: BuiltInToolId
+  name: string
+  description: string
+  enabledByDefault: boolean
+  riskLevel: ToolRiskLevel
+  executionPolicy: ToolExecutionPolicy
+}
+
 export interface ProviderMeta {
   id: ProviderId
   name: string

@@ -11,6 +11,7 @@ import { useResearchStore } from '@/stores/research-store'
 import { speakText } from '@/stores/ui-store'
 import { streamChat } from '@/lib/llm-client'
 import { PROVIDERS } from '@/lib/providers'
+import { computeToolContext, resolveAvailableTools } from '@/lib/tool-resolver'
 import type { McpServerConfig, Attachment } from '@/types'
 
 export function useChatStream() {
@@ -79,11 +80,14 @@ export function useChatStream() {
       .map((id) => mcpStore.getServer(id))
       .filter((s): s is McpServerConfig => s !== undefined)
 
-    const builtInToolIds = agent.builtInToolIds ?? []
-
     // Build message history (exclude the streaming placeholder)
     // Include tool results as text context in assistant messages
     const conv = useChatStore.getState().conversations[conversationId]
+
+    // Resolve available built-in tools based on agent settings and context
+    const toolContext = computeToolContext(conv.messages)
+    const builtInToolIds = resolveAvailableTools(agent.builtInToolIds ?? [], toolContext)
+
     type MessageContent = string | Array<{ type: 'text'; text: string } | { type: 'image'; image: string }>
     const historyMessages: { role: string; content: MessageContent }[] = []
     for (const m of conv.messages) {

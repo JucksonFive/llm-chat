@@ -24,23 +24,23 @@ import { PROVIDERS } from '@/lib/providers'
 import { useAgentStore } from '@/stores/agent-store'
 import { useApiKeyStore } from '@/stores/api-key-store'
 import { useMcpStore } from '@/stores/mcp-store'
-import type { Agent, BuiltInToolId, ProviderId } from '@/types'
+import type { Agent, BuiltInToolId, BuiltInToolMeta, ProviderId } from '@/types'
 import { Eye, EyeOff, Server, Trash2, Wrench } from 'lucide-react'
 import { useState } from 'react'
 
-const BUILT_IN_TOOL_LIST: { id: BuiltInToolId; name: string; description: string }[] = [
-  { id: 'web-fetch', name: 'Fetch URL', description: 'Fetch content from a URL' },
-  { id: 'web-search', name: 'Web Search', description: 'Search the web for information' },
-  { id: 'code-executor', name: 'Code Executor', description: 'Execute JavaScript, Python, or shell code' },
-  { id: 'file-reader', name: 'File Reader', description: 'Read files from the local filesystem' },
-  { id: 'file-writer', name: 'File Writer', description: 'Write or create files on the filesystem' },
-  { id: 'calculator', name: 'Calculator', description: 'Evaluate mathematical expressions' },
-  { id: 'pdf-reader', name: 'PDF Reader', description: 'Read and extract text from PDF files' },
-  { id: 'datetime', name: 'Date & Time', description: 'Get current time, convert timezones, date differences' },
-  { id: 'image-generator', name: 'Image Generator', description: 'Generate images with OpenAI DALL-E / gpt-image-1' },
-  { id: 'deep-research', name: 'Deep Research', description: 'Multi-step web research with source compilation' },
-  { id: 'index-document', name: 'Index Document', description: 'Embed a large PDF or text file for semantic search' },
-  { id: 'search-document', name: 'Search Document', description: 'Query an indexed document for the most relevant passages' },
+const BUILT_IN_TOOL_LIST: BuiltInToolMeta[] = [
+  { id: 'web-fetch', name: 'Fetch URL', description: 'Fetch content from a URL', enabledByDefault: true, riskLevel: 'safe', executionPolicy: 'auto' },
+  { id: 'web-search', name: 'Web Search', description: 'Search the web for information', enabledByDefault: true, riskLevel: 'safe', executionPolicy: 'auto' },
+  { id: 'code-executor', name: 'Code Executor', description: 'Execute JavaScript, Python, or shell code', enabledByDefault: false, riskLevel: 'destructive', executionPolicy: 'approvalRequired' },
+  { id: 'file-reader', name: 'File Reader', description: 'Read files from the local filesystem', enabledByDefault: false, riskLevel: 'costly', executionPolicy: 'approvalRequired' },
+  { id: 'file-writer', name: 'File Writer', description: 'Write or create files on the filesystem', enabledByDefault: false, riskLevel: 'destructive', executionPolicy: 'approvalRequired' },
+  { id: 'calculator', name: 'Calculator', description: 'Evaluate mathematical expressions', enabledByDefault: true, riskLevel: 'safe', executionPolicy: 'auto' },
+  { id: 'pdf-reader', name: 'PDF Reader', description: 'Read and extract text from PDF files', enabledByDefault: false, riskLevel: 'safe', executionPolicy: 'auto' },
+  { id: 'datetime', name: 'Date & Time', description: 'Get current time, convert timezones, date differences', enabledByDefault: true, riskLevel: 'safe', executionPolicy: 'auto' },
+  { id: 'image-generator', name: 'Image Generator', description: 'Generate images with OpenAI DALL-E / gpt-image-1', enabledByDefault: false, riskLevel: 'costly', executionPolicy: 'disabled' },
+  { id: 'deep-research', name: 'Deep Research', description: 'Multi-step web research with source compilation', enabledByDefault: false, riskLevel: 'costly', executionPolicy: 'approvalRequired' },
+  { id: 'index-document', name: 'Index Document', description: 'Embed a large PDF or text file for semantic search', enabledByDefault: false, riskLevel: 'costly', executionPolicy: 'approvalRequired' },
+  { id: 'search-document', name: 'Search Document', description: 'Query an indexed document for the most relevant passages', enabledByDefault: false, riskLevel: 'safe', executionPolicy: 'auto' },
 ]
 
 interface AgentDialogProps {
@@ -299,27 +299,47 @@ function AgentForm({
             <Wrench className="h-3.5 w-3.5" />
             Built-in Tools
           </Label>
+          <p className="text-xs text-muted-foreground">
+            Tools marked "Default" are automatically available. Toggle to override.
+          </p>
           <div className="space-y-2 rounded-lg border border-border/50 p-3">
-            {BUILT_IN_TOOL_LIST.map((tool) => (
-              <div key={tool.id} className="flex items-center justify-between">
-                <div className="flex flex-col">
-                  <span className="text-sm">{tool.name}</span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {tool.description}
-                  </span>
+            {BUILT_IN_TOOL_LIST.map((tool) => {
+              const riskBadgeColor =
+                tool.riskLevel === 'safe' ? 'bg-green-500/10 text-green-600 dark:text-green-400' :
+                tool.riskLevel === 'costly' ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' :
+                'bg-red-500/10 text-red-600 dark:text-red-400'
+
+              return (
+                <div key={tool.id} className="flex items-center justify-between gap-3">
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm">{tool.name}</span>
+                      {tool.enabledByDefault && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium">
+                          Default
+                        </span>
+                      )}
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${riskBadgeColor}`}>
+                        {tool.riskLevel === 'safe' ? 'Safe' : tool.riskLevel === 'costly' ? 'Costly' : 'Requires Approval'}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">
+                      {tool.description}
+                    </span>
+                  </div>
+                  <Switch
+                    checked={selectedBuiltInTools.includes(tool.id)}
+                    onCheckedChange={(checked) => {
+                      setSelectedBuiltInTools((prev) =>
+                        checked
+                          ? [...prev, tool.id]
+                          : prev.filter((id) => id !== tool.id)
+                      )
+                    }}
+                  />
                 </div>
-                <Switch
-                  checked={selectedBuiltInTools.includes(tool.id)}
-                  onCheckedChange={(checked) => {
-                    setSelectedBuiltInTools((prev) =>
-                      checked
-                        ? [...prev, tool.id]
-                        : prev.filter((id) => id !== tool.id)
-                    )
-                  }}
-                />
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 
