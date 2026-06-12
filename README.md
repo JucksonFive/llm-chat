@@ -28,7 +28,7 @@ A powerful multi-provider AI chat desktop application with advanced features lik
 - **Capability detection** — Automatic badges for ✨ Reasoning, 🖼️ Vision, and 📚 Large context windows
 - **Streaming responses** — Real-time token streaming with Server-Sent Events
 
-![Agent Configuration](./docs/images/agent-config.png)
+![Agent Configuration](image-4.png)
 *Configure agents with different providers, models, and custom system prompts*
 
 ### 🔬 Advanced AI Capabilities
