@@ -85,7 +85,7 @@ export function useChatStream() {
     const conv = useChatStore.getState().conversations[conversationId]
 
     // Resolve available built-in tools based on agent settings and context
-    const toolContext = computeToolContext(conv.messages)
+    const toolContext = computeToolContext(conv.messages, agent.providerId)
     const builtInToolIds = resolveAvailableTools(agent.builtInToolIds ?? [], toolContext)
 
     type MessageContent = string | Array<{ type: 'text'; text: string } | { type: 'image'; image: string }>

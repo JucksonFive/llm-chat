@@ -21,7 +21,7 @@ describe('tool-resolver', () => {
         },
       ]
 
-      const context = computeToolContext(messages)
+      const context = computeToolContext(messages, 'openai')
       expect(context.hasUploadedPdf).toBe(true)
     })
 
@@ -35,7 +35,7 @@ describe('tool-resolver', () => {
         },
       ]
 
-      const context = computeToolContext(messages)
+      const context = computeToolContext(messages, 'openai')
       expect(context.hasUploadedPdf).toBe(false)
     })
 
@@ -46,17 +46,32 @@ describe('tool-resolver', () => {
         loading: false,
       })
 
-      const context = computeToolContext([])
+      const context = computeToolContext([], 'openai')
       expect(context.hasIndexedDocument).toBe(true)
+    })
+
+    it('includes providerId in context', () => {
+      const context = computeToolContext([], 'anthropic')
+      expect(context.providerId).toBe('anthropic')
     })
   })
 
   describe('resolveAvailableTools', () => {
-    it('includes default-enabled tools when agent has empty tool list', () => {
+    const openaiContext = { hasUploadedPdf: false, hasIndexedDocument: false, workspaceAccessEnabled: false, providerId: 'openai' as const }
+
+    it('returns empty list for Bedrock provider', () => {
       const agentToolIds: BuiltInToolId[] = []
-      const context = { hasUploadedPdf: false, hasIndexedDocument: false, workspaceAccessEnabled: false }
+      const context = { ...openaiContext, providerId: 'bedrock' as const }
 
       const available = resolveAvailableTools(agentToolIds, context)
+
+      expect(available).toEqual([])
+    })
+
+    it('includes default-enabled tools when agent has empty tool list', () => {
+      const agentToolIds: BuiltInToolId[] = []
+
+      const available = resolveAvailableTools(agentToolIds, openaiContext)
 
       expect(available).toContain('web-search')
       expect(available).toContain('web-fetch')
@@ -68,9 +83,8 @@ describe('tool-resolver', () => {
 
     it('respects manual tool enabling', () => {
       const agentToolIds: BuiltInToolId[] = ['code-executor', 'file-reader', 'web-search']
-      const context = { hasUploadedPdf: false, hasIndexedDocument: false, workspaceAccessEnabled: false }
 
-      const available = resolveAvailableTools(agentToolIds, context)
+      const available = resolveAvailableTools(agentToolIds, openaiContext)
 
       expect(available).toContain('code-executor')
       expect(available).toContain('file-reader')
@@ -81,9 +95,8 @@ describe('tool-resolver', () => {
 
     it('respects manual tool disabling', () => {
       const agentToolIds: BuiltInToolId[] = ['calculator'] // Only calculator, excluding other defaults
-      const context = { hasUploadedPdf: false, hasIndexedDocument: false, workspaceAccessEnabled: false }
 
-      const available = resolveAvailableTools(agentToolIds, context)
+      const available = resolveAvailableTools(agentToolIds, openaiContext)
 
       expect(available).toContain('calculator')
       // Other default tools are considered manually disabled
@@ -94,7 +107,7 @@ describe('tool-resolver', () => {
 
     it('conditionally enables pdf-reader when PDF is uploaded', () => {
       const agentToolIds: BuiltInToolId[] = []
-      const context = { hasUploadedPdf: true, hasIndexedDocument: false, workspaceAccessEnabled: false }
+      const context = { ...openaiContext, hasUploadedPdf: true }
 
       const available = resolveAvailableTools(agentToolIds, context)
 
@@ -103,7 +116,7 @@ describe('tool-resolver', () => {
 
     it('conditionally enables search-document when document is indexed', () => {
       const agentToolIds: BuiltInToolId[] = []
-      const context = { hasUploadedPdf: false, hasIndexedDocument: true, workspaceAccessEnabled: false }
+      const context = { ...openaiContext, hasIndexedDocument: true }
 
       const available = resolveAvailableTools(agentToolIds, context)
 
@@ -112,9 +125,8 @@ describe('tool-resolver', () => {
 
     it('does not enable conditional tools when context is false', () => {
       const agentToolIds: BuiltInToolId[] = []
-      const context = { hasUploadedPdf: false, hasIndexedDocument: false, workspaceAccessEnabled: false }
 
-      const available = resolveAvailableTools(agentToolIds, context)
+      const available = resolveAvailableTools(agentToolIds, openaiContext)
 
       expect(available).not.toContain('pdf-reader')
       expect(available).not.toContain('search-document')
@@ -122,9 +134,8 @@ describe('tool-resolver', () => {
 
     it('manual enable overrides conditional logic', () => {
       const agentToolIds: BuiltInToolId[] = ['pdf-reader']
-      const context = { hasUploadedPdf: false, hasIndexedDocument: false, workspaceAccessEnabled: false }
 
-      const available = resolveAvailableTools(agentToolIds, context)
+      const available = resolveAvailableTools(agentToolIds, openaiContext)
 
       // pdf-reader should be included even without uploaded PDF because it's manually enabled
       expect(available).toContain('pdf-reader')

@@ -1,10 +1,11 @@
-import type { BuiltInToolId, Message } from '@/types'
+import type { BuiltInToolId, Message, ProviderId } from '@/types'
 import { useDocumentStore } from '@/stores/document-store'
 
 export interface ToolContext {
   hasUploadedPdf: boolean
   hasIndexedDocument: boolean
   workspaceAccessEnabled: boolean
+  providerId: ProviderId
 }
 
 export interface ToolSettings {
@@ -20,9 +21,9 @@ const DEFAULT_ENABLED_TOOLS: BuiltInToolId[] = [
 ]
 
 /**
- * Compute the tool context from the current conversation state.
+ * Compute the tool context from the current conversation state and agent provider.
  */
-export function computeToolContext(messages: Message[]): ToolContext {
+export function computeToolContext(messages: Message[], providerId: ProviderId): ToolContext {
   const hasUploadedPdf = messages.some(
     (msg) => msg.attachments?.some((att) => att.type === 'pdf')
   )
@@ -36,6 +37,7 @@ export function computeToolContext(messages: Message[]): ToolContext {
     hasUploadedPdf,
     hasIndexedDocument,
     workspaceAccessEnabled,
+    providerId,
   }
 }
 
@@ -43,6 +45,7 @@ export function computeToolContext(messages: Message[]): ToolContext {
  * Determine which tools should be available based on agent settings and context.
  *
  * Strategy:
+ * - If provider doesn't support tools (Bedrock) → return empty list
  * - If agentToolIds is empty → use all default-enabled tools
  * - If agentToolIds is non-empty → it's the user's explicit choice of which tools to enable
  * - Conditional tools (pdf-reader, search-document) are added on top whenever their
@@ -50,6 +53,7 @@ export function computeToolContext(messages: Message[]): ToolContext {
  *   even if the user never enabled those tools manually.
  *
  * This means:
+ * - Bedrock = no tools
  * - Empty agentToolIds = defaults + conditionals
  * - Non-empty agentToolIds = user's selection + conditionals
  */
@@ -57,6 +61,11 @@ export function resolveAvailableTools(
   agentToolIds: readonly BuiltInToolId[],
   context: ToolContext
 ): BuiltInToolId[] {
+  // Bedrock doesn't support tools yet
+  if (context.providerId === 'bedrock') {
+    return []
+  }
+
   const availableIds: Set<BuiltInToolId> = new Set()
 
   if (agentToolIds.length === 0) {
