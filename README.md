@@ -22,7 +22,7 @@ A powerful multi-provider AI chat desktop application with advanced features lik
 ## Features
 
 ### 🤖 Multi-Provider AI Support
-- **Five major providers** — OpenAI, Anthropic (Claude), Google Gemini, DeepSeek, Ollama (local)
+- **Six major providers** — OpenAI, Anthropic (Claude), Google Gemini, DeepSeek, AWS Bedrock, Ollama (local)
 - **Agent management** — Create unlimited agents with different providers, models, and system prompts
 - **Live model switching** — Change models on the fly from the header without opening settings
 - **Capability detection** — Automatic badges for ✨ Reasoning, 🖼️ Vision, and 📚 Large context windows
@@ -210,6 +210,8 @@ A powerful multi-provider AI chat desktop application with advanced features lik
    - Go to Settings → click on an agent
    - Add API keys for your preferred providers (OpenAI, Anthropic, etc.)
    - Keys are stored locally in browser localStorage only
+   
+   **For AWS Bedrock**: Configure AWS credentials via AWS CLI or environment variables. See [Bedrock Setup Guide](./docs/bedrock-setup.md) for details.
 
 ### Development Modes
 
@@ -238,6 +240,8 @@ Create a `.env` file in the project root (optional):
 | `LLM_CHAT_MASTER_PASSWORD` | No | - | Enables AES-256-GCM encryption of `~/.llm-chat/data.db`. Use for database encryption at rest. |
 | `PORT` | No | 3001 | Express server port |
 | `VITE_API_URL` | No | http://localhost:3001 | Backend API URL for frontend |
+| `AWS_REGION` | No | us-east-1 | AWS region for Bedrock |
+| `AWS_PROFILE` | No | default | AWS profile for Bedrock credentials |
 
 ### Building for Distribution
 
@@ -561,6 +565,7 @@ Enable these tools per agent in the agent settings. Most require no external ser
 | **Anthropic** | Yes | claude-sonnet-4, claude-opus-4, claude-haiku-4.5 | Long context, artifacts |
 | **Google** | Yes | gemini-2.5-pro, gemini-2.5-flash, gemini-2.0-flash | Massive context (2M tokens) |
 | **DeepSeek** | Yes | deepseek-v4-pro, deepseek-v4-flash, deepseek-r1 | Cost-effective, reasoning |
+| **AWS Bedrock** | AWS Credentials | Claude 3.5, Amazon Nova models | Enterprise, AWS integration |
 | **Ollama** | No (local) | Any Ollama model | Privacy, no API costs |
 
 ### Capability Badges
