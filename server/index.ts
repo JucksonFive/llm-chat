@@ -12,6 +12,7 @@ import { MCP_PRESETS } from './mcp-presets.js'
 import { initDb, closeDb, flush } from './db.js'
 import { registerDbRoutes } from './db-routes.js'
 import { registerRagRoutes } from './rag/routes.js'
+import { streamBedrock } from './bedrock-service.js'
 
 const app = express()
 app.use(cors())
@@ -61,13 +62,12 @@ function buildToolResultsPrompt(toolResults: ToolResultForSummary[]): string {
 }
 
 /**
- * Filter out image content from messages for DeepSeek.
- * DeepSeek API does not support image_url in the messages array.
- * Images should be handled separately or not used with DeepSeek chat API.
+ * Filter out image content from messages for providers that don't support them.
+ * DeepSeek and Bedrock (basic Converse API) do not support image_url in messages.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function filterImagesFromMessages(messages: any[], providerId: string): any[] {
-  if (providerId !== 'deepseek') {
+  if (providerId !== 'deepseek' && providerId !== 'bedrock') {
     return messages
   }
 
@@ -93,17 +93,19 @@ function filterImagesFromMessages(messages: any[], providerId: string): any[] {
 
       if (filtered.length === 0) {
         // If message only had images, add a note
+        const providerName = providerId === 'deepseek' ? 'DeepSeek' : 'This provider'
         return {
           ...msg,
-          content: '[Image was provided but DeepSeek does not support images in the chat API]'
+          content: `[Image was provided but ${providerName} does not support images in the chat API]`
         }
       }
 
       if (hasImages && filtered.length > 0) {
         // If there was text + images, keep the text and add a note
+        const providerName = providerId === 'deepseek' ? 'DeepSeek' : 'this provider'
         filtered.push({
           type: 'text',
-          text: '[Image attachments were removed - DeepSeek does not support images]'
+          text: `[Image attachments were removed - ${providerName} does not support images]`
         })
       }
 
@@ -142,6 +144,60 @@ app.post('/api/chat', async (req, res) => {
     const effectiveModel = providerId === 'deepseek' && normalizedModel === 'deepseek-v4-pro' && hasRequestedTools
       ? 'deepseek-v4-flash'
       : normalizedModel
+
+    // Handle Bedrock separately (doesn't use AI SDK)
+    if (providerId === 'bedrock') {
+      if (hasRequestedTools) {
+        res.status(400).json({ error: 'Bedrock provider does not support tools yet' })
+        return
+      }
+
+      try {
+        res.setHeader('Content-Type', 'text/event-stream')
+        res.setHeader('Cache-Control', 'no-cache')
+        res.setHeader('Connection', 'keep-alive')
+
+        const bedrockMessages = filteredMessages.map((msg: { role: string; content: string }) => ({
+          role: (msg.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
+          content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
+        }))
+
+        console.log(`[chat] provider=bedrock model=${effectiveModel} messages=${bedrockMessages.length}`)
+
+        for await (const chunk of streamBedrock(
+          {
+            modelId: effectiveModel,
+            region: process.env.AWS_REGION,
+            profile: process.env.AWS_PROFILE,
+          },
+          bedrockMessages,
+          systemPrompt
+        )) {
+          if (chunk.type === 'text-delta') {
+            res.write(`data: ${JSON.stringify({ type: 'text-delta', text: chunk.text })}\n\n`)
+          } else if (chunk.type === 'error') {
+            res.write(`data: ${JSON.stringify({ type: 'error', message: chunk.error })}\n\n`)
+            res.write('data: [DONE]\n\n')
+            res.end()
+            return
+          } else if (chunk.type === 'done') {
+            res.write('data: [DONE]\n\n')
+            res.end()
+            return
+          }
+        }
+      } catch (error: unknown) {
+        console.error('[chat] Bedrock error:', error)
+        const message = error instanceof Error ? error.message : 'Bedrock request failed'
+        if (!res.headersSent) {
+          res.status(500).json({ error: message })
+        } else {
+          res.write(`data: ${JSON.stringify({ type: 'error', message })}\n\n`)
+          res.end()
+        }
+      }
+      return
+    }
 
     let llmModel
     switch (providerId) {
@@ -530,6 +586,10 @@ app.post('/api/extract-memories', async (req, res) => {
       case 'deepseek':
         llmModel = createOpenAI({ baseURL: 'https://api.deepseek.com', apiKey, name: 'deepseek' }).chat('deepseek-v4-flash')
         break
+      case 'bedrock':
+        // Bedrock doesn't support memory extraction yet
+        res.json({ memories: { short: [], long: [] } })
+        return
       default:
         res.json({ memories: [] })
         return

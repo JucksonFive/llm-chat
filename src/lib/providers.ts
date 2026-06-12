@@ -42,6 +42,19 @@ export const PROVIDERS: Record<ProviderId, ProviderMeta> = {
     color: '#4d6bfe',
     requiresApiKey: true,
   },
+  bedrock: {
+    id: 'bedrock',
+    name: 'AWS Bedrock',
+    models: [
+      'eu.anthropic.claude-opus-4-8',
+      'eu.anthropic.claude-opus-4-7',
+      'eu.anthropic.claude-sonnet-4-6',
+      'eu.anthropic.claude-haiku-4-5-20251001-v1:0',
+    ],
+    icon: 'Cloud',
+    color: '#ff9900',
+    requiresApiKey: false,
+  },
 }
 
 export const PROVIDER_LIST = Object.values(PROVIDERS)

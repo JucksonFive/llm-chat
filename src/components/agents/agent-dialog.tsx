@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { DEFAULT_SYSTEM_PROMPT, SYSTEM_PROMPT_PRESETS } from '@/lib/default-system-prompt'
+import { SYSTEM_PROMPT_PRESETS } from '@/lib/default-system-prompt'
 import { PROVIDERS } from '@/lib/providers'
 import { useAgentStore } from '@/stores/agent-store'
 import { useApiKeyStore } from '@/stores/api-key-store'
@@ -93,7 +93,7 @@ function AgentForm({
   const [model, setModel] = useState(editingAgent?.model ?? 'gpt-4o')
   const [customModel, setCustomModel] = useState(editingAgent?.model ?? '')
   const [apiKey, setApiKey] = useState(initialApiKey)
-  const [systemPrompt, setSystemPrompt] = useState(editingAgent?.systemPrompt ?? DEFAULT_SYSTEM_PROMPT)
+  const [systemPrompt, setSystemPrompt] = useState(editingAgent?.systemPrompt ?? '')
   const [showApiKey, setShowApiKey] = useState(false)
   const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>(editingAgent?.mcpServerIds ?? [])
   const [selectedBuiltInTools, setSelectedBuiltInTools] = useState<BuiltInToolId[]>((editingAgent?.builtInToolIds ?? []) as BuiltInToolId[])
@@ -281,13 +281,15 @@ function AgentForm({
           <p className="text-xs text-muted-foreground">
             {matchedPreset
               ? matchedPreset.description
-              : 'Custom prompt in use. Selecting a preset will replace the current text.'}
+              : systemPrompt.trim()
+                ? 'Custom prompt in use. Selecting a preset will replace the current text.'
+                : 'No system prompt (model default behavior). You can add a preset or write your own.'}
           </p>
           <Textarea
             id="systemPrompt"
             value={systemPrompt}
             onChange={(e) => setSystemPrompt(e.target.value)}
-            placeholder="Define the agent's behavior, depth, and quality bar..."
+            placeholder="(Optional) Define the agent's behavior, depth, and quality bar..."
             className="min-h-[220px]"
           />
         </div>

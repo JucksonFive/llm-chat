@@ -5,6 +5,7 @@ describe('PROVIDERS', () => {
   it('has the expected provider ids', () => {
     expect(Object.keys(PROVIDERS).sort()).toEqual([
       'anthropic',
+      'bedrock',
       'deepseek',
       'google',
       'ollama',
@@ -28,8 +29,9 @@ describe('PROVIDERS', () => {
     }
   })
 
-  it('marks ollama as not requiring an API key (the only such provider)', () => {
+  it('marks ollama and bedrock as not requiring an API key', () => {
     expect(PROVIDERS.ollama.requiresApiKey).toBe(false)
+    expect(PROVIDERS.bedrock.requiresApiKey).toBe(false)
     for (const id of ['openai', 'anthropic', 'google', 'deepseek'] as const) {
       expect(PROVIDERS[id].requiresApiKey).toBe(true)
     }

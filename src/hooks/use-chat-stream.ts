@@ -10,6 +10,7 @@ import { useUIStore } from '@/stores/ui-store'
 import { useResearchStore } from '@/stores/research-store'
 import { speakText } from '@/stores/ui-store'
 import { streamChat } from '@/lib/llm-client'
+import { PROVIDERS } from '@/lib/providers'
 import type { McpServerConfig, Attachment } from '@/types'
 
 export function useChatStream() {
@@ -21,11 +22,13 @@ export function useChatStream() {
     const agent = agents.find((a) => a.id === activeAgentId)
     if (!agent) return
 
+    const provider = PROVIDERS[agent.providerId]
     const apiKey =
       useApiKeyStore.getState().getKey(agent.id) ||
       useApiKeyStore.getState().findKeyForProvider(agent.providerId, agents)
 
-    if (!apiKey) {
+    // Only check for API key if provider requires it
+    if (provider.requiresApiKey && !apiKey) {
       toast.error(
         `No API key set for ${agent.name}. Open the agent settings and add a ${agent.providerId} key.`,
       )
