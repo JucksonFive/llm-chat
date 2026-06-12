@@ -1,140 +1,427 @@
 # LLM Chat
 
-Multi-provider AI chat desktop application built with React, Express, and Electron.
+A powerful multi-provider AI chat desktop application with advanced features like deep research, MCP tool integration, semantic memory, and custom agent workflows. Built with React, Express, and Electron.
+
+![Main Interface](./docs/images/main-interface.png)
+*Main chat interface with streaming responses and tool integration*
+
+## Table of Contents
+
+- [Features](#features)
+- [Screenshots](#screenshots)
+- [Tech Stack](#tech-stack)
+- [Getting Started](#getting-started)
+- [MCP Integration](#mcp-integration)
+- [Built-in Tools](#built-in-tools)
+- [Supported Models](#supported-models)
+- [Keyboard Shortcuts](#keyboard-shortcuts)
+- [Project Structure](#project-structure)
+- [Architecture Notes](#architecture-notes)
+- [Testing](#testing)
 
 ## Features
 
-### Core
-- **Multi-provider support** — OpenAI, Anthropic (Claude), Google Gemini, DeepSeek, Ollama (local)
-- **Agent management** — Create multiple agents with different providers, models, and system prompts
-- **Live model switching** — Change model on the fly from the header without opening settings
-- **Model capability detection** — Automatic badges for ✨ Reasoning, 🖼️ Vision, and 📚 Large context windows
-- **Streaming responses** — Real-time token streaming with SSE
-- **Voice input/output** — Speech recognition for input, text-to-speech for replies
-- **Projects** — Organize conversations into projects
-- **Dark/light theme** — Toggle between themes
+### 🤖 Multi-Provider AI Support
+- **Five major providers** — OpenAI, Anthropic (Claude), Google Gemini, DeepSeek, Ollama (local)
+- **Agent management** — Create unlimited agents with different providers, models, and system prompts
+- **Live model switching** — Change models on the fly from the header without opening settings
+- **Capability detection** — Automatic badges for ✨ Reasoning, 🖼️ Vision, and 📚 Large context windows
+- **Streaming responses** — Real-time token streaming with Server-Sent Events
 
-### AI Capabilities
-- **Deep research workflow** — Multi-step web research with live progress panel showing planning → searching → fetching → analyzing → synthesizing → reporting stages, source discovery, and elapsed time tracking
-- **Reasoning transparency** — Differentiated "Thinking..." vs "Generating..." indicators, collapsible thought-process blocks with word counts and previews
-- **Tool integration** — Built-in tools and external MCP servers with elapsed-time tracking and progress bars for long-running operations
+![Agent Configuration](./docs/images/agent-config.png)
+*Configure agents with different providers, models, and custom system prompts*
+
+### 🔬 Advanced AI Capabilities
+- **Deep research workflow** — Multi-step web research powered by LangGraph state machine
+  - Live progress panel showing: planning → searching → fetching → analyzing → synthesizing → reporting
+  - Source discovery with URL tracking and elapsed time
+  - Frosted-glass progress panel that slides up from bottom
+- **Reasoning transparency** — Differentiated "Thinking..." vs "Generating..." indicators
+  - Collapsible thought-process blocks with word counts
+  - Auto-expand during streaming (amber tint), auto-collapse when complete
+  - Preview snippets for collapsed reasoning blocks
+- **Tool integration** — Built-in tools and external MCP servers
+  - Elapsed-time tracking for all tool calls
+  - Progress bars for long-running operations (>5s)
+  - Visual feedback with status badges (calling/complete/error)
 - **Token streaming feedback** — Live approximate token counter during generation
 
-### Memory & Context
+![Deep Research](./docs/images/deep-research.png)
+*Deep research workflow with live progress tracking*
+
+![Reasoning Blocks](./docs/images/reasoning-blocks.png)
+*Transparent reasoning with collapsible thought processes*
+
+### 🧠 Memory & Context Management
 - **Persistent agent memory** — Short-term and long-term memory per agent
-- **Semantic memory search** — Memories embedded with OpenAI text-embedding-3-small and retrieved by cosine similarity
-- **Memory usage indicators** — Header badge shows active memories, message badges show how many memories were used in each response, recently-used memories highlighted in panel
+- **Semantic memory search** — OpenAI text-embedding-3-small with cosine similarity retrieval
+  - Lazy embedding strategy (embedded on first search, not on creation)
+  - Pure-JS vector search over sql.js (no native dependencies)
+  - Linear scan fast enough for 100s-1000s of vectors per agent
+- **Memory usage tracking**
+  - Header badge shows active memory count
+  - Message badges show memories used per response
+  - Recently-used memories highlighted in panel
+  - `lastUsedAt` tracking for memory relevance
 
-### Search & Organization
-- **Global message search** — Cmd+K opens fuzzy search across all conversations with content highlighting
-- **Smart filters** — Filter by attachments, tool usage, or date range (today/this week)
-- **Sidebar conversation search** — Quick filter conversations by title or content
-- **Scroll-to-message** — Click search result to jump directly to the message with highlight animation
+![Memory Panel](./docs/images/memory-panel.png)
+*Semantic memory with usage tracking and highlights*
 
-### User Experience
-- **Error recovery** — Clear error banners with one-click "Try again" retry button that resends the last user message
-- **Onboarding** — Rich empty state showcasing features (voice, attachments, search, memory, tools)
-- **Keyboard shortcuts** — Press `?` anywhere to see all shortcuts (Ctrl+K, Enter, Shift+Enter, Esc, etc.)
-- **Mobile responsive** — Touch-friendly controls (48px targets), tabbed settings, stacked input layout on small screens
-- **Skeleton loaders** — Smooth loading states for agents and conversations
-- **Polished animations** — Framer Motion transitions for messages, dialogs, panels, and tabs
+### 🔌 MCP (Model Context Protocol) Integration
+- **Native MCP support** — Connect external tools and data sources
+- **Import/export functionality** — File upload, URL fetch, or paste JSON
+  - Validates server configurations before import
+  - Preview with connection status for each server
+  - Batch import multiple servers at once
+- **NPX installation** — One-click install MCP servers via npx
+  - Parses npx commands and derives server names
+  - Auto-populates command and arguments
+  - Builds connection summaries for quick validation
+- **Pre-configured presets** — Popular MCP servers ready to use
+  - Filesystem, Brave Search, GitHub, Memory, SQLite, Puppeteer, Everything
+  - One-click setup with sensible defaults
+- **Resource panels** — Browse prompts, resources, and tools from connected servers
+- **Tool bridge** — Converts MCP tools to Vercel AI SDK format automatically
 
-### Performance
-- **Memoized rendering** — React.memo on message bubbles prevents unnecessary re-renders during streaming
-- **Message pagination** — Long conversations show only the last 50 messages by default with "Load earlier" button
-- **Optimized stores** — Zustand with shallow comparisons for minimal re-renders
+![MCP Import](./docs/images/mcp-import.png)
+*Import MCP servers from file, URL, or npx command*
 
-### Infrastructure
-- **MCP tool integration** — Connect Model Context Protocol servers to give agents access to external tools
-- **Built-in tools** — Web search, code executor, file reader/writer, PDF reader, calculator, image generation, deep research
-- **Database encryption** — Optional AES-256-GCM encryption of the SQLite database at rest
-- **Client-side API key storage** — Keys stay in the browser's localStorage, never persisted on the server
-- **Data export/import** — Backup and restore all agents, conversations, and settings
-- **Electron desktop app** — Runs as a native desktop application or in the browser
-- **Production deployment** — Docker + Caddy with automatic HTTPS
+![MCP Presets](./docs/images/mcp-presets.png)
+*One-click setup for popular MCP servers*
+
+### 🔍 Search & Organization
+- **Global message search** — `Cmd+K` / `Ctrl+K` opens fuzzy search across all conversations
+  - Content highlighting in results
+  - Debounced 300ms for performance
+  - Scroll-to-message with highlight animation
+- **Smart filters** — Filter by attachments, tool usage, or date range
+  - "Today", "This week" quick filters
+  - Attachment type filtering
+  - Tool usage filtering
+- **Sidebar conversation search** — Instant filter by title or content (in-memory)
+- **Projects** — Organize conversations into logical groupings
+
+![Global Search](./docs/images/global-search.png)
+*Global message search with content highlighting*
+
+### 🎨 User Experience
+- **Error recovery** — Clear error banners with one-click "Try again" retry
+  - Resends last user message automatically
+  - Preserves conversation context
+- **Rich onboarding** — Empty state showcasing features
+  - Voice input/output, attachments, search, memory, tools
+  - Quick start guide
+- **Keyboard shortcuts** — Press `?` to see all shortcuts
+- **Mobile responsive** — Touch-friendly controls
+  - 48px tap targets
+  - Tabbed settings
+  - Stacked input layout on small screens
+- **Polished animations** — Framer Motion transitions
+  - Smooth message appearance
+  - Dialog and panel animations
+  - Skeleton loaders for agents and conversations
+- **Dark/light theme** — Seamless theme switching
+- **Voice I/O** — Speech recognition for input, text-to-speech for replies
+
+![Keyboard Shortcuts](./docs/images/shortcuts.png)
+*Comprehensive keyboard shortcuts dialog*
+
+### ⚡ Performance Optimizations
+- **Memoized rendering** — React.memo on MessageBubble with custom comparator
+  - Only re-renders on content/reasoning/streaming/tools/error changes
+  - Prevents cascade re-renders during streaming
+- **Message pagination** — Render last 50 messages by default
+  - "Load earlier messages" button for older content
+  - Keeps initial render fast for long conversations
+- **Optimized stores** — Zustand with shallow comparisons
+  - Minimal re-renders across components
+  - Efficient state updates during streaming
+
+### 🔐 Security & Infrastructure
+- **Database encryption** — Optional AES-256-GCM encryption at rest
+  - Scrypt key derivation (cached per process)
+  - Stable salt to avoid repeated 100ms derivation on auto-save
+- **Client-side API keys** — Keys stored only in browser localStorage
+  - Never persisted server-side
+  - Passed per-request in body
+- **Data portability** — Export/import all data
+  - Agents, conversations, settings, memories
+  - JSON format for easy backup
+- **Electron desktop** — Native app or browser-based
+- **Production ready** — Docker + Caddy with automatic HTTPS
+  - Self-hosted deployment
+  - Environment-based configuration
 
 ## Tech Stack
 
-**Frontend:** React 19, TypeScript, Vite, TailwindCSS 4, Radix UI / shadcn, Zustand, Framer Motion (motion/react)
+### Frontend
+- **React 19** — Latest React with concurrent features
+- **TypeScript** — Full type safety across the codebase
+- **Vite** — Lightning-fast HMR and builds
+- **TailwindCSS 4** — Utility-first styling with CSS variables
+- **Radix UI / shadcn** — Accessible component primitives
+- **Zustand** — Lightweight state management
+- **Framer Motion (motion/react)** — Smooth animations and transitions
 
-**Backend:** Express 5, Vercel AI SDK, MCP SDK, LangChain (embeddings), sql.js, LangGraph (deep-research state machine)
+### Backend
+- **Express 5** — Modern Node.js server framework
+- **Vercel AI SDK** — Unified streaming interface for all LLM providers
+- **MCP SDK** — Model Context Protocol server integration
+- **LangChain** — Text embeddings for semantic search
+- **sql.js** — In-memory SQLite with auto-persistence
+- **LangGraph** — State machine for deep research workflow
 
-**Desktop:** Electron, esbuild
+### Desktop
+- **Electron** — Native desktop application wrapper
+- **esbuild** — Fast bundling for main and preload scripts
 
-**Infrastructure:** Docker, Caddy, SearXNG (self-hosted search)
+### Infrastructure
+- **Docker** — Containerized deployment
+- **Caddy** — Automatic HTTPS with Let's Encrypt
+- **SearXNG** — Self-hosted privacy-respecting search engine
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+
-- pnpm
-- Docker (for SearXNG web search)
+- **Node.js 18+** — JavaScript runtime
+- **pnpm** — Fast, disk space efficient package manager
+- **Docker** (optional) — Required for SearXNG web search and production deployment
 
-### Install
+### Quick Start
 
-```bash
-pnpm install
-```
+1. **Clone and install dependencies**
+   ```bash
+   git clone <repository-url>
+   cd llm-chat
+   pnpm install
+   ```
 
-### Development (browser)
+2. **Start development server**
+   ```bash
+   pnpm dev
+   ```
+   - Opens at http://localhost:5173
+   - Express API server runs on port 3001
+   - Docker Compose automatically starts SearXNG for web search
 
+3. **Add your API keys**
+   - Open the app in your browser
+   - Go to Settings → click on an agent
+   - Add API keys for your preferred providers (OpenAI, Anthropic, etc.)
+   - Keys are stored locally in browser localStorage only
+
+### Development Modes
+
+#### Browser Mode (Recommended for development)
 ```bash
 pnpm dev
 ```
+- Full HMR (Hot Module Replacement)
+- DevTools in browser
+- Faster iteration cycle
 
-Opens at http://localhost:5173. The Express API server runs on port 3001. Docker Compose starts SearXNG for web search.
-
-### Development (Electron)
-
+#### Electron Mode
 ```bash
 pnpm dev:electron
 ```
-
-Launches the app as a native desktop window with Vite HMR.
+- Native desktop window
+- Tests desktop-specific features
+- Still has Vite HMR
 
 ### Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `LLM_CHAT_MASTER_PASSWORD` | No | Enables AES-256-GCM encryption of `~/.llm-chat/data.db` |
+Create a `.env` file in the project root (optional):
 
-### Build for distribution
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `LLM_CHAT_MASTER_PASSWORD` | No | - | Enables AES-256-GCM encryption of `~/.llm-chat/data.db`. Use for database encryption at rest. |
+| `PORT` | No | 3001 | Express server port |
+| `VITE_API_URL` | No | http://localhost:3001 | Backend API URL for frontend |
 
+### Building for Distribution
+
+#### Package for your platform
 ```bash
 pnpm dist
 ```
+Outputs:
+- **Linux**: `.zip` archive
+- **macOS**: `.dmg` installer + `.zip` archive
+- **Windows**: `.exe` NSIS installer + portable `.exe`
 
-Packages the app for your platform (zip on Linux, dmg/zip on macOS, nsis/portable on Windows).
+Built apps are in the `dist/` directory.
 
-### Production (Docker)
-
+#### Build without packaging
 ```bash
-cp .env.example .env   # Set DOMAIN and optionally LLM_CHAT_MASTER_PASSWORD
-docker compose -f docker-compose.prod.yml up -d
+pnpm build          # Build frontend
+pnpm build:electron # Build electron main/preload
 ```
 
-Caddy handles TLS certificates automatically.
+### Production Deployment (Docker)
 
-## Testing
+1. **Configure environment**
+   ```bash
+   cp .env.example .env
+   ```
+   Edit `.env`:
+   ```env
+   DOMAIN=your-domain.com
+   LLM_CHAT_MASTER_PASSWORD=your-secure-password  # Optional
+   ```
 
+2. **Start services**
+   ```bash
+   docker compose -f docker-compose.prod.yml up -d
+   ```
+
+3. **Access the app**
+   - Caddy automatically provisions Let's Encrypt TLS certificates
+   - Access at `https://your-domain.com`
+
+Services:
+- **llm-chat** — Main application (port 3001 internally)
+- **caddy** — Reverse proxy with automatic HTTPS
+- **searxng** — Self-hosted search engine
+
+#### Update deployment
 ```bash
-pnpm test          # Run all tests (vitest) — 340+ tests
-pnpm test:watch    # Watch mode
-pnpm lint          # ESLint
+git pull
+docker compose -f docker-compose.prod.yml up -d --build
 ```
+
+### First-Time Setup
+
+1. **Create your first agent**
+   - Click "New Agent" in the sidebar
+   - Select a provider (e.g., OpenAI)
+   - Choose a model (e.g., gpt-4o)
+   - Add your API key
+   - Optionally customize the system prompt
+
+2. **Start a conversation**
+   - Select the agent from the sidebar
+   - Type a message in the input box
+   - Press Enter to send
+
+3. **Explore features**
+   - Press `?` to see keyboard shortcuts
+   - Try voice input with the microphone button
+   - Drag and drop images or PDFs
+   - Enable tools in agent settings for enhanced capabilities
+
+## MCP Integration
+
+Model Context Protocol (MCP) allows agents to connect to external tools and data sources. LLM Chat provides multiple ways to add MCP servers.
+
+### Import MCP Servers
+
+![MCP Import Tabs](./docs/images/mcp-import-tabs.png)
+*Three ways to import MCP servers: file upload, URL fetch, or npx command*
+
+#### From File
+1. Go to Settings → MCP Servers
+2. Click "Import" → "From File" tab
+3. Upload a JSON configuration file
+4. Review connection status in preview
+5. Click "Import N Server(s)"
+
+#### From URL
+1. Click "From URL" tab
+2. Paste a URL to a JSON configuration
+3. Click "Fetch Config"
+4. Preview and import
+
+#### Via NPX
+1. Click "Install via npx" tab
+2. Paste an npx command (e.g., `npx -y @modelcontextprotocol/server-brave-search`)
+3. The command is automatically parsed
+4. Server name and connection details are derived
+5. Add any required environment variables
+6. Click "Install Server"
+
+### MCP Configuration Format
+
+```json
+{
+  "mcpServers": {
+    "server-name": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "env": {
+        "BRAVE_API_KEY": "your-api-key"
+      }
+    }
+  }
+}
+```
+
+### Using MCP Presets
+
+Pre-configured servers for common use cases:
+
+| Preset | Setup Required | Description |
+|--------|---------------|-------------|
+| **Filesystem** | None | Read, write, and manage files on your local system |
+| **Brave Search** | API Key | Web search via Brave Search API |
+| **GitHub** | Personal Token | Manage repos, issues, and pull requests |
+| **Memory** | None | Persistent knowledge graph across conversations |
+| **SQLite** | Database Path | Query and manage SQLite databases |
+| **Puppeteer** | None | Browser automation and web scraping |
+| **Everything** | None | Demo server showcasing all MCP capabilities |
+
+To use a preset:
+1. Go to Settings → MCP Servers
+2. Click "Add from Preset"
+3. Select a preset
+4. Fill in required configuration (API keys, paths)
+5. Click "Add Server"
+
+### Troubleshooting MCP
+
+If a server shows "disconnected":
+- Check that the command/binary exists
+- Verify environment variables are set correctly
+- Check server logs in the MCP panel
+- Ensure npm packages are installed globally or via npx
+
+For more details, see [MCP-IMPORT-GUIDE.md](./MCP-IMPORT-GUIDE.md).
 
 ## Keyboard Shortcuts
 
+Press `?` anywhere in the app to see the shortcuts dialog.
+
+### Global
+
 | Shortcut | Action |
 |----------|--------|
+| `?` | Show/hide keyboard shortcuts dialog |
 | `Ctrl+K` / `⌘K` | Open global message search |
-| `?` | Show keyboard shortcuts dialog |
-| `Esc` | Close active dialog or panel |
+| `Esc` | Close active dialog, panel, or search |
+
+### Chat Input
+
+| Shortcut | Action |
+|----------|--------|
 | `Enter` | Send message |
-| `Shift+Enter` | New line in message |
-| Drag & drop | Attach files (images, PDFs) |
-| `Ctrl+V` | Paste files from clipboard |
+| `Shift+Enter` | Insert new line in message |
+| `Ctrl+V` / `⌘V` | Paste images or files from clipboard |
+| Drag & Drop | Attach files (images, PDFs, documents) |
+
+### Navigation
+
+| Shortcut | Action |
+|----------|--------|
+| `↑` / `↓` | Navigate search results (when search is open) |
+| `Enter` | Jump to selected message from search results |
+| Click message | Scroll to message in conversation |
+
+### Productivity Tips
+
+- Use `Cmd+K` to quickly find past conversations across all agents
+- Drag multiple images at once for batch attachment
+- Hold `Shift` while pressing `Enter` to add line breaks in messages
+- Press `Esc` repeatedly to close nested dialogs (search → settings → etc.)
 
 ## Project Structure
 
@@ -223,61 +510,159 @@ plans/                          # Implementation plans
 
 ## Built-in Tools
 
-These tools can be enabled per agent in the agent settings and require no external service (except where noted):
+Enable these tools per agent in the agent settings. Most require no external services.
 
-| Tool | Description |
-|------|-------------|
-| Web Search | Search the web using the local SearXNG instance (requires Docker) |
-| Fetch URL | Fetch and read content from any URL |
-| Code Executor | Execute JavaScript, Python, or shell code |
-| File Reader | Read files from the local filesystem |
-| File Writer | Write or create files on the filesystem |
-| Calculator | Evaluate mathematical expressions |
-| PDF Reader | Extract text from PDF files |
-| Date & Time | Get current time, convert timezones, calculate date differences |
-| Image Generator | Generate images with OpenAI DALL-E / gpt-image-1 (requires OpenAI API key) |
-| Deep Research | Multi-step web research with LangGraph state machine, source compilation, and live progress UI |
-| Index Document | Index documents (PDFs, text) for RAG retrieval |
-| Search Document | Search across indexed documents using cosine similarity |
+### Search & Web
+| Tool | Requirements | Description |
+|------|-------------|-------------|
+| **Web Search** | Docker (SearXNG) | Search the web using local SearXNG instance |
+| **Fetch URL** | None | Fetch and read content from any URL |
 
-## MCP Presets
+### Code & Files
+| Tool | Requirements | Description |
+|------|-------------|-------------|
+| **Code Executor** | None | Execute JavaScript, Python, or shell code in sandbox |
+| **File Reader** | None | Read files from the local filesystem |
+| **File Writer** | None | Write or create files on the filesystem |
+| **PDF Reader** | None | Extract text content from PDF files |
 
-One-click setup for popular Model Context Protocol servers:
+### Utilities
+| Tool | Requirements | Description |
+|------|-------------|-------------|
+| **Calculator** | None | Evaluate mathematical expressions |
+| **Date & Time** | None | Get current time, convert timezones, calculate date differences |
 
-| Preset | Category | Description |
-|--------|----------|-------------|
-| Filesystem | Filesystem | Read, write, and manage local files |
-| Brave Search | Search | Web search via Brave Search API |
-| GitHub | Developer | Manage repos, issues, and pull requests |
-| Memory | Productivity | Persistent knowledge graph memory |
-| SQLite | Database | Query and manage SQLite databases |
-| Puppeteer | Developer | Browser automation and web scraping |
-| Everything (Demo) | Developer | Demo server showcasing all MCP features |
+### AI & Advanced
+| Tool | Requirements | Description |
+|------|-------------|-------------|
+| **Image Generator** | OpenAI API Key | Generate images with DALL-E / gpt-image-1 |
+| **Deep Research** | Web Search tool | Multi-step web research with LangGraph state machine, source compilation, and live progress UI |
+| **Index Document** | OpenAI API Key | Index documents (PDFs, text) for RAG retrieval with embeddings |
+| **Search Document** | OpenAI API Key | Search across indexed documents using cosine similarity |
+
+### Enabling Tools
+
+1. Go to Settings → select an agent
+2. Scroll to "Tools" section
+3. Toggle the tools you want to enable
+4. Some tools require additional configuration (API keys, Docker services)
+5. Tools appear in the agent's context and can be called automatically
+
+![Tool Call Block](./docs/images/tool-call-block.png)
+*Tool execution with status, parameters, and results*
 
 ## Supported Models
 
-| Provider | Models |
-|----------|--------|
-| OpenAI | gpt-4o, gpt-4o-mini, gpt-4-turbo, o1, o1-mini, o3-mini |
-| Anthropic | claude-sonnet-4, claude-haiku-4.5, claude-opus-4 |
-| Google | gemini-2.5-pro, gemini-2.5-flash, gemini-2.0-flash |
-| DeepSeek | deepseek-v4-pro, deepseek-v4-flash, deepseek-r1 |
-| Ollama | Any local model (llama3.1, mistral, codellama, etc.) |
+### Provider Overview
 
-Capability badges are automatically detected from model names:
-- ✨ **Reasoning** — o1/o3, deepseek-r1, claude-thinking models
-- 🖼️ **Vision** — gpt-4o, claude-3+, gemini, llava, pixtral
-- 📚 **Large context** — 128K (gpt-4o), 200K (claude-3+), 1M-2M (gemini)
+| Provider | API Required | Models Available | Special Features |
+|----------|-------------|------------------|------------------|
+| **OpenAI** | Yes | gpt-4o, gpt-4o-mini, o1, o3-mini | Reasoning models, DALL-E |
+| **Anthropic** | Yes | claude-sonnet-4, claude-opus-4, claude-haiku-4.5 | Long context, artifacts |
+| **Google** | Yes | gemini-2.5-pro, gemini-2.5-flash, gemini-2.0-flash | Massive context (2M tokens) |
+| **DeepSeek** | Yes | deepseek-v4-pro, deepseek-v4-flash, deepseek-r1 | Cost-effective, reasoning |
+| **Ollama** | No (local) | Any Ollama model | Privacy, no API costs |
+
+### Capability Badges
+
+Models automatically receive capability badges based on their features:
+
+#### ✨ Reasoning Models
+Models with extended thinking/reasoning capabilities:
+- OpenAI: `o1`, `o1-mini`, `o3-mini`
+- DeepSeek: `deepseek-r1`
+- Claude: Models with "thinking" in the name
+
+Features:
+- Transparent reasoning blocks
+- "Thinking..." indicator before generation
+- Collapsible thought processes with word counts
+
+#### 🖼️ Vision Models
+Models that can analyze images:
+- OpenAI: `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo`
+- Claude: `claude-3+` series (sonnet, opus, haiku)
+- Google: All `gemini` models
+- Ollama: `llava`, `pixtral`, `bakllava`
+
+Features:
+- Image attachment support
+- Drag-and-drop images
+- Paste images from clipboard
+- Multi-image conversations
+
+#### 📚 Large Context Models
+Models with extended context windows:
+- **128K tokens**: OpenAI `gpt-4o`
+- **200K tokens**: Claude 3+ series
+- **1M-2M tokens**: Google Gemini
+
+Features:
+- Long document analysis
+- Extended conversations
+- Large codebase context
+
+### Model Selection Tips
+
+- **General chat**: `gpt-4o-mini`, `claude-haiku-4.5`, `gemini-2.5-flash` (fast + affordable)
+- **Complex reasoning**: `o1`, `claude-opus-4`, `deepseek-r1` (best quality)
+- **Vision tasks**: `gpt-4o`, `claude-sonnet-4`, `gemini-2.5-pro`
+- **Long documents**: `gemini-2.5-pro` (2M context), `claude-opus-4` (200K context)
+- **Privacy/offline**: Ollama with any local model
+- **Cost-effective**: `deepseek-v4-flash`, `gpt-4o-mini`, `gemini-2.5-flash`
+
+### Adding Custom Models
+
+For Ollama or custom providers:
+1. Go to Settings → Agent
+2. Select "Ollama" or "Custom" provider
+3. Enter the model name
+4. Configure the endpoint if needed
+5. Test the connection
 
 ## Screenshots
 
 ### Dashboard & Chat Interface
-![LLM Chat dashboard with empty conversation](image.png)
+![Dashboard Empty State](./docs/images/dashboard-empty.png)
+*Clean dashboard with feature highlights and quick start guide*
 
-![Chat interface with streaming response](image-1.png)
+![Chat Streaming](./docs/images/chat-streaming.png)
+*Real-time streaming responses with token counter*
 
-### Agent Settings & Configuration
-![Agent settings panel showing provider and model selection](image-2.png)
+### Agent Management
+![Agent List](./docs/images/agent-list.png)
+*Manage multiple agents with different providers and models*
+
+![Agent Configuration](./docs/images/agent-settings.png)
+*Detailed agent configuration with system prompts and tools*
+
+### Tools & Integration
+![Tool Execution](./docs/images/tool-execution.png)
+*Tool calls with parameters, results, and elapsed time tracking*
+
+![MCP Servers](./docs/images/mcp-servers.png)
+*Connected MCP servers with status monitoring*
+
+### Memory & Search
+![Memory Panel](./docs/images/memory-usage.png)
+*Semantic memory panel with recent usage highlights*
+
+![Message Search](./docs/images/message-search.png)
+*Global search across all conversations with highlighting*
+
+### Research Workflow
+![Research Progress](./docs/images/research-stages.png)
+*Deep research workflow with stage-by-stage progress tracking*
+
+![Research Sources](./docs/images/research-sources.png)
+*Source discovery and URL tracking during research*
+
+### Settings & Customization
+![Settings Tabs](./docs/images/settings-tabs.png)
+*Organized settings with Appearance, Data, MCP, and Documentation tabs*
+
+![Theme Switcher](./docs/images/theme-toggle.png)
+*Dark and light theme support with smooth transitions*
 
 ## Architecture Notes
 
