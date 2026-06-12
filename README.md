@@ -46,7 +46,7 @@ A powerful multi-provider AI chat desktop application with advanced features lik
   - Visual feedback with status badges (calling/complete/error)
 - **Token streaming feedback** — Live approximate token counter during generation
 
-![Deep Research](./docs/images/deep-research.png)
+![Deep Research](image-5.png)
 *Deep research workflow with live progress tracking*
 
 ![Reasoning Blocks](./docs/images/reasoning-blocks.png)
