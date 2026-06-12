@@ -74,6 +74,54 @@ function convertToChatMessages(messages: ChatMessage[]): BedrockMessage[] {
   })
 }
 
+/** Build the Bedrock toolConfig from our tool definitions. */
+function buildToolConfig(tools?: BedrockTool[]): ToolConfiguration | undefined {
+  if (!tools || tools.length === 0) return undefined
+  return {
+    tools: tools.map((tool) => ({
+      toolSpec: {
+        name: tool.name,
+        description: tool.description,
+        inputSchema: {
+          json: tool.inputSchema,
+        },
+      },
+    } as Tool)),
+  }
+}
+
+/** Build the shared Converse input (used by both streaming and non-streaming calls). */
+function buildConverseInput(
+  config: BedrockConfig,
+  messages: ChatMessage[],
+  systemPrompt?: string,
+  tools?: BedrockTool[]
+) {
+  const toolConfig = buildToolConfig(tools)
+  return {
+    modelId: config.modelId,
+    messages: convertToChatMessages(messages),
+    ...(systemPrompt && {
+      system: [{ text: systemPrompt }],
+    }),
+    ...(toolConfig && { toolConfig }),
+  }
+}
+
+/**
+ * True when the error indicates the caller lacks streaming permission
+ * (bedrock:InvokeModelWithResponseStream) but may still have non-streaming
+ * (bedrock:InvokeModel) access. We use this to transparently fall back.
+ */
+function isStreamingPermissionError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  const msg = error.message
+  return (
+    (msg.includes('AccessDeniedException') || msg.includes('not authorized')) &&
+    msg.includes('InvokeModelWithResponseStream')
+  )
+}
+
 function validateConfig(config: BedrockConfig): void {
   if (!config.modelId) {
     throw new Error('BEDROCK_MODEL_ID is required. Set it in your environment variables.')
@@ -153,31 +201,7 @@ export async function* streamBedrock(
   validateConfig(config)
 
   const client = createBedrockClient(config)
-  const bedrockMessages = convertToChatMessages(messages)
-
-  // Convert tools to Bedrock format
-  const toolConfig: ToolConfiguration | undefined = tools && tools.length > 0
-    ? {
-        tools: tools.map((tool) => ({
-          toolSpec: {
-            name: tool.name,
-            description: tool.description,
-            inputSchema: {
-              json: tool.inputSchema,
-            },
-          },
-        } as Tool)),
-      }
-    : undefined
-
-  const input = {
-    modelId: config.modelId,
-    messages: bedrockMessages,
-    ...(systemPrompt && {
-      system: [{ text: systemPrompt }],
-    }),
-    ...(toolConfig && { toolConfig }),
-  }
+  const input = buildConverseInput(config, messages, systemPrompt, tools)
 
   try {
     const command = new ConverseStreamCommand(input)
@@ -253,6 +277,15 @@ export async function* streamBedrock(
 
     yield { type: 'done' }
   } catch (error) {
+    // If the role lacks streaming permission but may have non-streaming
+    // (InvokeModel) access, transparently fall back to a buffered Converse
+    // call. This keeps the app working when only bedrock:InvokeModel is granted.
+    if (isStreamingPermissionError(error)) {
+      console.warn('[bedrock] Streaming permission denied, falling back to non-streaming Converse')
+      yield* nonStreamBedrock(config, messages, systemPrompt, tools)
+      return
+    }
+
     if (error instanceof Error) {
       if (error.message.includes('UnrecognizedClientException')) {
         yield {
@@ -262,10 +295,10 @@ export async function* streamBedrock(
         }
         return
       }
-      if (error.message.includes('AccessDeniedException')) {
+      if (error.message.includes('AccessDeniedException') || error.message.includes('not authorized')) {
         yield {
           type: 'error',
-          error: `Access denied to Bedrock model ${config.modelId}. Check IAM permissions and model access.`,
+          error: `AWS credentials found but missing Bedrock permissions. Add bedrock:InvokeModel and bedrock:InvokeModelWithResponseStream permissions to your IAM role/user, or provide AWS credentials with Bedrock access in the agent settings.`,
         }
         return
       }
@@ -286,5 +319,82 @@ export async function* streamBedrock(
       type: 'error',
       error: 'Unknown error streaming from Bedrock',
     }
+  }
+}
+
+/**
+ * Non-streaming Bedrock call that yields the same chunk shape as streamBedrock.
+ * Used as a fallback when the caller lacks InvokeModelWithResponseStream
+ * permission. Buffers the full response, then emits it as a single text chunk
+ * (plus any tool-use blocks) so the rest of the pipeline is unchanged.
+ */
+export async function* nonStreamBedrock(
+  config: BedrockConfig,
+  messages: ChatMessage[],
+  systemPrompt?: string,
+  tools?: BedrockTool[]
+): AsyncGenerator<BedrockStreamChunk> {
+  validateConfig(config)
+
+  const client = createBedrockClient(config)
+  const input = buildConverseInput(config, messages, systemPrompt, tools)
+
+  try {
+    const command = new ConverseCommand(input)
+    const response = await client.send(command)
+
+    const content = response.output?.message?.content
+    if (!content) {
+      yield { type: 'error', error: 'Empty response from Bedrock model' }
+      return
+    }
+
+    // Emit text blocks first, then tool-use blocks (mirrors streaming order).
+    for (const block of content) {
+      if ('text' in block && block.text) {
+        yield { type: 'text-delta', text: block.text }
+      }
+    }
+
+    for (const block of content) {
+      if ('toolUse' in block && block.toolUse) {
+        yield {
+          type: 'tool-use',
+          toolUseId: block.toolUse.toolUseId,
+          toolName: block.toolUse.name,
+          toolInput: (block.toolUse.input as Record<string, unknown>) ?? {},
+        }
+      }
+    }
+
+    yield { type: 'done' }
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message.includes('UnrecognizedClientException')) {
+        yield {
+          type: 'error',
+          error:
+            'AWS credentials not found or invalid. Make sure AWS_PROFILE is set or credentials are configured.',
+        }
+        return
+      }
+      if (error.message.includes('AccessDeniedException') || error.message.includes('not authorized')) {
+        yield {
+          type: 'error',
+          error: `AWS credentials found but missing Bedrock permissions. Add bedrock:InvokeModel permission to your IAM role/user, or provide AWS credentials with Bedrock access in the agent settings.`,
+        }
+        return
+      }
+      if (error.message.includes('ResourceNotFoundException')) {
+        yield {
+          type: 'error',
+          error: `Bedrock model ${config.modelId} not found. Check model ID and region.`,
+        }
+        return
+      }
+      yield { type: 'error', error: error.message }
+      return
+    }
+    yield { type: 'error', error: 'Unknown error calling Bedrock' }
   }
 }

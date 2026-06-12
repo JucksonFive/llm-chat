@@ -299,7 +299,9 @@ function AgentForm({
               {errors.awsAccessKeyId && <p className="text-xs text-destructive">{errors.awsAccessKeyId}</p>}
               {!awsAccessKeyId && !awsSecretAccessKey && (
                 <p className="text-xs text-muted-foreground">
-                  Leave empty to use the server's AWS credentials (environment variables or IAM role)
+                  Leave empty to use the server's AWS credentials (environment variables, ~/.aws/credentials, or IAM role).
+                  Ensure the credentials have <code className="bg-muted px-1 py-0.5 rounded">bedrock:InvokeModel</code> and{' '}
+                  <code className="bg-muted px-1 py-0.5 rounded">bedrock:InvokeModelWithResponseStream</code> permissions.
                 </p>
               )}
             </div>
