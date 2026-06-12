@@ -22,9 +22,29 @@ Before using Bedrock models, you must request access in the AWS console:
 
 ## AWS Credentials Setup
 
-The application uses the standard AWS credential chain. Choose one of these methods:
+You have three options for providing AWS credentials:
 
-### Option 1: AWS CLI Profile (Recommended for Local Development)
+### Option 1: UI Credentials (Recommended for Multiple Accounts)
+
+**New in v1.1:** You can now provide AWS credentials directly in the agent configuration dialog:
+
+1. Open agent settings (gear icon)
+2. Select **AWS Bedrock** as provider
+3. Fill in the AWS credential fields:
+   - **AWS Access Key ID**: Your AWS access key (e.g., `AKIA...`)
+   - **AWS Secret Access Key**: Your secret key
+   - **AWS Region**: The region where you have Bedrock access (e.g., `us-east-1`, `eu-west-1`)
+4. Save the agent
+
+**Benefits:**
+- Different agents can use different AWS accounts
+- Credentials stored in browser localStorage (not sent to backend database)
+- Easy to switch between accounts
+- No server-side configuration needed
+
+**Note:** If you leave these fields empty, the application will fall back to server-side AWS credentials (Options 2 or 3 below).
+
+### Option 2: AWS CLI Profile (Recommended for Local Development)
 
 ```bash
 # Configure AWS CLI with your credentials
@@ -57,7 +77,7 @@ AWS_REGION=us-east-1
 
 ### Option 3: IAM Role (For Production on EC2/ECS)
 
-If running on AWS infrastructure, attach an IAM role with Bedrock permissions to your instance.
+If running on AWS infrastructure, attach an IAM role with Bedrock permissions to your instance. This is the most secure method for production deployments.
 
 ## Required IAM Permissions
 
@@ -148,13 +168,30 @@ aws bedrock-runtime invoke-model \
   output.json
 ```
 
+## Tool Calling Support
+
+**New in v1.1:** AWS Bedrock now fully supports tool calling for all built-in tools and MCP servers!
+
+✅ Supported tools:
+- Web search (`web-search`)
+- Web fetch (`web-fetch`)
+- Code execution (`code-executor`)
+- File operations (`file-reader`, `file-writer`)
+- Deep research (`deep-research`)
+- PDF reader (`pdf-reader`)
+- Calculator, Date/Time tools
+- All MCP servers
+
+The implementation uses AWS Bedrock's Converse API with multi-turn conversations. When a model requests a tool, the application:
+1. Executes the tool
+2. Sends the result back to the model in a new turn
+3. The model generates a final response with tool context
+4. Supports up to 20 tool-calling turns to prevent infinite loops
+
 ## Current Limitations
 
-- **No Tool Support**: The current implementation does not support MCP servers or built-in tools with Bedrock
-- **No Image Support**: Image attachments are not supported in the basic Converse API implementation
-- **No Memory Extraction**: Automatic memory extraction is disabled for Bedrock conversations
-
-These limitations may be addressed in future updates.
+- **No Image Support**: Image attachments are not yet supported with Bedrock (coming soon)
+- **Memory Extraction**: Automatic memory extraction works with all providers
 
 ## Troubleshooting
 
@@ -163,10 +200,16 @@ These limitations may be addressed in future updates.
 - Verify `AWS_PROFILE` matches a profile in `~/.aws/credentials`
 - Ensure environment variables are set correctly
 
-### "Access denied to Bedrock model"
-- Request model access in the AWS Bedrock console
-- Verify your IAM permissions include `bedrock:InvokeModel`
-- Check that you're using the correct region
+### "Access denied to Bedrock model" or "not authorized to perform: bedrock:InvokeModelWithResponseStream"
+
+**Cause:** Your AWS credentials are valid but missing Bedrock permissions.
+
+**Solution:**
+1. Add these IAM permissions to your IAM user/role:
+   - `bedrock:InvokeModel`
+   - `bedrock:InvokeModelWithResponseStream`
+2. Or provide different AWS credentials with proper permissions in the agent settings UI
+3. Verify you've requested model access in the AWS Bedrock console
 
 ### "Bedrock model not found"
 - Verify the model ID is correct
