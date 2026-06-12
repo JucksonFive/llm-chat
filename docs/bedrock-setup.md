@@ -88,8 +88,8 @@ Your AWS credentials need the following permissions:
 
 2. Add Bedrock configuration:
    ```bash
-   AWS_REGION=us-east-1
-   AWS_PROFILE=default  # Optional if using default profile
+   AWS_REGION=eu-west-1  # Or us-east-1, etc.
+   AWS_PROFILE=default   # Optional if using default profile
    ```
 
 3. Start the server:
@@ -103,21 +103,31 @@ Your AWS credentials need the following permissions:
 2. Create a new agent or edit an existing one
 3. Select "AWS Bedrock" as the provider
 4. Choose a model from the dropdown:
-   - `us.anthropic.claude-3-5-sonnet-20241022-v2:0` (Claude 3.5 Sonnet - cross-region)
-   - `us.anthropic.claude-3-5-haiku-20241022-v1:0` (Claude 3.5 Haiku - cross-region)
-   - `anthropic.claude-3-5-sonnet-20240620-v1:0` (Claude 3.5 Sonnet - single region)
-   - `amazon.nova-pro-v1:0` (Amazon Nova Pro)
-   - `amazon.nova-lite-v1:0` (Amazon Nova Lite)
-   - `amazon.nova-micro-v1:0` (Amazon Nova Micro)
+   - **EU Region Models (eu-west-1, eu-central-1)**:
+     - `eu.anthropic.claude-opus-4-8` (Claude Opus 4.8)
+     - `eu.anthropic.claude-opus-4-7` (Claude Opus 4.7)
+     - `eu.anthropic.claude-sonnet-4-6` (Claude Sonnet 4.6)
+     - `eu.anthropic.claude-haiku-4-5-20251001-v1:0` (Claude Haiku 4.5)
+   - **US Cross-Region Models**:
+     - `us.anthropic.claude-3-5-sonnet-20241022-v2:0` (Claude 3.5 Sonnet)
+     - `us.anthropic.claude-3-5-haiku-20241022-v1:0` (Claude 3.5 Haiku)
+   - **Single-Region Models**:
+     - `anthropic.claude-3-5-sonnet-20240620-v1:0` (Claude 3.5 Sonnet)
+     - `anthropic.claude-3-haiku-20240307-v1:0` (Claude 3 Haiku)
+   - **Amazon Nova Models**:
+     - `amazon.nova-pro-v1:0` (Nova Pro)
+     - `amazon.nova-lite-v1:0` (Nova Lite)
+     - `amazon.nova-micro-v1:0` (Nova Micro)
 
 Note: You can also enter custom model IDs if you have access to other Bedrock models.
 
 ## Available Regions
 
 Bedrock is available in multiple regions. Common regions:
+- `eu-west-1` (Europe, Ireland) - Supports Claude 4.x models
+- `eu-central-1` (Europe, Frankfurt) - Supports Claude 4.x models
 - `us-east-1` (US East, N. Virginia)
 - `us-west-2` (US West, Oregon)
-- `eu-central-1` (Europe, Frankfurt)
 - `ap-southeast-1` (Asia Pacific, Singapore)
 
 Check the [AWS Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html) for the full list of regions and model availability.

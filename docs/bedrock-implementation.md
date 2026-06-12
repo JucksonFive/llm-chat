@@ -96,9 +96,17 @@ Messages are converted from the app's internal format to Bedrock format in the s
 
 The following model IDs are preconfigured (users can add custom IDs):
 
-### Claude Models (via Bedrock)
+### Claude 4.x Models (EU Region)
+- `eu.anthropic.claude-opus-4-8` - Claude Opus 4.8 (most capable)
+- `eu.anthropic.claude-opus-4-7` - Claude Opus 4.7
+- `eu.anthropic.claude-sonnet-4-6` - Claude Sonnet 4.6 (balanced)
+- `eu.anthropic.claude-haiku-4-5-20251001-v1:0` - Claude Haiku 4.5 (fastest)
+
+### Claude 3.5 Models (Cross-Region)
 - `us.anthropic.claude-3-5-sonnet-20241022-v2:0` - Cross-region Claude 3.5 Sonnet
 - `us.anthropic.claude-3-5-haiku-20241022-v1:0` - Cross-region Claude 3.5 Haiku
+
+### Claude 3.x Models (Single-Region)
 - `anthropic.claude-3-5-sonnet-20240620-v1:0` - Single-region Claude 3.5 Sonnet
 - `anthropic.claude-3-haiku-20240307-v1:0` - Single-region Claude 3 Haiku
 
@@ -111,7 +119,7 @@ The following model IDs are preconfigured (users can add custom IDs):
 
 ### Environment Variables
 
-- `AWS_REGION` - AWS region (default: us-east-1)
+- `AWS_REGION` - AWS region (default: us-east-1, recommended: eu-west-1 for EU users)
 - `AWS_PROFILE` - AWS credentials profile (default: default)
 
 ### AWS Credentials Chain
