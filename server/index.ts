@@ -158,7 +158,7 @@ app.post('/api/chat', async (req, res) => {
         res.setHeader('Connection', 'keep-alive')
 
         const bedrockMessages = filteredMessages.map((msg: { role: string; content: string }) => ({
-          role: msg.role === 'user' ? 'user' : 'assistant',
+          role: (msg.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
           content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
         }))
 
