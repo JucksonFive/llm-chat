@@ -2,8 +2,8 @@
 
 A powerful multi-provider AI chat desktop application with advanced features like deep research, MCP tool integration, semantic memory, and custom agent workflows. Built with React, Express, and Electron.
 
-![Main Interface](./docs/images/main-interface.png)
-*Main chat interface with streaming responses and tool integration*
+![Main Interface](![Main chat interface with streaming responses and tool integration](image-3.png))
+
 
 ## Table of Contents
 
