@@ -10,6 +10,7 @@ interface StreamChatParams {
   messages: { role: string; content: MessageContent }[]
   mcpServers?: McpServerConfig[]
   builtInToolIds?: string[]
+  awsCredentials?: { accessKeyId: string; secretAccessKey: string; region: string }
   signal?: AbortSignal
   onToken: (token: string) => void
   onReasoning: (token: string) => void
@@ -28,6 +29,7 @@ export async function streamChat({
   messages,
   mcpServers,
   builtInToolIds,
+  awsCredentials,
   signal,
   onToken,
   onReasoning,
@@ -57,7 +59,7 @@ export async function streamChat({
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ providerId, model, apiKey, systemPrompt, messages, mcpServers, builtInToolIds }),
+      body: JSON.stringify({ providerId, model, apiKey, systemPrompt, messages, mcpServers, builtInToolIds, awsCredentials }),
       signal,
     })
 

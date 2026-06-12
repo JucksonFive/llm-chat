@@ -8,9 +8,11 @@ import { persist } from 'zustand/middleware'
  *
  * Keys are indexed by agent id. If multiple agents share a provider, the UI
  * can look up an existing key for that provider (see agent-dialog).
+ *
+ * For AWS Bedrock, we store credentials as JSON: { accessKeyId, secretAccessKey, region }
  */
 interface ApiKeyState {
-  keys: Record<string, string> // agentId -> apiKey
+  keys: Record<string, string> // agentId -> apiKey (or JSON for AWS credentials)
   getKey: (agentId: string) => string
   setKey: (agentId: string, apiKey: string) => void
   removeKey: (agentId: string) => void
@@ -18,6 +20,12 @@ interface ApiKeyState {
   mergeKeys: (incoming: Record<string, string>) => void
   /** Find an existing key for the given provider from any agent. */
   findKeyForProvider: (providerId: string, agents: Array<{ id: string; providerId: string }>) => string
+  /** Get AWS credentials for Bedrock */
+  getAwsCredentials: (agentId: string) => { accessKeyId: string; secretAccessKey: string; region: string } | null
+  /** Set AWS credentials for Bedrock */
+  setAwsCredentials: (agentId: string, credentials: { accessKeyId: string; secretAccessKey: string; region: string }) => void
+  /** Find existing AWS credentials for Bedrock from any agent */
+  findAwsCredentialsForBedrock: (agents: Array<{ id: string; providerId: string }>) => { accessKeyId: string; secretAccessKey: string; region: string } | null
 }
 
 export const useApiKeyStore = create<ApiKeyState>()(
@@ -55,6 +63,43 @@ export const useApiKeyStore = create<ApiKeyState>()(
           }
         }
         return ''
+      },
+
+      getAwsCredentials: (agentId) => {
+        const key = get().keys[agentId]
+        if (!key) return null
+        try {
+          const parsed = JSON.parse(key)
+          if (parsed.accessKeyId && parsed.secretAccessKey && parsed.region) {
+            return parsed
+          }
+          return null
+        } catch {
+          return null
+        }
+      },
+
+      setAwsCredentials: (agentId, credentials) => {
+        set((state) => ({
+          keys: { ...state.keys, [agentId]: JSON.stringify(credentials) },
+        }))
+      },
+
+      findAwsCredentialsForBedrock: (agents) => {
+        const keys = get().keys
+        for (const agent of agents) {
+          if (agent.providerId === 'bedrock' && keys[agent.id]) {
+            try {
+              const parsed = JSON.parse(keys[agent.id])
+              if (parsed.accessKeyId && parsed.secretAccessKey && parsed.region) {
+                return parsed
+              }
+            } catch {
+              // ignore invalid JSON
+            }
+          }
+        }
+        return null
       },
     }),
     {

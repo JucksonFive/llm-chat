@@ -134,7 +134,7 @@ if (process.env.ELECTRON_DIST_PATH) {
 app.post('/api/chat', async (req, res) => {
   let serverTimeout: ReturnType<typeof setTimeout> | undefined
   try {
-    const { providerId, model, apiKey, messages, systemPrompt, mcpServers, builtInToolIds } = req.body
+    const { providerId, model, apiKey, messages, systemPrompt, mcpServers, builtInToolIds, awsCredentials } = req.body
     
     // Filter images for providers that don't support them
     const filteredMessages = filterImagesFromMessages(messages, providerId)
@@ -162,13 +162,15 @@ app.post('/api/chat', async (req, res) => {
           content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
         }))
 
-        console.log(`[chat] provider=bedrock model=${effectiveModel} messages=${bedrockMessages.length}`)
+        console.log(`[chat] provider=bedrock model=${effectiveModel} messages=${bedrockMessages.length} hasCustomCredentials=${!!awsCredentials}`)
 
         for await (const chunk of streamBedrock(
           {
             modelId: effectiveModel,
-            region: process.env.AWS_REGION,
+            region: awsCredentials?.region || process.env.AWS_REGION,
             profile: process.env.AWS_PROFILE,
+            accessKeyId: awsCredentials?.accessKeyId,
+            secretAccessKey: awsCredentials?.secretAccessKey,
           },
           bedrockMessages,
           systemPrompt

@@ -29,10 +29,9 @@ describe('PROVIDERS', () => {
     }
   })
 
-  it('marks ollama and bedrock as not requiring an API key', () => {
+  it('marks ollama as not requiring an API key, bedrock and others require credentials', () => {
     expect(PROVIDERS.ollama.requiresApiKey).toBe(false)
-    expect(PROVIDERS.bedrock.requiresApiKey).toBe(false)
-    for (const id of ['openai', 'anthropic', 'google', 'deepseek'] as const) {
+    for (const id of ['openai', 'anthropic', 'google', 'deepseek', 'bedrock'] as const) {
       expect(PROVIDERS[id].requiresApiKey).toBe(true)
     }
   })

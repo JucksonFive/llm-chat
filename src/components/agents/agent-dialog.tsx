@@ -81,12 +81,19 @@ function AgentForm({
   const setKey = useApiKeyStore((s) => s.setKey)
   const removeKey = useApiKeyStore((s) => s.removeKey)
   const findKeyForProvider = useApiKeyStore((s) => s.findKeyForProvider)
+  const getAwsCredentials = useApiKeyStore((s) => s.getAwsCredentials)
+  const setAwsCredentials = useApiKeyStore((s) => s.setAwsCredentials)
+  const findAwsCredentialsForBedrock = useApiKeyStore((s) => s.findAwsCredentialsForBedrock)
 
   const getApiKeyForProvider = (pid: ProviderId) => findKeyForProvider(pid, agents)
 
   const initialApiKey = editingAgent
     ? getKey(editingAgent.id) || getApiKeyForProvider(editingAgent.providerId)
     : getApiKeyForProvider('openai')
+
+  const initialAwsCreds = editingAgent?.providerId === 'bedrock'
+    ? (getAwsCredentials(editingAgent.id) || findAwsCredentialsForBedrock(agents))
+    : findAwsCredentialsForBedrock(agents)
 
   const [name, setName] = useState(editingAgent?.name ?? '')
   const [providerId, setProviderId] = useState<ProviderId>(editingAgent?.providerId ?? 'openai')
@@ -98,6 +105,12 @@ function AgentForm({
   const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>(editingAgent?.mcpServerIds ?? [])
   const [selectedBuiltInTools, setSelectedBuiltInTools] = useState<BuiltInToolId[]>((editingAgent?.builtInToolIds ?? []) as BuiltInToolId[])
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  // AWS Bedrock credentials
+  const [awsAccessKeyId, setAwsAccessKeyId] = useState(initialAwsCreds?.accessKeyId ?? '')
+  const [awsSecretAccessKey, setAwsSecretAccessKey] = useState(initialAwsCreds?.secretAccessKey ?? '')
+  const [awsRegion, setAwsRegion] = useState(initialAwsCreds?.region ?? 'us-east-1')
+  const [showAwsSecretKey, setShowAwsSecretKey] = useState(false)
 
   const provider = PROVIDERS[providerId]
   const models = provider.models
@@ -112,7 +125,16 @@ function AgentForm({
     if (!newProvider.freeTextModel && newProvider.models.length > 0) {
       setModel(newProvider.models[0])
     }
-    setApiKey(getApiKeyForProvider(newProviderId))
+    if (newProviderId === 'bedrock') {
+      const existingCreds = findAwsCredentialsForBedrock(agents)
+      if (existingCreds) {
+        setAwsAccessKeyId(existingCreds.accessKeyId)
+        setAwsSecretAccessKey(existingCreds.secretAccessKey)
+        setAwsRegion(existingCreds.region)
+      }
+    } else {
+      setApiKey(getApiKeyForProvider(newProviderId))
+    }
   }
 
   const clearError = (field: string) => {
@@ -128,7 +150,16 @@ function AgentForm({
     const newErrors: Record<string, string> = {}
     if (!name.trim()) newErrors.name = 'Name is required'
     if (!finalModel.trim()) newErrors.model = 'Model is required'
-    if (provider.requiresApiKey && !apiKey.trim()) newErrors.apiKey = 'API key is required'
+
+    // Validate credentials based on provider
+    if (providerId === 'bedrock') {
+      if (!awsAccessKeyId.trim()) newErrors.awsAccessKeyId = 'AWS Access Key ID is required'
+      if (!awsSecretAccessKey.trim()) newErrors.awsSecretAccessKey = 'AWS Secret Access Key is required'
+      if (!awsRegion.trim()) newErrors.awsRegion = 'AWS Region is required'
+    } else if (provider.requiresApiKey && !apiKey.trim()) {
+      newErrors.apiKey = 'API key is required'
+    }
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
       return
@@ -144,7 +175,15 @@ function AgentForm({
         mcpServerIds: selectedMcpIds,
         builtInToolIds: selectedBuiltInTools,
       })
-      setKey(editingAgent.id, apiKey.trim())
+      if (providerId === 'bedrock') {
+        setAwsCredentials(editingAgent.id, {
+          accessKeyId: awsAccessKeyId.trim(),
+          secretAccessKey: awsSecretAccessKey.trim(),
+          region: awsRegion.trim(),
+        })
+      } else {
+        setKey(editingAgent.id, apiKey.trim())
+      }
     } else {
       const created = await addAgent({
         name: name.trim(),
@@ -154,7 +193,15 @@ function AgentForm({
         mcpServerIds: selectedMcpIds,
         builtInToolIds: selectedBuiltInTools,
       })
-      setKey(created.id, apiKey.trim())
+      if (providerId === 'bedrock') {
+        setAwsCredentials(created.id, {
+          accessKeyId: awsAccessKeyId.trim(),
+          secretAccessKey: awsSecretAccessKey.trim(),
+          region: awsRegion.trim(),
+        })
+      } else {
+        setKey(created.id, apiKey.trim())
+      }
     }
     onClose()
   }
@@ -222,7 +269,73 @@ function AgentForm({
           <ModelCapabilityBadges model={isCustomModel ? customModel : effectiveModel} className="mt-1" />
         </div>
 
-        {provider.requiresApiKey && (
+        {providerId === 'bedrock' ? (
+          <>
+            <div className="grid gap-2">
+              <Label htmlFor="awsAccessKeyId">AWS Access Key ID</Label>
+              <Input
+                id="awsAccessKeyId"
+                type="text"
+                value={awsAccessKeyId}
+                onChange={(e) => { setAwsAccessKeyId(e.target.value); clearError('awsAccessKeyId') }}
+                placeholder="AKIA..."
+                className={errors.awsAccessKeyId ? 'border-destructive' : ''}
+                autoComplete="off"
+                data-form-type="other"
+              />
+              {errors.awsAccessKeyId && <p className="text-xs text-destructive">{errors.awsAccessKeyId}</p>}
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="awsSecretAccessKey">AWS Secret Access Key</Label>
+              <div className="relative">
+                <Input
+                  id="awsSecretAccessKey"
+                  type={showAwsSecretKey ? 'text' : 'password'}
+                  value={awsSecretAccessKey}
+                  onChange={(e) => { setAwsSecretAccessKey(e.target.value); clearError('awsSecretAccessKey') }}
+                  placeholder="wJalrXUtnFEMI..."
+                  className={`pr-10${errors.awsSecretAccessKey ? ' border-destructive' : ''}`}
+                  autoComplete="off"
+                  data-form-type="other"
+                  data-lpignore="true"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full w-10"
+                  onClick={() => setShowAwsSecretKey(!showAwsSecretKey)}
+                >
+                  {showAwsSecretKey ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              {errors.awsSecretAccessKey && <p className="text-xs text-destructive">{errors.awsSecretAccessKey}</p>}
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="awsRegion">AWS Region</Label>
+              <Select value={awsRegion} onValueChange={(val) => { setAwsRegion(val); clearError('awsRegion') }}>
+                <SelectTrigger className={errors.awsRegion ? 'border-destructive' : ''}>
+                  <SelectValue placeholder="Select region" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="us-east-1">us-east-1 (N. Virginia)</SelectItem>
+                  <SelectItem value="us-west-2">us-west-2 (Oregon)</SelectItem>
+                  <SelectItem value="eu-west-1">eu-west-1 (Ireland)</SelectItem>
+                  <SelectItem value="eu-central-1">eu-central-1 (Frankfurt)</SelectItem>
+                  <SelectItem value="ap-southeast-1">ap-southeast-1 (Singapore)</SelectItem>
+                  <SelectItem value="ap-northeast-1">ap-northeast-1 (Tokyo)</SelectItem>
+                </SelectContent>
+              </Select>
+              {errors.awsRegion && <p className="text-xs text-destructive">{errors.awsRegion}</p>}
+            </div>
+          </>
+        ) : provider.requiresApiKey && (
           <div className="grid gap-2">
             <Label htmlFor="apiKey">API Key</Label>
             <div className="relative">

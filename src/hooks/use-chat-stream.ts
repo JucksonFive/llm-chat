@@ -23,16 +23,35 @@ export function useChatStream() {
     if (!agent) return
 
     const provider = PROVIDERS[agent.providerId]
-    const apiKey =
-      useApiKeyStore.getState().getKey(agent.id) ||
-      useApiKeyStore.getState().findKeyForProvider(agent.providerId, agents)
 
-    // Only check for API key if provider requires it
-    if (provider.requiresApiKey && !apiKey) {
-      toast.error(
-        `No API key set for ${agent.name}. Open the agent settings and add a ${agent.providerId} key.`,
-      )
-      return
+    // Get credentials based on provider type
+    let apiKey = ''
+    let awsCredentials: { accessKeyId: string; secretAccessKey: string; region: string } | undefined
+
+    if (agent.providerId === 'bedrock') {
+      awsCredentials =
+        useApiKeyStore.getState().getAwsCredentials(agent.id) ||
+        useApiKeyStore.getState().findAwsCredentialsForBedrock(agents) ||
+        undefined
+
+      if (provider.requiresApiKey && !awsCredentials) {
+        toast.error(
+          `No AWS credentials set for ${agent.name}. Open the agent settings and add AWS credentials.`,
+        )
+        return
+      }
+    } else {
+      apiKey =
+        useApiKeyStore.getState().getKey(agent.id) ||
+        useApiKeyStore.getState().findKeyForProvider(agent.providerId, agents)
+
+      // Only check for API key if provider requires it
+      if (provider.requiresApiKey && !apiKey) {
+        toast.error(
+          `No API key set for ${agent.name}. Open the agent settings and add a ${agent.providerId} key.`,
+        )
+        return
+      }
     }
 
     const store = useChatStore.getState()
@@ -159,6 +178,7 @@ export function useChatStream() {
       messages: historyMessages,
       mcpServers: mcpServers.length > 0 ? mcpServers : undefined,
       builtInToolIds: builtInToolIds.length > 0 ? builtInToolIds : undefined,
+      awsCredentials,
       signal: controller.signal,
       onToken: (token) => {
         const store = useChatStore.getState()

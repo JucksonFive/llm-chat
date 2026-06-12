@@ -11,6 +11,8 @@ export interface BedrockConfig {
   region?: string
   profile?: string
   modelId: string
+  accessKeyId?: string
+  secretAccessKey?: string
 }
 
 export interface ChatMessage {
@@ -25,9 +27,21 @@ export interface BedrockStreamChunk {
 }
 
 function createBedrockClient(config: BedrockConfig): BedrockRuntimeClient {
-  const { region, profile } = config
+  const { region, profile, accessKeyId, secretAccessKey } = config
   const effectiveRegion = region || process.env.AWS_REGION || 'us-east-1'
 
+  // If explicit credentials are provided, use them
+  if (accessKeyId && secretAccessKey) {
+    return new BedrockRuntimeClient({
+      region: effectiveRegion,
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      },
+    })
+  }
+
+  // Otherwise, fall back to profile or default AWS credentials chain
   if (profile) {
     process.env.AWS_PROFILE = profile
   }
