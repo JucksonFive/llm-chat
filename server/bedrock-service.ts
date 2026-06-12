@@ -5,6 +5,8 @@ import {
   type Message as BedrockMessage,
   type ContentBlock,
   type ConverseStreamOutput,
+  type Tool,
+  type ToolConfiguration,
 } from '@aws-sdk/client-bedrock-runtime'
 
 export interface BedrockConfig {
@@ -21,9 +23,22 @@ export interface ChatMessage {
 }
 
 export interface BedrockStreamChunk {
-  type: 'text-delta' | 'error' | 'done'
+  type: 'text-delta' | 'error' | 'done' | 'tool-use' | 'tool-result'
   text?: string
   error?: string
+  toolUseId?: string
+  toolName?: string
+  toolInput?: Record<string, unknown>
+}
+
+export interface BedrockTool {
+  name: string
+  description: string
+  inputSchema: {
+    type: 'object'
+    properties: Record<string, unknown>
+    required?: string[]
+  }
 }
 
 function createBedrockClient(config: BedrockConfig): BedrockRuntimeClient {
@@ -132,12 +147,28 @@ export async function askBedrock(
 export async function* streamBedrock(
   config: BedrockConfig,
   messages: ChatMessage[],
-  systemPrompt?: string
+  systemPrompt?: string,
+  tools?: BedrockTool[]
 ): AsyncGenerator<BedrockStreamChunk> {
   validateConfig(config)
 
   const client = createBedrockClient(config)
   const bedrockMessages = convertToChatMessages(messages)
+
+  // Convert tools to Bedrock format
+  const toolConfig: ToolConfiguration | undefined = tools && tools.length > 0
+    ? {
+        tools: tools.map((tool) => ({
+          toolSpec: {
+            name: tool.name,
+            description: tool.description,
+            inputSchema: {
+              json: tool.inputSchema,
+            },
+          },
+        } as Tool)),
+      }
+    : undefined
 
   const input = {
     modelId: config.modelId,
@@ -145,6 +176,7 @@ export async function* streamBedrock(
     ...(systemPrompt && {
       system: [{ text: systemPrompt }],
     }),
+    ...(toolConfig && { toolConfig }),
   }
 
   try {
@@ -155,14 +187,54 @@ export async function* streamBedrock(
       throw new Error('No stream returned from Bedrock')
     }
 
+    let currentToolUseId: string | undefined
+    let currentToolName: string | undefined
+    let currentToolInput = ''
+
     for await (const event of response.stream) {
       const chunk = event as ConverseStreamOutput
 
+      // Handle text content
       if (chunk.contentBlockDelta?.delta?.text) {
         yield {
           type: 'text-delta',
           text: chunk.contentBlockDelta.delta.text,
         }
+      }
+
+      // Handle tool use start
+      if (chunk.contentBlockStart?.start?.toolUse) {
+        const toolUse = chunk.contentBlockStart.start.toolUse
+        currentToolUseId = toolUse.toolUseId
+        currentToolName = toolUse.name
+        currentToolInput = ''
+      }
+
+      // Handle tool use input delta
+      if (chunk.contentBlockDelta?.delta?.toolUse?.input) {
+        currentToolInput += chunk.contentBlockDelta.delta.toolUse.input
+      }
+
+      // Handle tool use stop (complete)
+      if (chunk.contentBlockStop && currentToolUseId && currentToolName) {
+        try {
+          const parsedInput = currentToolInput ? JSON.parse(currentToolInput) : {}
+          yield {
+            type: 'tool-use',
+            toolUseId: currentToolUseId,
+            toolName: currentToolName,
+            toolInput: parsedInput,
+          }
+        } catch (parseError) {
+          yield {
+            type: 'error',
+            error: `Failed to parse tool input: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`,
+          }
+        }
+        // Reset for next tool
+        currentToolUseId = undefined
+        currentToolName = undefined
+        currentToolInput = ''
       }
 
       if (chunk.internalServerException || chunk.modelStreamErrorException) {

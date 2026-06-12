@@ -147,11 +147,6 @@ app.post('/api/chat', async (req, res) => {
 
     // Handle Bedrock separately (doesn't use AI SDK)
     if (providerId === 'bedrock') {
-      if (hasRequestedTools) {
-        res.status(400).json({ error: 'Bedrock provider does not support tools yet' })
-        return
-      }
-
       try {
         res.setHeader('Content-Type', 'text/event-stream')
         res.setHeader('Cache-Control', 'no-cache')
@@ -162,32 +157,142 @@ app.post('/api/chat', async (req, res) => {
           content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
         }))
 
-        console.log(`[chat] provider=bedrock model=${effectiveModel} messages=${bedrockMessages.length} hasCustomCredentials=${!!awsCredentials}`)
+        // Build tools from MCP servers and built-in tools (same as other providers)
+        const mcpTools = mcpServers?.length
+          ? await buildToolsFromMcpServers(mcpServers)
+          : {}
 
-        for await (const chunk of streamBedrock(
-          {
-            modelId: effectiveModel,
-            region: awsCredentials?.region || process.env.AWS_REGION,
-            profile: process.env.AWS_PROFILE,
-            accessKeyId: awsCredentials?.accessKeyId,
-            secretAccessKey: awsCredentials?.secretAccessKey,
-          },
-          bedrockMessages,
-          systemPrompt
-        )) {
-          if (chunk.type === 'text-delta') {
-            res.write(`data: ${JSON.stringify({ type: 'text-delta', text: chunk.text })}\n\n`)
-          } else if (chunk.type === 'error') {
-            res.write(`data: ${JSON.stringify({ type: 'error', message: chunk.error })}\n\n`)
-            res.write('data: [DONE]\n\n')
-            res.end()
-            return
-          } else if (chunk.type === 'done') {
-            res.write('data: [DONE]\n\n')
-            res.end()
-            return
+        const builtIn = builtInToolIds?.length
+          ? getBuiltInTools(builtInToolIds as BuiltInToolId[], apiKey)
+          : {}
+
+        const allTools = { ...builtIn, ...mcpTools }
+        const toolNames = Object.keys(allTools)
+        const hasTools = toolNames.length > 0
+
+        // Convert Vercel AI SDK tool format to Bedrock format
+        const bedrockTools = hasTools
+          ? toolNames.map((name) => {
+              const tool = allTools[name]
+              // AI SDK tools have inputSchema (zod schema), we need the JSON schema
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const inputSchema = (tool as any).inputSchema?.jsonSchema || { type: 'object' as const, properties: {} }
+              return {
+                name,
+                description: tool.description || '',
+                inputSchema,
+              }
+            })
+          : undefined
+
+        console.log(`[chat] provider=bedrock model=${effectiveModel} messages=${bedrockMessages.length} tools=${toolNames.join(',') || 'none'} hasCustomCredentials=${!!awsCredentials}`)
+
+        // Tool calling loop - continue until model stops requesting tools
+        let conversationMessages = [...bedrockMessages]
+        let turnCount = 0
+        const MAX_TURNS = 20 // Prevent infinite loops
+
+        while (turnCount < MAX_TURNS) {
+          turnCount++
+          const toolCalls: Array<{ id: string; name: string; args: Record<string, unknown> }> = []
+
+          for await (const chunk of streamBedrock(
+            {
+              modelId: effectiveModel,
+              region: awsCredentials?.region || process.env.AWS_REGION,
+              profile: process.env.AWS_PROFILE,
+              accessKeyId: awsCredentials?.accessKeyId,
+              secretAccessKey: awsCredentials?.secretAccessKey,
+            },
+            conversationMessages,
+            systemPrompt,
+            bedrockTools
+          )) {
+            if (chunk.type === 'text-delta') {
+              res.write(`data: ${JSON.stringify({ type: 'text-delta', text: chunk.text })}\n\n`)
+            } else if (chunk.type === 'tool-use' && chunk.toolUseId && chunk.toolName && chunk.toolInput) {
+              // Emit tool call event
+              res.write(`data: ${JSON.stringify({
+                type: 'tool-call',
+                toolCallId: chunk.toolUseId,
+                toolName: chunk.toolName,
+                args: chunk.toolInput,
+              })}\n\n`)
+
+              toolCalls.push({
+                id: chunk.toolUseId,
+                name: chunk.toolName,
+                args: chunk.toolInput,
+              })
+            } else if (chunk.type === 'error') {
+              res.write(`data: ${JSON.stringify({ type: 'error', message: chunk.error })}\n\n`)
+              res.write('data: [DONE]\n\n')
+              res.end()
+              return
+            } else if (chunk.type === 'done') {
+              // If no tool calls, we're done
+              if (toolCalls.length === 0) {
+                res.write('data: [DONE]\n\n')
+                res.end()
+                return
+              }
+
+              // Execute tool calls
+              const toolResults = await Promise.all(
+                toolCalls.map(async (call) => {
+                  const tool = allTools[call.name]
+                  if (!tool) {
+                    return {
+                      id: call.id,
+                      name: call.name,
+                      result: { error: `Unknown tool: ${call.name}` },
+                      error: true,
+                    }
+                  }
+
+                  try {
+                    // AI SDK tool.execute expects (args, options), we only pass args
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const result = await (tool as any).execute(call.args, {})
+                    res.write(`data: ${JSON.stringify({
+                      type: 'tool-result',
+                      toolCallId: call.id,
+                      toolName: call.name,
+                      result,
+                    })}\n\n`)
+                    return { id: call.id, name: call.name, result, error: false }
+                  } catch (error) {
+                    const errorMsg = error instanceof Error ? error.message : 'Tool execution failed'
+                    res.write(`data: ${JSON.stringify({
+                      type: 'tool-error',
+                      toolCallId: call.id,
+                      toolName: call.name,
+                      error: errorMsg,
+                    })}\n\n`)
+                    return { id: call.id, name: call.name, result: { error: errorMsg }, error: true }
+                  }
+                })
+              )
+
+              // Add assistant message with tool calls + user message with tool results
+              conversationMessages.push({
+                role: 'assistant' as const,
+                content: JSON.stringify({ toolCalls: toolCalls.map((tc) => ({ id: tc.id, name: tc.name, args: tc.args })) }),
+              })
+              conversationMessages.push({
+                role: 'user' as const,
+                content: JSON.stringify({ toolResults: toolResults.map((tr) => ({ id: tr.id, name: tr.name, result: tr.result })) }),
+              })
+
+              // Continue loop to get model's response to tool results
+              break
+            }
           }
         }
+
+        // If we hit max turns, end gracefully
+        res.write('data: [DONE]\n\n')
+        res.end()
       } catch (error: unknown) {
         console.error('[chat] Bedrock error:', error)
         const message = error instanceof Error ? error.message : 'Bedrock request failed'
