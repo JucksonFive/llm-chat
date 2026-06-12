@@ -2,7 +2,7 @@
 
 A powerful multi-provider AI chat desktop application with advanced features like deep research, MCP tool integration, semantic memory, and custom agent workflows. Built with React, Express, and Electron.
 
-![Main Interface](./docs/images/main-interface.png)
+![Main Interface](image-3.png)
 *Main chat interface with streaming responses and tool integration*
 
 ## Table of Contents
@@ -28,7 +28,7 @@ A powerful multi-provider AI chat desktop application with advanced features lik
 - **Capability detection** — Automatic badges for ✨ Reasoning, 🖼️ Vision, and 📚 Large context windows
 - **Streaming responses** — Real-time token streaming with Server-Sent Events
 
-![Agent Configuration](./docs/images/agent-config.png)
+![Agent Configuration](image-4.png)
 *Configure agents with different providers, models, and custom system prompts*
 
 ### 🔬 Advanced AI Capabilities
@@ -46,7 +46,7 @@ A powerful multi-provider AI chat desktop application with advanced features lik
   - Visual feedback with status badges (calling/complete/error)
 - **Token streaming feedback** — Live approximate token counter during generation
 
-![Deep Research](./docs/images/deep-research.png)
+![Deep Research](image-5.png)
 *Deep research workflow with live progress tracking*
 
 ![Reasoning Blocks](./docs/images/reasoning-blocks.png)
@@ -669,32 +669,290 @@ For Ollama or custom providers:
 ![Theme Switcher](./docs/images/theme-toggle.png)
 *Dark and light theme support with smooth transitions*
 
+## Testing
+
+The project has comprehensive test coverage across utilities, components, and server logic.
+
+```bash
+pnpm test          # Run all tests (vitest) — 340+ tests
+pnpm test:watch    # Watch mode for development
+pnpm lint          # ESLint with auto-fix
+pnpm type-check    # TypeScript type checking
+```
+
+### Test Structure
+
+```
+src/
+  lib/__tests__/              # Library utilities
+    model-capabilities.test.ts
+    agent-templates.test.ts
+    providers.test.ts
+  components/settings/__tests__/  # Component tests
+    mcp-import-tabs.test.ts
+  hooks/__tests__/            # React hooks
+    use-chat-stream.test.ts
+server/
+  __tests__/                  # Backend logic
+    db.test.ts
+    mcp-manager.test.ts
+    tool-bridge.test.ts
+```
+
+### Coverage Areas
+
+- **Model capabilities**: Detection of reasoning, vision, and context window sizes
+- **MCP integration**: Server connection, validation, import/export
+- **Memory system**: Embedding, retrieval, usage tracking
+- **Tool execution**: Built-in tools, parameter validation
+- **Database**: Encryption, migrations, CRUD operations
+- **Streaming**: SSE parsing, reasoning block detection
+
 ## Architecture Notes
 
 ### Streaming & Reasoning
-- **Streaming** uses Server-Sent Events (SSE). The `use-chat-stream` hook parses tokens, `<think>` blocks, tool calls, and tool results, dispatching them to dedicated chat-store actions.
-- **Reasoning blocks** are auto-expanded during streaming (amber tint) and auto-collapse when complete with a preview snippet and word count.
-- **Thinking vs. generating** — `isGeneratingContent` flag flips when the first content token arrives, switching the indicator color from amber to blue.
+
+**Server-Sent Events (SSE)** power the real-time streaming:
+- The `use-chat-stream` hook parses incoming tokens, `<think>` blocks, tool calls, and tool results
+- Dispatches parsed events to dedicated chat-store actions for state updates
+- Handles reconnection and error recovery automatically
+
+**Reasoning transparency**:
+- Reasoning blocks auto-expand during streaming with amber tint
+- Auto-collapse when complete, showing preview snippet and word count
+- `isGeneratingContent` flag tracks thinking → generating transition
+- Indicator switches from amber (thinking) to blue (generating) on first content token
 
 ### Memory & RAG
-- **API keys** are stored only in the browser (`localStorage`). The server never persists them — they are passed per-request in the body of `/api/chat` and `/api/rag/memories/search`.
-- **Semantic memory search** uses a lazy embedding strategy: memories are embedded on first search, not on creation. This keeps the memory CRUD free of OpenAI key requirements and degrades gracefully.
-- **Vector search** is a linear cosine scan over the sql.js `vectors` table. This is fast enough for hundreds to low-thousands of vectors per agent and avoids native extension packaging complexity.
-- **Memory usage tracking** — When memories are included in a system prompt, their `lastUsedAt` is updated and the message records `memoriesUsedCount` for the UI badge.
 
-### Deep Research
-- **State machine** built with LangGraph: planning → searching → fetching → analyzing → synthesizing → reporting.
-- **Progress panel** in the frontend (`research-store` + `research-progress-panel.tsx`) tracks stage transitions, source discovery, and elapsed time. Slides up from the bottom with frosted-glass backdrop, minimizes to a 64px bar.
+**API key security**:
+- Keys stored **only** in browser `localStorage`
+- Server never persists keys — passed per-request in body
+- Applies to `/api/chat` and `/api/rag/memories/search` endpoints
 
-### Performance
-- **MessageBubble memoization** — Custom comparator only re-renders when message content/reasoning/streaming/tools/error change, not on unrelated parent re-renders.
-- **Message pagination** — Renders only the most recent 50 messages by default; older messages loaded on demand via "Load earlier messages" button.
-- **Search debouncing** — Global search debounced 300ms; sidebar conversation filter is instant (in-memory).
+**Lazy embedding strategy**:
+- Memories embedded on **first search**, not on creation
+- Keeps memory CRUD fast and free of OpenAI key requirements
+- Degrades gracefully when no OpenAI key available
+
+**Vector search implementation**:
+- Linear cosine similarity scan over sql.js `vectors` table
+- Fast enough for 100s-1000s of vectors per agent
+- Pure JavaScript — no native extensions or packaging complexity
+- Avoids dependencies on FAISS, ChromaDB, or other native libs
+
+**Memory usage tracking**:
+- When memories included in system prompt, `lastUsedAt` is updated
+- Message records `memoriesUsedCount` for UI badge
+- Recently-used memories highlighted in memory panel
+
+### Deep Research Workflow
+
+**LangGraph state machine** orchestrates the research flow:
+1. **Planning** — Generate search queries from user question
+2. **Searching** — Execute searches via SearXNG
+3. **Fetching** — Download content from discovered URLs
+4. **Analyzing** — Extract relevant information per source
+5. **Synthesizing** — Combine findings across sources
+6. **Reporting** — Generate final answer with citations
+
+**Progress tracking**:
+- `research-store` maintains current stage, sources, and elapsed time
+- `research-progress-panel.tsx` renders frosted-glass panel that slides up from bottom
+- Minimizes to 64px bar when collapsed
+- Shows stage transitions, URL discovery, and time tracking
+
+### Performance Optimizations
+
+**MessageBubble memoization**:
+- Custom React.memo comparator
+- Only re-renders on changes to: content, reasoning, streaming status, tools, or error
+- Prevents cascade re-renders during streaming when parent components update
+
+**Message pagination**:
+- Renders only last **50 messages** by default
+- "Load earlier messages" button loads previous batches on demand
+- Keeps initial render fast for conversations with 1000+ messages
+
+**Search debouncing**:
+- Global message search: **300ms** debounce for performance
+- Sidebar conversation filter: **instant** (in-memory filtering)
+
+**Store optimization**:
+- Zustand stores use shallow equality checks
+- Minimal re-renders across component tree
+- Selective subscriptions to specific store slices
 
 ### Security
-- **Database encryption** uses scrypt key derivation (cached per process) + AES-256-GCM. The salt is stable within a process to avoid repeated 100ms key derivation on each auto-save.
-- **API key isolation** — Keys never leave the browser's `localStorage` except in request bodies; they are not persisted server-side.
+
+**Database encryption**:
+- AES-256-GCM encryption when `LLM_CHAT_MASTER_PASSWORD` is set
+- Scrypt key derivation (N=16384, r=8, p=1) cached per process
+- Stable salt within process to avoid 100ms derivation on each auto-save
+- Encrypts entire `~/.llm-chat/data.db` file at rest
+
+**API key isolation**:
+- Keys never leave browser `localStorage`
+- Not persisted in server database
+- Passed in request body only
+- Each agent can have different keys
+
+**Content Security Policy (CSP)**:
+- Restricts inline scripts in production builds
+- Prevents XSS attacks
+- Electron app uses strict CSP headers
+
+### Data Flow
+
+```
+User Input → MessageInput Component
+    ↓
+Chat Store (Zustand)
+    ↓
+POST /api/chat (SSE stream)
+    ↓
+LLM Provider (OpenAI/Anthropic/etc.)
+    ↓ (streaming tokens)
+use-chat-stream Hook (parsing)
+    ↓
+Chat Store Actions (updates)
+    ↓
+MessageBubble Component (render)
+```
+
+### Database Schema
+
+SQLite database at `~/.llm-chat/data.db`:
+
+**Tables**:
+- `agents` — Agent configurations (provider, model, system prompt, tools)
+- `conversations` — Conversation metadata (title, agent ID, project)
+- `messages` — Individual messages (role, content, reasoning, tool calls)
+- `memories` — Agent memories (content, type, agent ID, last used)
+- `vectors` — Embeddings for semantic search (memory ID, vector array)
+- `projects` — Project groupings (name, description)
+- `documents` — RAG documents (content, metadata, embeddings)
+
+**Migrations** handled in `server/db.ts` with version tracking.
+
+## Contributing
+
+This is currently a private project. If you have access:
+
+1. Create a feature branch from `main`
+2. Make your changes with clear commit messages
+3. Run tests and linting: `pnpm test && pnpm lint`
+4. Submit a pull request with description of changes
+
+### Code Style
+
+- **TypeScript** — Use proper types, avoid `any`
+- **React** — Functional components with hooks
+- **Formatting** — Prettier config included, auto-formats on save
+- **Linting** — ESLint enforces React best practices
+- **Naming** — camelCase for variables, PascalCase for components, kebab-case for files
+
+### Project Conventions
+
+- Components in `src/components/` organized by feature
+- Shared UI primitives in `src/components/ui/`
+- API routes in `server/` follow REST conventions
+- Store updates via actions, not direct mutations
+- Error boundaries wrap risky async operations
+
+## Troubleshooting
+
+### Common Issues
+
+**"Failed to connect to OpenAI/Anthropic/etc."**
+- Check API key is entered correctly in agent settings
+- Verify account has credits/active subscription
+- Check network connection and firewall rules
+
+**"SearXNG not available"**
+- Ensure Docker is running: `docker ps`
+- Check logs: `docker compose logs searxng`
+- Restart services: `docker compose restart searxng`
+
+**"Database locked" or encryption errors**
+- Close other instances of the app
+- Check `LLM_CHAT_MASTER_PASSWORD` matches previous value
+- Backup and delete `~/.llm-chat/data.db`, restart app
+
+**MCP server shows "disconnected"**
+- Verify command/binary exists: `which npx` or `which node`
+- Check environment variables are set correctly
+- View logs in MCP panel for specific error messages
+- Try removing and re-adding the server
+
+**Performance issues with long conversations**
+- Message pagination automatically limits to 50 messages
+- Click "Load earlier" only when needed
+- Consider starting new conversation for unrelated topics
+- Large images increase token usage — compress before attaching
+
+**Electron app won't start**
+- Clear cache: delete `~/Library/Application Support/llm-chat` (macOS)
+- Check Node.js version: `node -v` (requires 18+)
+- Rebuild: `pnpm clean && pnpm install && pnpm dist`
+
+### Debug Mode
+
+Enable verbose logging:
+
+```bash
+# Browser mode
+DEBUG=llm-chat:* pnpm dev
+
+# Electron mode
+DEBUG=llm-chat:* pnpm dev:electron
+```
+
+### Getting Help
+
+- Check existing issues in the repository
+- Review [MCP-IMPORT-GUIDE.md](./MCP-IMPORT-GUIDE.md) for MCP-specific questions
+- Include error messages, logs, and steps to reproduce when reporting issues
+
+## Roadmap
+
+Planned features and improvements:
+
+- [ ] **Multi-modal attachments** — Audio, video file support
+- [ ] **Conversation branching** — Fork conversations at any message
+- [ ] **Prompt templates** — Save and reuse common prompts
+- [ ] **Collaboration** — Share conversations and agents
+- [ ] **Advanced RAG** — Hybrid search (keyword + semantic)
+- [ ] **Plugin system** — Custom tools and extensions
+- [ ] **Mobile app** — React Native version
+- [ ] **Cloud sync** — Optional cloud backup and sync
+- [ ] **Voice cloning** — Custom TTS voices
+- [ ] **Code interpreter** — Persistent Python runtime
 
 ## License
 
-Private
+MIT License
+
+Copyright (c) 2024
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+**Built with ❤️ using Claude, React, and modern web technologies.**
