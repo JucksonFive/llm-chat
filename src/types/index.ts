@@ -41,6 +41,7 @@ export interface Agent {
   name: string
   providerId: ProviderId
   model: string
+  hasApiKey?: boolean
   systemPrompt: string
   createdAt: number
   avatarColor: string

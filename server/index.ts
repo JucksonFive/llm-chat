@@ -13,6 +13,7 @@ import { initDb, closeDb, flush } from './db.js'
 import { registerDbRoutes } from './db-routes.js'
 import { registerRagRoutes } from './rag/routes.js'
 import { streamBedrock } from './bedrock-service.js'
+import { findApiKeyForProvider, parseAwsCredentials, resolveApiKeyForAgent } from './api-keys.js'
 
 const app = express()
 app.use(cors())
@@ -139,7 +140,14 @@ app.get('/api/tools', (_req, res) => {
 app.post('/api/chat', async (req, res) => {
   let serverTimeout: ReturnType<typeof setTimeout> | undefined
   try {
-    const { providerId, model, apiKey, messages, systemPrompt, mcpServers, builtInToolIds, awsCredentials } = req.body
+    const { agentId, providerId, model, messages, systemPrompt, mcpServers, builtInToolIds } = req.body
+    const apiKey = providerId === 'ollama' ? '' : resolveApiKeyForAgent(agentId, providerId)
+    const toolApiKey = providerId === 'bedrock' ? findApiKeyForProvider('openai') : apiKey
+
+    if (providerId !== 'ollama' && providerId !== 'bedrock' && !apiKey) {
+      res.status(400).json({ error: `No API key is stored for ${providerId}. Open the agent settings and add one.` })
+      return
+    }
     
     // Filter images for providers that don't support them
     const filteredMessages = filterImagesFromMessages(messages, providerId)
@@ -168,7 +176,7 @@ app.post('/api/chat', async (req, res) => {
           : {}
 
         const builtIn = builtInToolIds?.length
-          ? getBuiltInTools(builtInToolIds as BuiltInToolId[], apiKey)
+          ? getBuiltInTools(builtInToolIds as BuiltInToolId[], toolApiKey)
           : {}
 
         const allTools = { ...builtIn, ...mcpTools }
@@ -190,7 +198,9 @@ app.post('/api/chat', async (req, res) => {
             })
           : undefined
 
-        console.log(`[chat] provider=bedrock model=${effectiveModel} messages=${bedrockMessages.length} tools=${toolNames.join(',') || 'none'} hasCustomCredentials=${!!awsCredentials}`)
+        const awsCredentials = parseAwsCredentials(apiKey)
+
+        console.log(`[chat] provider=bedrock model=${effectiveModel} messages=${bedrockMessages.length} tools=${toolNames.join(',') || 'none'} hasStoredCredentials=${!!awsCredentials}`)
 
         // Tool calling loop - continue until model stops requesting tools
         const conversationMessages = [...bedrockMessages]
@@ -347,7 +357,7 @@ app.post('/api/chat', async (req, res) => {
       : {}
 
     const builtIn = builtInToolIds?.length
-      ? getBuiltInTools(builtInToolIds as BuiltInToolId[], apiKey)
+      ? getBuiltInTools(builtInToolIds as BuiltInToolId[], toolApiKey)
       : {}
 
     const tools = { ...builtIn, ...mcpTools }
@@ -682,20 +692,37 @@ app.post('/api/extract-pdf', async (req, res) => {
 
 app.post('/api/extract-memories', async (req, res) => {
   try {
-    const { providerId, model, apiKey, messages } = req.body
+    const { agentId, providerId, model, messages } = req.body
+    const apiKey = providerId === 'ollama' ? '' : resolveApiKeyForAgent(agentId, providerId)
 
     let llmModel
     switch (providerId) {
       case 'openai':
+        if (!apiKey) {
+          res.json({ memories: { short: [], long: [] } })
+          return
+        }
         llmModel = createOpenAI({ apiKey })(model.includes('o3') || model.includes('o4') ? 'gpt-4o-mini' : 'gpt-4o-mini')
         break
       case 'anthropic':
+        if (!apiKey) {
+          res.json({ memories: { short: [], long: [] } })
+          return
+        }
         llmModel = createAnthropic({ apiKey })('claude-haiku-4-5')
         break
       case 'google':
+        if (!apiKey) {
+          res.json({ memories: { short: [], long: [] } })
+          return
+        }
         llmModel = createGoogleGenerativeAI({ apiKey })('gemini-2.5-flash-lite')
         break
       case 'deepseek':
+        if (!apiKey) {
+          res.json({ memories: { short: [], long: [] } })
+          return
+        }
         llmModel = createOpenAI({ baseURL: 'https://api.deepseek.com', apiKey, name: 'deepseek' }).chat('deepseek-v4-flash')
         break
       case 'bedrock':

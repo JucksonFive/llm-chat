@@ -1,110 +1,104 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import type { Agent, ProviderId } from '@/types'
+
+const LEGACY_STORAGE_NAME = 'llm-chat-api-keys'
 
 /**
- * API keys are stored ONLY in the browser (localStorage), never on the server.
- * This means keys never leave the client except as part of the outgoing
- * /api/chat request body. Fresh for each device/browser.
- *
- * Keys are indexed by agent id. If multiple agents share a provider, the UI
- * can look up an existing key for that provider (see agent-dialog).
- *
- * For AWS Bedrock, we store credentials as JSON: { accessKeyId, secretAccessKey, region }
+ * API key values are stored encrypted in SQLite via the server. The browser
+ * keeps only per-agent presence flags so UI validation can stay responsive
+ * without retaining secrets in localStorage.
  */
 interface ApiKeyState {
-  keys: Record<string, string> // agentId -> apiKey (or JSON for AWS credentials)
-  getKey: (agentId: string) => string
-  setKey: (agentId: string, apiKey: string) => void
-  removeKey: (agentId: string) => void
-  /** Merge a batch of keys (used by the legacy server-side migration). Existing keys are preserved. */
-  mergeKeys: (incoming: Record<string, string>) => void
-  /** Find an existing key for the given provider from any agent. */
-  findKeyForProvider: (providerId: string, agents: Array<{ id: string; providerId: string }>) => string
-  /** Get AWS credentials for Bedrock */
-  getAwsCredentials: (agentId: string) => { accessKeyId: string; secretAccessKey: string; region: string } | null
-  /** Set AWS credentials for Bedrock */
-  setAwsCredentials: (agentId: string, credentials: { accessKeyId: string; secretAccessKey: string; region: string }) => void
-  /** Find existing AWS credentials for Bedrock from any agent */
-  findAwsCredentialsForBedrock: (agents: Array<{ id: string; providerId: string }>) => { accessKeyId: string; secretAccessKey: string; region: string } | null
+  keyStatus: Record<string, boolean>
+  hydrateStatus: (agents: Agent[]) => void
+  hasKey: (agentId: string) => boolean
+  setKey: (agentId: string, apiKey: string) => Promise<void>
+  removeKey: (agentId: string) => Promise<void>
+  migrateLegacyLocalStorageKeys: (agents: Agent[]) => Promise<number>
+  hasKeyForProvider: (providerId: ProviderId, agents: Array<{ id: string; providerId: ProviderId }>) => boolean
+  setAwsCredentials: (agentId: string, credentials: { accessKeyId: string; secretAccessKey: string; region: string }) => Promise<void>
+  hasAwsCredentialsForBedrock: (agents: Array<{ id: string; providerId: ProviderId }>) => boolean
 }
 
-export const useApiKeyStore = create<ApiKeyState>()(
-  persist(
-    (set, get) => ({
-      keys: {},
+function readLegacyKeys(): Record<string, string> {
+  const raw = localStorage.getItem(LEGACY_STORAGE_NAME)
+  if (!raw) return {}
 
-      getKey: (agentId) => get().keys[agentId] ?? '',
+  try {
+    const parsed = JSON.parse(raw) as {
+      state?: { keys?: Record<string, unknown> }
+      keys?: Record<string, unknown>
+    }
+    const keys = parsed.state?.keys ?? parsed.keys
+    if (!keys || typeof keys !== 'object') return {}
 
-      setKey: (agentId, apiKey) =>
-        set((state) => ({
-          keys: { ...state.keys, [agentId]: apiKey },
-        })),
+    return Object.fromEntries(
+      Object.entries(keys)
+        .filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].trim().length > 0),
+    )
+  } catch {
+    return {}
+  }
+}
 
-      removeKey: (agentId) =>
-        set((state) => {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { [agentId]: _, ...rest } = state.keys
-          return { keys: rest }
-        }),
+export const useApiKeyStore = create<ApiKeyState>()((set, get) => ({
+  keyStatus: {},
 
-      mergeKeys: (incoming) =>
-        set((state) => {
-          // Keep any key already present locally — the user may have updated
-          // it via the agent dialog before the migration ran.
-          const merged: Record<string, string> = { ...incoming, ...state.keys }
-          return { keys: merged }
-        }),
+  hydrateStatus: (agents) => {
+    set({
+      keyStatus: Object.fromEntries(agents.map((agent) => [agent.id, Boolean(agent.hasApiKey)])),
+    })
+  },
 
-      findKeyForProvider: (providerId, agents) => {
-        const keys = get().keys
-        for (const agent of agents) {
-          if (agent.providerId === providerId && keys[agent.id]) {
-            return keys[agent.id]
-          }
-        }
-        return ''
-      },
+  hasKey: (agentId) => Boolean(get().keyStatus[agentId]),
 
-      getAwsCredentials: (agentId) => {
-        const key = get().keys[agentId]
-        if (!key) return null
-        try {
-          const parsed = JSON.parse(key)
-          if (parsed.accessKeyId && parsed.secretAccessKey && parsed.region) {
-            return parsed
-          }
-          return null
-        } catch {
-          return null
-        }
-      },
+  setKey: async (agentId, apiKey) => {
+    const res = await fetch(`/api/db/agents/${agentId}/api-key`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey }),
+    })
+    if (!res.ok) throw new Error('Failed to save API key')
 
-      setAwsCredentials: (agentId, credentials) => {
-        set((state) => ({
-          keys: { ...state.keys, [agentId]: JSON.stringify(credentials) },
-        }))
-      },
+    set((state) => ({
+      keyStatus: { ...state.keyStatus, [agentId]: apiKey.trim().length > 0 },
+    }))
+  },
 
-      findAwsCredentialsForBedrock: (agents) => {
-        const keys = get().keys
-        for (const agent of agents) {
-          if (agent.providerId === 'bedrock' && keys[agent.id]) {
-            try {
-              const parsed = JSON.parse(keys[agent.id])
-              if (parsed.accessKeyId && parsed.secretAccessKey && parsed.region) {
-                return parsed
-              }
-            } catch {
-              // ignore invalid JSON
-            }
-          }
-        }
-        return null
-      },
-    }),
-    {
-      name: 'llm-chat-api-keys',
-      version: 1,
-    },
-  ),
-)
+  removeKey: async (agentId) => {
+    const res = await fetch(`/api/db/agents/${agentId}/api-key`, { method: 'DELETE' })
+    if (!res.ok) throw new Error('Failed to remove API key')
+
+    set((state) => ({
+      keyStatus: { ...state.keyStatus, [agentId]: false },
+    }))
+  },
+
+  migrateLegacyLocalStorageKeys: async (agents) => {
+    const legacyKeys = readLegacyKeys()
+    const agentIds = new Set(agents.map((agent) => agent.id))
+    const entries = Object.entries(legacyKeys).filter(([agentId]) => agentIds.has(agentId))
+    if (entries.length === 0) {
+      if (Object.keys(legacyKeys).length > 0) localStorage.removeItem(LEGACY_STORAGE_NAME)
+      return 0
+    }
+
+    for (const [agentId, apiKey] of entries) {
+      await get().setKey(agentId, apiKey)
+    }
+
+    localStorage.removeItem(LEGACY_STORAGE_NAME)
+    return entries.length
+  },
+
+  hasKeyForProvider: (providerId, agents) => {
+    const keyStatus = get().keyStatus
+    return agents.some((agent) => agent.providerId === providerId && keyStatus[agent.id])
+  },
+
+  setAwsCredentials: async (agentId, credentials) => {
+    await get().setKey(agentId, JSON.stringify(credentials))
+  },
+
+  hasAwsCredentialsForBedrock: (agents) => get().hasKeyForProvider('bedrock', agents),
+}))

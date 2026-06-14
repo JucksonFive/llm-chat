@@ -3,14 +3,13 @@ import type { ProviderId, McpServerConfig } from '@/types'
 type MessageContent = string | Array<{ type: 'text'; text: string } | { type: 'image'; image: string }>
 
 interface StreamChatParams {
+  agentId: string
   providerId: ProviderId
   model: string
-  apiKey: string
   systemPrompt: string
   messages: { role: string; content: MessageContent }[]
   mcpServers?: McpServerConfig[]
   builtInToolIds?: string[]
-  awsCredentials?: { accessKeyId: string; secretAccessKey: string; region: string }
   signal?: AbortSignal
   onToken: (token: string) => void
   onReasoning: (token: string) => void
@@ -22,14 +21,13 @@ interface StreamChatParams {
 }
 
 export async function streamChat({
+  agentId,
   providerId,
   model,
-  apiKey,
   systemPrompt,
   messages,
   mcpServers,
   builtInToolIds,
-  awsCredentials,
   signal,
   onToken,
   onReasoning,
@@ -59,7 +57,7 @@ export async function streamChat({
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ providerId, model, apiKey, systemPrompt, messages, mcpServers, builtInToolIds, awsCredentials }),
+      body: JSON.stringify({ agentId, providerId, model, systemPrompt, messages, mcpServers, builtInToolIds }),
       signal,
     })
 

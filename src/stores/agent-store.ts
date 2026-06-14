@@ -27,23 +27,16 @@ export const useAgentStore = create<AgentState>()(
       loadAgents: async () => {
         const res = await fetch('/api/db/agents')
         const agents: Agent[] = await res.json()
+        const apiKeyStore = useApiKeyStore.getState()
+        apiKeyStore.hydrateStatus(agents)
 
-        // One-time migration: pull any API keys still stored in the (now
-        // legacy) server-side encrypted column into the browser store, then
-        // wipe the column. Safe to run on every load — the endpoint returns
-        // an empty object once migration is complete.
+        // One-time migration from the previous browser-only storage model.
+        // Values are copied into the server-side encrypted SQLite column and
+        // then removed from localStorage.
         try {
-          const migRes = await fetch('/api/db/agents/legacy-api-keys')
-          if (migRes.ok) {
-            const { keys } = (await migRes.json()) as { keys: Record<string, string> }
-            const entries = Object.entries(keys ?? {})
-            if (entries.length > 0) {
-              useApiKeyStore.getState().mergeKeys(keys)
-              await fetch('/api/db/agents/legacy-api-keys/clear', { method: 'POST' })
-            }
-          }
+          await apiKeyStore.migrateLegacyLocalStorageKeys(agents)
         } catch (err) {
-          console.warn('[agent-store] legacy api-key migration failed:', err)
+          console.warn('[agent-store] local api-key migration failed:', err)
         }
 
         if (agents.length === 0) {
@@ -59,12 +52,17 @@ export const useAgentStore = create<AgentState>()(
           return
         }
 
-        const persistedActiveId = get().activeAgentId
-        const activeAgentId = persistedActiveId && agents.some((agent) => agent.id === persistedActiveId)
-          ? persistedActiveId
-          : agents[0]?.id ?? null
+        const agentsWithKeyStatus = agents.map((agent) => ({
+          ...agent,
+          hasApiKey: apiKeyStore.hasKey(agent.id),
+        }))
 
-        set({ agents, activeAgentId, loaded: true })
+        const persistedActiveId = get().activeAgentId
+        const activeAgentId = persistedActiveId && agentsWithKeyStatus.some((agent) => agent.id === persistedActiveId)
+          ? persistedActiveId
+          : agentsWithKeyStatus[0]?.id ?? null
+
+        set({ agents: agentsWithKeyStatus, activeAgentId, loaded: true })
       },
 
       addAgent: async (data) => {
@@ -85,6 +83,7 @@ export const useAgentStore = create<AgentState>()(
           id,
           createdAt: Date.now(),
           avatarColor,
+          hasApiKey: false,
           mcpServerIds: data.mcpServerIds ?? [],
           builtInToolIds: (data.builtInToolIds ?? []) as Agent['builtInToolIds'],
         }

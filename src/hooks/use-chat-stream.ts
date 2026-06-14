@@ -25,29 +25,19 @@ export function useChatStream() {
 
     const provider = PROVIDERS[agent.providerId]
 
-    // Get credentials based on provider type
-    let apiKey = ''
-    let awsCredentials: { accessKeyId: string; secretAccessKey: string; region: string } | undefined
+    // Validate credential availability without reading secret values into the browser.
+    const apiKeyStore = useApiKeyStore.getState()
 
-    if (agent.providerId === 'bedrock') {
-      // AWS credentials are optional - if not provided, server will use its AWS config
-      awsCredentials =
-        useApiKeyStore.getState().getAwsCredentials(agent.id) ||
-        useApiKeyStore.getState().findAwsCredentialsForBedrock(agents) ||
-        undefined
-      // No validation needed - server will fall back to environment/IAM if credentials missing
-    } else {
-      apiKey =
-        useApiKeyStore.getState().getKey(agent.id) ||
-        useApiKeyStore.getState().findKeyForProvider(agent.providerId, agents)
-
-      // Only check for API key if provider requires it
-      if (provider.requiresApiKey && !apiKey) {
-        toast.error(
-          `No API key set for ${agent.name}. Open the agent settings and add a ${agent.providerId} key.`,
-        )
-        return
-      }
+    if (
+      agent.providerId !== 'bedrock' &&
+      provider.requiresApiKey &&
+      !apiKeyStore.hasKey(agent.id) &&
+      !apiKeyStore.hasKeyForProvider(agent.providerId, agents)
+    ) {
+      toast.error(
+        `No API key set for ${agent.name}. Open the agent settings and add a ${agent.providerId} key.`,
+      )
+      return
     }
 
     const store = useChatStore.getState()
@@ -69,10 +59,9 @@ export function useChatStream() {
     // we pick the most relevant long-term memories for this specific user
     // message via the semantic search endpoint; otherwise we fall back to
     // including all memories (legacy behavior).
-    const openAiKey = useApiKeyStore.getState().findKeyForProvider('openai', agents)
     const { prompt: memoryPrompt, usedMemoryIds } = await useMemoryStore
       .getState()
-      .getRelevantMemoryPrompt(agent.id, text, openAiKey, 5)
+      .getRelevantMemoryPrompt(agent.id, text, 5)
 
     // Add current date context so models know what day it is
     const now = new Date()
@@ -181,14 +170,13 @@ export function useChatStream() {
     let tagBuffer = ''
 
     streamChat({
+      agentId: agent.id,
       providerId: agent.providerId,
       model: agent.model,
-      apiKey,
       systemPrompt,
       messages: historyMessages,
       mcpServers: mcpServers.length > 0 ? mcpServers : undefined,
       builtInToolIds: builtInToolIds.length > 0 ? builtInToolIds : undefined,
-      awsCredentials,
       signal: controller.signal,
       onToken: (token) => {
         const store = useChatStore.getState()
@@ -408,9 +396,9 @@ export function useChatStream() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              agentId: agent.id,
               providerId: agent.providerId,
               model: agent.model,
-              apiKey,
               messages: recentMsgs,
             }),
           })

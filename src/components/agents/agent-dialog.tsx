@@ -77,23 +77,15 @@ function AgentForm({
   const mcpServers = useMcpStore((s) => s.servers)
   // Use selectors so this form only re-renders when the action functions
   // identity changes (i.e. never), not on every keys-record mutation.
-  const getKey = useApiKeyStore((s) => s.getKey)
+  const hasKey = useApiKeyStore((s) => s.hasKey)
   const setKey = useApiKeyStore((s) => s.setKey)
   const removeKey = useApiKeyStore((s) => s.removeKey)
-  const findKeyForProvider = useApiKeyStore((s) => s.findKeyForProvider)
-  const getAwsCredentials = useApiKeyStore((s) => s.getAwsCredentials)
+  const hasKeyForProvider = useApiKeyStore((s) => s.hasKeyForProvider)
   const setAwsCredentials = useApiKeyStore((s) => s.setAwsCredentials)
-  const findAwsCredentialsForBedrock = useApiKeyStore((s) => s.findAwsCredentialsForBedrock)
 
-  const getApiKeyForProvider = (pid: ProviderId) => findKeyForProvider(pid, agents)
+  const hasApiKeyForProvider = (pid: ProviderId) => hasKeyForProvider(pid, agents)
 
-  const initialApiKey = editingAgent
-    ? getKey(editingAgent.id) || getApiKeyForProvider(editingAgent.providerId)
-    : getApiKeyForProvider('openai')
-
-  const initialAwsCreds = editingAgent?.providerId === 'bedrock'
-    ? (getAwsCredentials(editingAgent.id) || findAwsCredentialsForBedrock(agents))
-    : findAwsCredentialsForBedrock(agents)
+  const initialApiKey = ''
 
   const [name, setName] = useState(editingAgent?.name ?? '')
   const [providerId, setProviderId] = useState<ProviderId>(editingAgent?.providerId ?? 'openai')
@@ -107,15 +99,17 @@ function AgentForm({
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   // AWS Bedrock credentials
-  const [awsAccessKeyId, setAwsAccessKeyId] = useState(initialAwsCreds?.accessKeyId ?? '')
-  const [awsSecretAccessKey, setAwsSecretAccessKey] = useState(initialAwsCreds?.secretAccessKey ?? '')
-  const [awsRegion, setAwsRegion] = useState(initialAwsCreds?.region ?? 'us-east-1')
+  const [awsAccessKeyId, setAwsAccessKeyId] = useState('')
+  const [awsSecretAccessKey, setAwsSecretAccessKey] = useState('')
+  const [awsRegion, setAwsRegion] = useState('us-east-1')
   const [showAwsSecretKey, setShowAwsSecretKey] = useState(false)
 
   const provider = PROVIDERS[providerId]
   const models = provider.models
   const isCustomModel = provider.freeTextModel
   const matchedPreset = SYSTEM_PROMPT_PRESETS.find((preset) => preset.prompt === systemPrompt)
+  const hasSavedApiKey = Boolean(editingAgent && providerId === editingAgent.providerId && hasKey(editingAgent.id))
+  const hasProviderApiKey = hasApiKeyForProvider(providerId)
 
   const effectiveModel = isCustomModel ? model : (models.includes(model) ? model : models[0])
 
@@ -126,14 +120,10 @@ function AgentForm({
       setModel(newProvider.models[0])
     }
     if (newProviderId === 'bedrock') {
-      const existingCreds = findAwsCredentialsForBedrock(agents)
-      if (existingCreds) {
-        setAwsAccessKeyId(existingCreds.accessKeyId)
-        setAwsSecretAccessKey(existingCreds.secretAccessKey)
-        setAwsRegion(existingCreds.region)
-      }
+      setAwsAccessKeyId('')
+      setAwsSecretAccessKey('')
     } else {
-      setApiKey(getApiKeyForProvider(newProviderId))
+      setApiKey('')
     }
   }
 
@@ -161,7 +151,12 @@ function AgentForm({
         if (!awsSecretAccessKey.trim()) newErrors.awsSecretAccessKey = 'Secret Key required when providing credentials'
         if (!awsRegion.trim()) newErrors.awsRegion = 'Region required when providing credentials'
       }
-    } else if (provider.requiresApiKey && !apiKey.trim()) {
+    } else if (
+      provider.requiresApiKey &&
+      !apiKey.trim() &&
+      !(editingAgent && providerId === editingAgent.providerId && hasSavedApiKey) &&
+      !hasProviderApiKey
+    ) {
       newErrors.apiKey = 'API key is required'
     }
 
@@ -183,14 +178,20 @@ function AgentForm({
       if (providerId === 'bedrock') {
         // Only save credentials if they were provided
         if (awsAccessKeyId.trim() && awsSecretAccessKey.trim() && awsRegion.trim()) {
-          setAwsCredentials(editingAgent.id, {
+          await setAwsCredentials(editingAgent.id, {
             accessKeyId: awsAccessKeyId.trim(),
             secretAccessKey: awsSecretAccessKey.trim(),
             region: awsRegion.trim(),
           })
+        } else if (editingAgent.providerId !== providerId) {
+          await removeKey(editingAgent.id)
         }
       } else {
-        setKey(editingAgent.id, apiKey.trim())
+        if (apiKey.trim()) {
+          await setKey(editingAgent.id, apiKey.trim())
+        } else if (editingAgent.providerId !== providerId || !provider.requiresApiKey) {
+          await removeKey(editingAgent.id)
+        }
       }
     } else {
       const created = await addAgent({
@@ -204,14 +205,16 @@ function AgentForm({
       if (providerId === 'bedrock') {
         // Only save credentials if they were provided
         if (awsAccessKeyId.trim() && awsSecretAccessKey.trim() && awsRegion.trim()) {
-          setAwsCredentials(created.id, {
+          await setAwsCredentials(created.id, {
             accessKeyId: awsAccessKeyId.trim(),
             secretAccessKey: awsSecretAccessKey.trim(),
             region: awsRegion.trim(),
           })
         }
       } else {
-        setKey(created.id, apiKey.trim())
+        if (apiKey.trim()) {
+          await setKey(created.id, apiKey.trim())
+        }
       }
     }
     onClose()
@@ -219,7 +222,7 @@ function AgentForm({
 
   const handleDelete = async () => {
     if (editingAgent) {
-      removeKey(editingAgent.id)
+      await removeKey(editingAgent.id)
       await deleteAgent(editingAgent.id)
       onClose()
     }
@@ -366,7 +369,7 @@ function AgentForm({
                 type={showApiKey ? 'text' : 'password'}
                 value={apiKey}
                 onChange={(e) => { setApiKey(e.target.value); clearError('apiKey') }}
-                placeholder="sk-..."
+                placeholder={hasSavedApiKey || hasProviderApiKey ? 'Saved API key' : 'sk-...'}
                 className={`pr-10${errors.apiKey ? ' border-destructive' : ''}`}
                 autoComplete="off"
                 data-form-type="other"
@@ -387,6 +390,11 @@ function AgentForm({
               </Button>
             </div>
             {errors.apiKey && <p className="text-xs text-destructive">{errors.apiKey}</p>}
+            {!errors.apiKey && !apiKey && (hasSavedApiKey || hasProviderApiKey) && (
+              <p className="text-xs text-muted-foreground">
+                A saved API key is available. Enter a new one only to replace it.
+              </p>
+            )}
           </div>
         )}
 
