@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getBuiltInToolList, getBuiltInTools } from './index.js'
+import { getBuiltInToolList, getBuiltInTools, getAvailableToolIds } from './index.js'
 
 describe('getBuiltInToolList', () => {
   it('returns a non-empty list with id/name/description for each entry', () => {
@@ -11,6 +11,21 @@ describe('getBuiltInToolList', () => {
       expect(meta.description).toBeTypeOf('string')
       expect(meta.id.length).toBeGreaterThan(0)
     }
+  })
+
+  it('includes risk and policy metadata for each entry', () => {
+    const list = getBuiltInToolList()
+    for (const meta of list) {
+      expect(typeof meta.enabledByDefault).toBe('boolean')
+      expect(['safe', 'costly', 'destructive']).toContain(meta.riskLevel)
+      expect(['auto', 'approvalRequired', 'disabled']).toContain(meta.executionPolicy)
+    }
+  })
+
+  it('marks the expected tools as enabled by default', () => {
+    const list = getBuiltInToolList()
+    const defaultIds = list.filter((t) => t.enabledByDefault).map((t) => t.id).sort()
+    expect(defaultIds).toEqual(['calculator', 'datetime', 'web-fetch', 'web-search'])
   })
 
   it('contains the core tool ids', () => {
@@ -67,5 +82,57 @@ describe('getBuiltInTools', () => {
   it('mixes static and factory tools correctly', () => {
     const result = getBuiltInTools(['calculator', 'image-generator'], 'sk-test')
     expect(Object.keys(result).sort()).toEqual(['calculator', 'image_generator'])
+  })
+})
+
+describe('getAvailableToolIds', () => {
+  const emptySettings = { manuallyEnabledTools: [], manuallyDisabledTools: [] }
+  const emptyContext = { hasUploadedPdf: false, hasIndexedDocument: false, workspaceAccessEnabled: false }
+
+  it('returns default-enabled tools with empty settings and context', () => {
+    const ids = getAvailableToolIds(emptySettings, emptyContext)
+    expect(ids.sort()).toEqual(['calculator', 'datetime', 'web-fetch', 'web-search'])
+  })
+
+  it('includes manually enabled tools', () => {
+    const ids = getAvailableToolIds(
+      { manuallyEnabledTools: ['code-executor'], manuallyDisabledTools: [] },
+      emptyContext,
+    )
+    expect(ids).toContain('code-executor')
+    expect(ids).toContain('web-search')
+  })
+
+  it('excludes manually disabled tools even if default', () => {
+    const ids = getAvailableToolIds(
+      { manuallyEnabledTools: [], manuallyDisabledTools: ['web-search'] },
+      emptyContext,
+    )
+    expect(ids).not.toContain('web-search')
+    expect(ids).toContain('calculator')
+  })
+
+  it('conditionally enables pdf-reader when a PDF is uploaded', () => {
+    const ids = getAvailableToolIds(emptySettings, { ...emptyContext, hasUploadedPdf: true })
+    expect(ids).toContain('pdf-reader')
+  })
+
+  it('conditionally enables search-document when a document is indexed', () => {
+    const ids = getAvailableToolIds(emptySettings, { ...emptyContext, hasIndexedDocument: true })
+    expect(ids).toContain('search-document')
+  })
+
+  it('does not include conditional tools when context is not met', () => {
+    const ids = getAvailableToolIds(emptySettings, emptyContext)
+    expect(ids).not.toContain('pdf-reader')
+    expect(ids).not.toContain('search-document')
+  })
+
+  it('manual disable takes precedence over manual enable', () => {
+    const ids = getAvailableToolIds(
+      { manuallyEnabledTools: ['code-executor'], manuallyDisabledTools: ['code-executor'] },
+      emptyContext,
+    )
+    expect(ids).not.toContain('code-executor')
   })
 })

@@ -131,6 +131,11 @@ if (process.env.ELECTRON_DIST_PATH) {
   app.use(express.static(process.env.ELECTRON_DIST_PATH))
 }
 
+// Tool metadata endpoint
+app.get('/api/tools', (_req, res) => {
+  res.json({ tools: getBuiltInToolList() })
+})
+
 app.post('/api/chat', async (req, res) => {
   let serverTimeout: ReturnType<typeof setTimeout> | undefined
   try {
