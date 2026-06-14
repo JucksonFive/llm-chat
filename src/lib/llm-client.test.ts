@@ -28,9 +28,9 @@ function makeHandlers() {
 }
 
 const baseParams = {
+  agentId: 'agent-1',
   providerId: 'openai' as const,
   model: 'gpt-5.4',
-  apiKey: 'sk-test',
   systemPrompt: 'You are a helper.',
   messages: [{ role: 'user' as const, content: 'hi' }],
 }
@@ -65,6 +65,19 @@ describe('streamChat', () => {
     expect(h.onToken).toHaveBeenNthCalledWith(2, ' world')
     expect(h.onDone).toHaveBeenCalledTimes(1)
     expect(h.onError).not.toHaveBeenCalled()
+  })
+
+  it('sends the agent id but not API key material in the chat request', async () => {
+    fetchMock.mockResolvedValueOnce(makeStreamingResponse(['data: [DONE]\n']))
+    const h = makeHandlers()
+
+    await streamChat({ ...baseParams, ...h })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(body.agentId).toBe('agent-1')
+    expect(body).not.toHaveProperty('apiKey')
+    expect(body).not.toHaveProperty('awsCredentials')
   })
 
   it('routes reasoning/tool-call/tool-result events to the right callbacks', async () => {

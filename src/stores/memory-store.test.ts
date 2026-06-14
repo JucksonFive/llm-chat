@@ -42,16 +42,20 @@ afterEach(() => {
 
 describe('getRelevantMemoryPrompt', () => {
   it('returns empty prompt when there are no memories', async () => {
-    const result = await useMemoryStore.getState().getRelevantMemoryPrompt(AGENT, 'query', 'sk-x')
+    const result = await useMemoryStore.getState().getRelevantMemoryPrompt(AGENT, 'query')
     expect(result.prompt).toBe('')
     expect(result.usedMemoryIds).toEqual([])
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('skips semantic search and uses all memories when no API key is provided', async () => {
+  it('falls back to all memories when the server has no stored OpenAI key', async () => {
     useMemoryStore.setState({ memories: makeMemories(20), loaded: true })
-    const result = await useMemoryStore.getState().getRelevantMemoryPrompt(AGENT, 'a longer query string', '')
-    expect(fetchMock).not.toHaveBeenCalled()
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ memories: [], fallback: true, reason: 'no-api-key' }),
+    })
+    const result = await useMemoryStore.getState().getRelevantMemoryPrompt(AGENT, 'a longer query string')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(result.prompt).toContain('long memory 0')
     expect(result.prompt).toContain('long memory 19')
     expect(result.prompt).toContain('persistent facts')
@@ -62,7 +66,7 @@ describe('getRelevantMemoryPrompt', () => {
     useMemoryStore.setState({ memories: makeMemories(5), loaded: true })
     const result = await useMemoryStore
       .getState()
-      .getRelevantMemoryPrompt(AGENT, 'a longer query string', 'sk-x', 5)
+      .getRelevantMemoryPrompt(AGENT, 'a longer query string', 5)
     expect(fetchMock).not.toHaveBeenCalled()
     expect(result.prompt).toContain('long memory 0')
     expect(result.usedMemoryIds).toHaveLength(5)
@@ -70,7 +74,7 @@ describe('getRelevantMemoryPrompt', () => {
 
   it('skips semantic search for very short queries', async () => {
     useMemoryStore.setState({ memories: makeMemories(20), loaded: true })
-    const result = await useMemoryStore.getState().getRelevantMemoryPrompt(AGENT, 'ok', 'sk-x', 5)
+    const result = await useMemoryStore.getState().getRelevantMemoryPrompt(AGENT, 'ok', 5)
     expect(fetchMock).not.toHaveBeenCalled()
     expect(result.prompt).toContain('long memory 0')
     // Falls back to the legacy label.
@@ -89,9 +93,14 @@ describe('getRelevantMemoryPrompt', () => {
 
     const result = await useMemoryStore
       .getState()
-      .getRelevantMemoryPrompt(AGENT, 'tell me about my pet', 'sk-x', 5)
+      .getRelevantMemoryPrompt(AGENT, 'tell me about my pet', 5)
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      agentId: AGENT,
+      query: 'tell me about my pet',
+      k: 5,
+    })
     expect(result.prompt).toContain('most relevant memory')
     expect(result.prompt).toContain('most relevant to the current question')
     // Other long-term memories are NOT in the prompt.
@@ -108,7 +117,7 @@ describe('getRelevantMemoryPrompt', () => {
 
     const result = await useMemoryStore
       .getState()
-      .getRelevantMemoryPrompt(AGENT, 'tell me about my pet', 'sk-x', 5)
+      .getRelevantMemoryPrompt(AGENT, 'tell me about my pet', 5)
     expect(result.prompt).toContain('long memory 19')
     expect(result.prompt).toContain('persistent facts')
   })
@@ -119,7 +128,7 @@ describe('getRelevantMemoryPrompt', () => {
 
     const result = await useMemoryStore
       .getState()
-      .getRelevantMemoryPrompt(AGENT, 'tell me about my pet', 'sk-x', 5)
+      .getRelevantMemoryPrompt(AGENT, 'tell me about my pet', 5)
     expect(result.prompt).toContain('long memory 0')
     expect(result.prompt).toContain('persistent facts')
   })
@@ -135,7 +144,7 @@ describe('getRelevantMemoryPrompt', () => {
 
     const result = await useMemoryStore
       .getState()
-      .getRelevantMemoryPrompt(AGENT, 'a longer query string', 'sk-x', 5)
+      .getRelevantMemoryPrompt(AGENT, 'a longer query string', 5)
     expect(result.prompt).toContain('short memory 0')
     expect(result.prompt).toContain('short memory 2')
     expect(result.prompt).toContain('Short-term memories')

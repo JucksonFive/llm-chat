@@ -3,46 +3,21 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { run, query, queryOne, ATTACHMENTS_DIR } from './db.js'
-import { decrypt } from './crypto.js'
+import { clearAgentApiKey, hasAgentApiKey, setAgentApiKey } from './api-keys.js'
 import { deleteBySource } from './rag/vector-store.js'
 
 export function registerDbRoutes(app: Express) {
 
 // ─── Agents ────────────────────────────────────────────
 
-/**
- * One-time migration: returns decrypted API keys for any agents that still
- * have a value in the legacy `api_key_encrypted` column. The client (see
- * `src/stores/api-key-store.ts`) calls this once on startup, copies the keys
- * into localStorage, and then POSTs to `…/legacy-api-keys/clear` to wipe the
- * column. After that, keys live only in the browser.
- */
-app.get('/api/db/agents/legacy-api-keys', (_req, res) => {
-  const rows = query<{ id: string; api_key_encrypted: string }>(
-    "SELECT id, api_key_encrypted FROM agents WHERE api_key_encrypted != ''",
-  )
-  const keys: Record<string, string> = {}
-  for (const row of rows) {
-    const plain = decrypt(row.api_key_encrypted)
-    if (plain) keys[row.id] = plain
-  }
-  res.json({ keys })
-})
-
-app.post('/api/db/agents/legacy-api-keys/clear', (_req, res) => {
-  run("UPDATE agents SET api_key_encrypted='' WHERE api_key_encrypted != ''")
-  res.json({ ok: true })
-})
-
 app.get('/api/db/agents', (_req, res) => {
   const agents = query('SELECT * FROM agents ORDER BY created_at ASC')
-  // API keys are never stored server-side anymore — they live only in the
-  // browser (see src/stores/api-key-store.ts). The `api_key_encrypted` column
-  // is kept for schema compatibility but always written as ''.
   const result = agents.map((a: Record<string, unknown>) => ({
-    ...a,
-    api_key_encrypted: undefined,
+    id: a.id,
+    name: a.name,
     providerId: a.provider_id,
+    model: a.model,
+    hasApiKey: Boolean(a.api_key_encrypted),
     systemPrompt: a.system_prompt,
     avatarColor: a.avatar_color,
     mcpServerIds: JSON.parse(a.mcp_server_ids as string),
@@ -53,7 +28,7 @@ app.get('/api/db/agents', (_req, res) => {
 })
 
 app.post('/api/db/agents', (req, res) => {
-  const { name, providerId, model, systemPrompt, avatarColor, mcpServerIds, builtInToolIds } = req.body
+  const { name, providerId, model, apiKey, systemPrompt, avatarColor, mcpServerIds, builtInToolIds } = req.body
   const id = crypto.randomUUID()
   run(
     `INSERT INTO agents (id, name, provider_id, model, api_key_encrypted, system_prompt, avatar_color, mcp_server_ids, built_in_tool_ids, created_at)
@@ -70,13 +45,32 @@ app.post('/api/db/agents', (req, res) => {
       createdAt: Date.now(),
     },
   )
-  res.json({ id })
+  if (typeof apiKey === 'string' && apiKey.trim()) {
+    setAgentApiKey(id, apiKey)
+  }
+  res.json({ id, hasApiKey: hasAgentApiKey(id) })
+})
+
+app.put('/api/db/agents/:id/api-key', (req, res) => {
+  const { apiKey } = req.body ?? {}
+  if (typeof apiKey !== 'string') {
+    res.status(400).json({ error: 'apiKey is required' })
+    return
+  }
+
+  setAgentApiKey(req.params.id, apiKey)
+  res.json({ ok: true, hasApiKey: hasAgentApiKey(req.params.id) })
+})
+
+app.delete('/api/db/agents/:id/api-key', (req, res) => {
+  clearAgentApiKey(req.params.id)
+  res.json({ ok: true, hasApiKey: false })
 })
 
 app.put('/api/db/agents/:id', (req, res) => {
-  const { name, providerId, model, systemPrompt, avatarColor, mcpServerIds, builtInToolIds } = req.body
+  const { name, providerId, model, apiKey, clearApiKey, systemPrompt, avatarColor, mcpServerIds, builtInToolIds } = req.body
   run(
-    `UPDATE agents SET name=$name, provider_id=$providerId, model=$model, api_key_encrypted='',
+    `UPDATE agents SET name=$name, provider_id=$providerId, model=$model,
      system_prompt=$systemPrompt, avatar_color=$avatarColor, mcp_server_ids=$mcpServerIds, built_in_tool_ids=$builtInToolIds
      WHERE id=$id`,
     {
@@ -90,7 +84,12 @@ app.put('/api/db/agents/:id', (req, res) => {
       builtInToolIds: JSON.stringify(builtInToolIds || []),
     },
   )
-  res.json({ ok: true })
+  if (typeof apiKey === 'string' && apiKey.trim()) {
+    setAgentApiKey(req.params.id, apiKey)
+  } else if (clearApiKey === true) {
+    clearAgentApiKey(req.params.id)
+  }
+  res.json({ ok: true, hasApiKey: hasAgentApiKey(req.params.id) })
 })
 
 app.delete('/api/db/agents/:id', (req, res) => {

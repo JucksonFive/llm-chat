@@ -1,6 +1,7 @@
 import type { Express } from 'express'
 import { searchMemories } from './memory-index.js'
 import { deleteIndexedDocument, listIndexedDocuments } from './document-index.js'
+import { findApiKeyForProvider } from '../api-keys.js'
 
 export type RagFallbackReason = 'no-api-key' | 'search-failed'
 
@@ -29,7 +30,7 @@ export function registerRagRoutes(app: Express) {
 
   app.post('/api/rag/memories/search', async (req, res) => {
     try {
-      const { agentId, query, apiKey, k } = req.body ?? {}
+      const { agentId, query, k } = req.body ?? {}
       if (!agentId || typeof agentId !== 'string') {
         res.status(400).json({ error: 'agentId is required' })
         return
@@ -38,7 +39,8 @@ export function registerRagRoutes(app: Express) {
         res.status(400).json({ error: 'query is required' })
         return
       }
-      if (!apiKey || typeof apiKey !== 'string') {
+      const apiKey = findApiKeyForProvider('openai')
+      if (!apiKey) {
         // No key → signal the client to fall back. Not an error.
         res.json({ memories: [], fallback: true, reason: 'no-api-key' satisfies RagFallbackReason })
         return

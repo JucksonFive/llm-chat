@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAgentStore } from './agent-store'
+import { useApiKeyStore } from './api-key-store'
 import type { Agent } from '@/types'
 
 const fetchMock = vi.fn()
@@ -8,6 +9,7 @@ const fetchMock = vi.fn()
 function reset() {
   localStorage.clear()
   useAgentStore.setState({ agents: [], activeAgentId: null, loaded: false })
+  useApiKeyStore.setState({ keyStatus: {} })
 }
 
 beforeEach(() => {
@@ -26,6 +28,7 @@ function makeAgent(overrides: Partial<Agent> = {}): Agent {
     name: 'Default',
     providerId: 'openai',
     model: 'gpt-4o',
+    hasApiKey: false,
     systemPrompt: 'You are helpful.',
     createdAt: 1,
     avatarColor: '#3b82f6',
@@ -146,11 +149,9 @@ describe('setActiveAgent', () => {
 describe('loadAgents', () => {
   it('seeds the programmer template when the server returns an empty agent list', async () => {
     // 1) GET agents → []
-    // 2) GET legacy keys → empty
-    // 3) POST /api/db/agents → { id }
+    // 2) POST /api/db/agents → { id }
     fetchMock
       .mockResolvedValueOnce({ json: async () => [] })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ keys: {} }) })
       .mockResolvedValueOnce({ json: async () => ({ id: 'seeded' }) })
 
     await useAgentStore.getState().loadAgents()
@@ -166,7 +167,6 @@ describe('loadAgents', () => {
       .mockResolvedValueOnce({
         json: async () => [makeAgent({ id: 'a' }), makeAgent({ id: 'b' })],
       })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ keys: {} }) })
 
     await useAgentStore.getState().loadAgents()
     expect(useAgentStore.getState().activeAgentId).toBe('b')
@@ -178,9 +178,20 @@ describe('loadAgents', () => {
       .mockResolvedValueOnce({
         json: async () => [makeAgent({ id: 'a' }), makeAgent({ id: 'b' })],
       })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ keys: {} }) })
 
     await useAgentStore.getState().loadAgents()
     expect(useAgentStore.getState().activeAgentId).toBe('a')
+  })
+
+  it('hydrates API key presence from loaded agents', async () => {
+    fetchMock.mockResolvedValueOnce({
+      json: async () => [makeAgent({ id: 'a', hasApiKey: true }), makeAgent({ id: 'b', hasApiKey: false })],
+    })
+
+    await useAgentStore.getState().loadAgents()
+
+    expect(useApiKeyStore.getState().hasKey('a')).toBe(true)
+    expect(useApiKeyStore.getState().hasKey('b')).toBe(false)
+    expect(useAgentStore.getState().agents.find((a) => a.id === 'a')?.hasApiKey).toBe(true)
   })
 })

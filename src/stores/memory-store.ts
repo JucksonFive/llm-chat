@@ -12,7 +12,7 @@ interface MemoryState {
   getShortTermMemories: (agentId: string) => Memory[]
   getLongTermMemories: (agentId: string) => Memory[]
   getMemoryPrompt: (agentId: string) => string
-  getRelevantMemoryPrompt: (agentId: string, query: string, apiKey: string, k?: number) => Promise<{ prompt: string; usedMemoryIds: string[] }>
+  getRelevantMemoryPrompt: (agentId: string, query: string, k?: number) => Promise<{ prompt: string; usedMemoryIds: string[] }>
   clearShortTermMemories: (agentId: string) => Promise<void>
   markMemoriesAsUsed: (memoryIds: string[]) => void
   getRecentlyUsedMemories: (agentId: string, withinMs?: number) => Memory[]
@@ -28,17 +28,16 @@ type RagFallbackReason = 'no-api-key' | 'search-failed'
 async function fetchRelevantLongTerm(
   agentId: string,
   query: string,
-  apiKey: string,
   k: number,
   longTermCount: number,
 ): Promise<Memory[] | null> {
-  if (!apiKey || longTermCount <= k) return null
+  if (longTermCount <= k) return null
   if (query.trim().length < MIN_SEMANTIC_QUERY_LENGTH) return null
   try {
     const res = await fetch('/api/rag/memories/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agentId, query, apiKey, k }),
+      body: JSON.stringify({ agentId, query, k }),
     })
     if (!res.ok) return null
     const data = (await res.json()) as {
@@ -150,15 +149,15 @@ export const useMemoryStore = create<MemoryState>()((set, get) => ({
   /**
    * Build a memory prompt using semantic search for long-term memories.
    * Short-term memories are always included (rolling window). If the semantic
-   * search fails for any reason (no OpenAI key, network error, etc.), falls
+   * search fails for any reason (no stored OpenAI key, network error, etc.), falls
    * back to the full-memory prompt so the feature degrades gracefully.
    */
-  getRelevantMemoryPrompt: async (agentId, query, apiKey, k = 5) => {
+  getRelevantMemoryPrompt: async (agentId, query, k = 5) => {
     const shortTerm = get().getShortTermMemories(agentId)
     const longTerm = get().getLongTermMemories(agentId)
     if (shortTerm.length === 0 && longTerm.length === 0) return { prompt: '', usedMemoryIds: [] }
 
-    const relevantLong = await fetchRelevantLongTerm(agentId, query, apiKey, k, longTerm.length)
+    const relevantLong = await fetchRelevantLongTerm(agentId, query, k, longTerm.length)
     const longToInclude = relevantLong ?? longTerm
     const usedMemoryIds = [
       ...longToInclude.map((m) => m.id),
