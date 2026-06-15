@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { Search, Check, X, Loader2, ChevronDown, Globe, Code, FileText } from 'lucide-react'
+import { Search, Check, X, Loader2, ChevronDown, Globe, Code, FileText, AlertTriangle, Terminal } from 'lucide-react'
 import type { ToolCallInfo } from '@/types'
 
 interface ToolCallBlockProps {
@@ -143,6 +143,30 @@ export function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
             className="overflow-hidden"
           >
             <div className="border-t border-border/30 px-4 py-3 space-y-3 text-sm">
+              {/* Code executor warning — show exact command verbatim */}
+              {toolCall.toolName === 'code_executor' && toolCall.args && (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                    <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase">
+                      This command will run with your user privileges. Review it carefully.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
+                    <Terminal className="h-3 w-3" />
+                    <span className="font-medium">
+                      {typeof toolCall.args.language === 'string'
+                        ? toolCall.args.language.toUpperCase()
+                        : 'UNKNOWN'}
+                    </span>
+                  </div>
+                  <pre className="mt-1 rounded-md bg-muted/50 p-2.5 text-xs font-mono leading-relaxed overflow-x-auto whitespace-pre-wrap break-all">
+                    {typeof toolCall.args.code === 'string'
+                      ? toolCall.args.code
+                      : JSON.stringify(toolCall.args.code)}
+                  </pre>
+                </div>
+              )}
               {toolCall.args && Object.keys(toolCall.args).length > 0 && (
                 <div>
                   <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Parameters</span>
