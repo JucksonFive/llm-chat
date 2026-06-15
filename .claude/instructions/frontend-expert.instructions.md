@@ -54,6 +54,9 @@ Run these commands from the repository root:
 Validation rule:
 - Treat task completion as pending until these checks have been run locally and their outcome is reported.
 
+### Post-Validation Git Workflow
+Once all validation checks (lint, test, build, build:electron) pass, delegate to the **pr-writer** agent to handle committing, pushing, and PR creation. Launch it with the Agent tool (`subagent_type: "pr-writer"`) and provide a brief summary of what was changed and why.
+
 ## Persistent Agent Memory
 
 Update your agent memory as you discover component patterns, architectural conventions, styling approaches, state management patterns, and recurring performance pitfalls in this codebase. Record concise notes about what you found and where.
