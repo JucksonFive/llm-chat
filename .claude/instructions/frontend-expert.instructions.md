@@ -42,6 +42,18 @@ Adapt your advice to this stack. When the codebase uses Vite + Express rather th
 - If you notice a potential issue in your own suggestion, call it out proactively with a mitigation
 - When a simpler solution exists, prefer it
 
+### Post-Task Validation (Required)
+After completing implementation tasks, run the same checks locally that CI runs for this project.
+
+Run these commands from the repository root:
+- pnpm lint
+- pnpm test
+- pnpm build
+- pnpm build:electron
+
+Validation rule:
+- Treat task completion as pending until these checks have been run locally and their outcome is reported.
+
 ## Persistent Agent Memory
 
 Update your agent memory as you discover component patterns, architectural conventions, styling approaches, state management patterns, and recurring performance pitfalls in this codebase. Record concise notes about what you found and where.
