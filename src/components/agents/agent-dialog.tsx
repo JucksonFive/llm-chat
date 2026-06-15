@@ -26,22 +26,7 @@ import { useApiKeyStore } from '@/stores/api-key-store'
 import { useMcpStore } from '@/stores/mcp-store'
 import type { Agent, BuiltInToolId, BuiltInToolMeta, ProviderId } from '@/types'
 import { Eye, EyeOff, Server, Trash2, Wrench } from 'lucide-react'
-import { useState } from 'react'
-
-const BUILT_IN_TOOL_LIST: BuiltInToolMeta[] = [
-  { id: 'web-fetch', name: 'Fetch URL', description: 'Fetch content from a URL', enabledByDefault: true, riskLevel: 'safe', executionPolicy: 'auto' },
-  { id: 'web-search', name: 'Web Search', description: 'Search the web for information', enabledByDefault: true, riskLevel: 'safe', executionPolicy: 'auto' },
-  { id: 'code-executor', name: 'Code Executor', description: 'Execute JavaScript, Python, or shell code', enabledByDefault: false, riskLevel: 'destructive', executionPolicy: 'approvalRequired' },
-  { id: 'file-reader', name: 'File Reader', description: 'Read files from the local filesystem', enabledByDefault: false, riskLevel: 'costly', executionPolicy: 'approvalRequired' },
-  { id: 'file-writer', name: 'File Writer', description: 'Write or create files on the filesystem', enabledByDefault: false, riskLevel: 'destructive', executionPolicy: 'approvalRequired' },
-  { id: 'calculator', name: 'Calculator', description: 'Evaluate mathematical expressions', enabledByDefault: true, riskLevel: 'safe', executionPolicy: 'auto' },
-  { id: 'pdf-reader', name: 'PDF Reader', description: 'Read and extract text from PDF files', enabledByDefault: false, riskLevel: 'safe', executionPolicy: 'auto' },
-  { id: 'datetime', name: 'Date & Time', description: 'Get current time, convert timezones, date differences', enabledByDefault: true, riskLevel: 'safe', executionPolicy: 'auto' },
-  { id: 'image-generator', name: 'Image Generator', description: 'Generate images with OpenAI DALL-E / gpt-image-1', enabledByDefault: false, riskLevel: 'costly', executionPolicy: 'disabled' },
-  { id: 'deep-research', name: 'Deep Research', description: 'Multi-step web research with source compilation', enabledByDefault: false, riskLevel: 'costly', executionPolicy: 'approvalRequired' },
-  { id: 'index-document', name: 'Index Document', description: 'Embed a large PDF or text file for semantic search', enabledByDefault: false, riskLevel: 'costly', executionPolicy: 'approvalRequired' },
-  { id: 'search-document', name: 'Search Document', description: 'Query an indexed document for the most relevant passages', enabledByDefault: false, riskLevel: 'safe', executionPolicy: 'auto' },
-]
+import { useState, useEffect } from 'react'
 
 interface AgentDialogProps {
   open: boolean
@@ -75,6 +60,28 @@ function AgentForm({
 }) {
   const { agents, addAgent, updateAgent, deleteAgent } = useAgentStore()
   const mcpServers = useMcpStore((s) => s.servers)
+  const [builtInToolList, setBuiltInToolList] = useState<BuiltInToolMeta[]>([])
+  const [toolsInitialized, setToolsInitialized] = useState(false)
+  const [selectedBuiltInTools, setSelectedBuiltInTools] = useState<BuiltInToolId[]>((editingAgent?.builtInToolIds ?? []) as BuiltInToolId[])
+
+  // Fetch built-in tools from API on mount
+  useEffect(() => {
+    fetch('/api/tools/built-in')
+      .then((res) => res.json())
+      .then((data) => {
+        setBuiltInToolList(data.tools)
+
+        // When creating a new agent (not editing), initialize with default tools
+        if (!editingAgent && !toolsInitialized) {
+          const defaultTools = data.tools
+            .filter((tool: BuiltInToolMeta) => tool.enabledByDefault)
+            .map((tool: BuiltInToolMeta) => tool.id)
+          setSelectedBuiltInTools(defaultTools)
+          setToolsInitialized(true)
+        }
+      })
+      .catch((err) => console.error('[agent-dialog] Failed to fetch built-in tools:', err))
+  }, [editingAgent, toolsInitialized])
   // Use selectors so this form only re-renders when the action functions
   // identity changes (i.e. never), not on every keys-record mutation.
   const hasKey = useApiKeyStore((s) => s.hasKey)
@@ -95,7 +102,6 @@ function AgentForm({
   const [systemPrompt, setSystemPrompt] = useState(editingAgent?.systemPrompt ?? '')
   const [showApiKey, setShowApiKey] = useState(false)
   const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>(editingAgent?.mcpServerIds ?? [])
-  const [selectedBuiltInTools, setSelectedBuiltInTools] = useState<BuiltInToolId[]>((editingAgent?.builtInToolIds ?? []) as BuiltInToolId[])
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   // AWS Bedrock credentials
@@ -446,7 +452,7 @@ function AgentForm({
             Tools marked "Default" are automatically available. Toggle to override.
           </p>
           <div className="space-y-2 rounded-lg border border-border/50 p-3">
-            {BUILT_IN_TOOL_LIST.map((tool) => {
+            {builtInToolList.map((tool) => {
               const riskBadgeColor =
                 tool.riskLevel === 'safe' ? 'bg-green-500/10 text-green-600 dark:text-green-400' :
                 tool.riskLevel === 'costly' ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' :

@@ -26,7 +26,7 @@ export const useAgentStore = create<AgentState>()(
 
       loadAgents: async () => {
         const res = await fetch('/api/db/agents')
-        const agents: Agent[] = await res.json()
+        let agents: Agent[] = await res.json()
         const apiKeyStore = useApiKeyStore.getState()
         apiKeyStore.hydrateStatus(agents)
 
@@ -50,6 +50,28 @@ export const useAgentStore = create<AgentState>()(
           })
           set({ loaded: true })
           return
+        }
+
+        // Migration: Add default tools to agents that have empty builtInToolIds
+        const DEFAULT_TOOLS: string[] = ['web-search', 'web-fetch', 'calculator', 'datetime']
+        const agentsNeedingMigration = agents.filter(
+          (agent) => !agent.builtInToolIds || agent.builtInToolIds.length === 0
+        )
+
+        if (agentsNeedingMigration.length > 0) {
+          console.log(`[agent-store] Migrating ${agentsNeedingMigration.length} agents to have default tools`)
+          await Promise.all(
+            agentsNeedingMigration.map((agent) =>
+              fetch(`/api/db/agents/${agent.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ builtInToolIds: DEFAULT_TOOLS }),
+              })
+            )
+          )
+          // Reload agents after migration
+          const refreshRes = await fetch('/api/db/agents')
+          agents = await refreshRes.json()
         }
 
         const agentsWithKeyStatus = agents.map((agent) => ({
