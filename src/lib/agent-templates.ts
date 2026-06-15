@@ -19,7 +19,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     providerId: 'openai',
     model: 'gpt-5.4',
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
-    builtInToolIds: [],
+    builtInToolIds: ['web-search', 'web-fetch', 'calculator', 'datetime'],
   },
   {
     id: 'programmer-docs',
@@ -75,7 +75,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     providerId: 'anthropic',
     model: 'claude-opus-4-6',
     systemPrompt: HUMANIZER_SYSTEM_PROMPT,
-    builtInToolIds: [],
+    builtInToolIds: ['web-search', 'web-fetch'],
   },
 ]
 
