@@ -61,6 +61,8 @@ function AgentForm({
   const { agents, addAgent, updateAgent, deleteAgent } = useAgentStore()
   const mcpServers = useMcpStore((s) => s.servers)
   const [builtInToolList, setBuiltInToolList] = useState<BuiltInToolMeta[]>([])
+  const [toolsInitialized, setToolsInitialized] = useState(false)
+  const [selectedBuiltInTools, setSelectedBuiltInTools] = useState<BuiltInToolId[]>((editingAgent?.builtInToolIds ?? []) as BuiltInToolId[])
 
   // Fetch built-in tools from API on mount
   useEffect(() => {
@@ -100,9 +102,7 @@ function AgentForm({
   const [systemPrompt, setSystemPrompt] = useState(editingAgent?.systemPrompt ?? '')
   const [showApiKey, setShowApiKey] = useState(false)
   const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>(editingAgent?.mcpServerIds ?? [])
-  const [selectedBuiltInTools, setSelectedBuiltInTools] = useState<BuiltInToolId[]>((editingAgent?.builtInToolIds ?? []) as BuiltInToolId[])
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [toolsInitialized, setToolsInitialized] = useState(false)
 
   // AWS Bedrock credentials
   const [awsAccessKeyId, setAwsAccessKeyId] = useState('')
