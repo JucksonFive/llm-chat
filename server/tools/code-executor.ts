@@ -1,7 +1,7 @@
 import { tool, jsonSchema } from 'ai'
 import vm from 'node:vm'
 import { execFile } from 'node:child_process'
-import { appendFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
@@ -80,6 +80,8 @@ function auditLog(language: string, code: string, exitCode: number, stderr?: str
   const stderrSnippet = stderr ? ` stderr="${stderr.slice(0, 200)}"` : ''
   const line = `[${timestamp}] language=${language} exit=${exitCode}${stderrSnippet} code="${code.replace(/"/g, '\\"')}"\n`
   try {
+    const dir = join(homedir(), '.llm-chat')
+    mkdirSync(dir, { recursive: true })
     appendFileSync(getAuditLogPath(), line, 'utf-8')
   } catch {
     // Audit logging is best-effort — don't break execution if the log can't be written
