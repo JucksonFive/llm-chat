@@ -231,7 +231,7 @@ app.post('/api/chat', async (req, res) => {
               })
             } else if (chunk.type === 'error') {
               res.write(`data: ${JSON.stringify({ type: 'error', message: chunk.error })}\n\n`)
-              res.write('data: [DONE]\n\n`)
+              res.write(`data: [DONE]\n\n`)
               res.end()
               return
             } else if (chunk.type === 'done') {
