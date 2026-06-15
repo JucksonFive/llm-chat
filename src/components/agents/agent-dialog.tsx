@@ -66,9 +66,20 @@ function AgentForm({
   useEffect(() => {
     fetch('/api/tools/built-in')
       .then((res) => res.json())
-      .then((data) => setBuiltInToolList(data.tools))
+      .then((data) => {
+        setBuiltInToolList(data.tools)
+
+        // When creating a new agent (not editing), initialize with default tools
+        if (!editingAgent && !toolsInitialized) {
+          const defaultTools = data.tools
+            .filter((tool: BuiltInToolMeta) => tool.enabledByDefault)
+            .map((tool: BuiltInToolMeta) => tool.id)
+          setSelectedBuiltInTools(defaultTools)
+          setToolsInitialized(true)
+        }
+      })
       .catch((err) => console.error('[agent-dialog] Failed to fetch built-in tools:', err))
-  }, [])
+  }, [editingAgent, toolsInitialized])
   // Use selectors so this form only re-renders when the action functions
   // identity changes (i.e. never), not on every keys-record mutation.
   const hasKey = useApiKeyStore((s) => s.hasKey)
@@ -91,6 +102,7 @@ function AgentForm({
   const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>(editingAgent?.mcpServerIds ?? [])
   const [selectedBuiltInTools, setSelectedBuiltInTools] = useState<BuiltInToolId[]>((editingAgent?.builtInToolIds ?? []) as BuiltInToolId[])
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [toolsInitialized, setToolsInitialized] = useState(false)
 
   // AWS Bedrock credentials
   const [awsAccessKeyId, setAwsAccessKeyId] = useState('')
