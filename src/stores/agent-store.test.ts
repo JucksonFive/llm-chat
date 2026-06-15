@@ -165,7 +165,7 @@ describe('loadAgents', () => {
     useAgentStore.setState({ activeAgentId: 'b' })
     fetchMock
       .mockResolvedValueOnce({
-        json: async () => [makeAgent({ id: 'a' }), makeAgent({ id: 'b' })],
+        json: async () => [makeAgent({ id: 'a', builtInToolIds: ['calculator'] }), makeAgent({ id: 'b', builtInToolIds: ['web-search'] })],
       })
 
     await useAgentStore.getState().loadAgents()
@@ -176,7 +176,7 @@ describe('loadAgents', () => {
     useAgentStore.setState({ activeAgentId: 'gone' })
     fetchMock
       .mockResolvedValueOnce({
-        json: async () => [makeAgent({ id: 'a' }), makeAgent({ id: 'b' })],
+        json: async () => [makeAgent({ id: 'a', builtInToolIds: ['calculator'] }), makeAgent({ id: 'b', builtInToolIds: ['web-search'] })],
       })
 
     await useAgentStore.getState().loadAgents()
@@ -185,7 +185,10 @@ describe('loadAgents', () => {
 
   it('hydrates API key presence from loaded agents', async () => {
     fetchMock.mockResolvedValueOnce({
-      json: async () => [makeAgent({ id: 'a', hasApiKey: true }), makeAgent({ id: 'b', hasApiKey: false })],
+      json: async () => [
+        makeAgent({ id: 'a', hasApiKey: true, builtInToolIds: ['calculator'] }),
+        makeAgent({ id: 'b', hasApiKey: false, builtInToolIds: ['web-search'] })
+      ],
     })
 
     await useAgentStore.getState().loadAgents()
@@ -193,5 +196,63 @@ describe('loadAgents', () => {
     expect(useApiKeyStore.getState().hasKey('a')).toBe(true)
     expect(useApiKeyStore.getState().hasKey('b')).toBe(false)
     expect(useAgentStore.getState().agents.find((a) => a.id === 'a')?.hasApiKey).toBe(true)
+  })
+
+  it('migrates agents with empty builtInToolIds to have default tools', async () => {
+    // First call: GET /api/db/agents returns agents with empty tools
+    fetchMock.mockResolvedValueOnce({
+      json: async () => [
+        makeAgent({ id: 'a', builtInToolIds: [] }),
+        makeAgent({ id: 'b', builtInToolIds: [] }),
+      ],
+    })
+    // Second call: PATCH for agent 'a'
+    fetchMock.mockResolvedValueOnce({})
+    // Third call: PATCH for agent 'b'
+    fetchMock.mockResolvedValueOnce({})
+    // Fourth call: Refresh GET /api/db/agents after migration
+    fetchMock.mockResolvedValueOnce({
+      json: async () => [
+        makeAgent({ id: 'a', builtInToolIds: ['web-search', 'web-fetch', 'calculator', 'datetime'] }),
+        makeAgent({ id: 'b', builtInToolIds: ['web-search', 'web-fetch', 'calculator', 'datetime'] }),
+      ],
+    })
+
+    await useAgentStore.getState().loadAgents()
+
+    // Verify PATCH calls were made
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/db/agents/a', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ builtInToolIds: ['web-search', 'web-fetch', 'calculator', 'datetime'] }),
+    })
+    expect(fetchMock).toHaveBeenNthCalledWith(3, '/api/db/agents/b', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ builtInToolIds: ['web-search', 'web-fetch', 'calculator', 'datetime'] }),
+    })
+
+    // Verify agents have default tools after migration
+    const agents = useAgentStore.getState().agents
+    expect(agents[0].builtInToolIds).toEqual(['web-search', 'web-fetch', 'calculator', 'datetime'])
+    expect(agents[1].builtInToolIds).toEqual(['web-search', 'web-fetch', 'calculator', 'datetime'])
+  })
+
+  it('skips migration when agents already have tools', async () => {
+    fetchMock.mockResolvedValueOnce({
+      json: async () => [
+        makeAgent({ id: 'a', builtInToolIds: ['calculator'] }),
+        makeAgent({ id: 'b', builtInToolIds: ['web-search'] }),
+      ],
+    })
+
+    await useAgentStore.getState().loadAgents()
+
+    // Only the initial GET should happen, no PATCH calls
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const agents = useAgentStore.getState().agents
+    expect(agents[0].builtInToolIds).toEqual(['calculator'])
+    expect(agents[1].builtInToolIds).toEqual(['web-search'])
   })
 })
