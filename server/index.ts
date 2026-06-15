@@ -139,7 +139,7 @@ app.get('/api/tools', (_req, res) => {
 app.post('/api/chat', async (req, res) => {
   let serverTimeout: ReturnType<typeof setTimeout> | undefined
   try {
-    const { providerId, model, apiKey, messages, systemPrompt, mcpServers, builtInToolIds } = req.body
+    const { providerId, model, apiKey, messages, systemPrompt, mcpServers, builtInToolIds, awsCredentials } = req.body
     
     // Filter images for providers that don't support them
     const filteredMessages = filterImagesFromMessages(messages, providerId)

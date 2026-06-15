@@ -11,6 +11,8 @@ export interface BedrockConfig {
   region?: string
   profile?: string
   modelId: string
+  accessKeyId?: string
+  secretAccessKey?: string
 }
 
 export interface ChatMessage {
@@ -19,15 +21,30 @@ export interface ChatMessage {
 }
 
 export interface BedrockStreamChunk {
-  type: 'text-delta' | 'error' | 'done'
+  type: 'text-delta' | 'error' | 'done' | 'tool-use' | 'tool-result'
   text?: string
   error?: string
+  toolUseId?: string
+  toolName?: string
+  toolInput?: Record<string, unknown>
 }
 
 function createBedrockClient(config: BedrockConfig): BedrockRuntimeClient {
-  const { region, profile } = config
+  const { region, profile, accessKeyId, secretAccessKey } = config
   const effectiveRegion = region || process.env.AWS_REGION || 'us-east-1'
 
+  // If explicit credentials are provided, use them
+  if (accessKeyId && secretAccessKey) {
+    return new BedrockRuntimeClient({
+      region: effectiveRegion,
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      },
+    })
+  }
+
+  // Otherwise, fall back to profile or default AWS credentials chain
   if (profile) {
     process.env.AWS_PROFILE = profile
   }
@@ -43,6 +60,22 @@ function convertToChatMessages(messages: ChatMessage[]): BedrockMessage[] {
       content,
     }
   })
+}
+
+/** Build the Bedrock toolConfig from our tool definitions. */
+function buildToolConfig(tools?: BedrockTool[]): ToolConfiguration | undefined {
+  if (!tools || tools.length === 0) return undefined
+  return {
+    tools: tools.map((tool) => ({
+      toolSpec: {
+        name: tool.name,
+        description: tool.description,
+        inputSchema: {
+          json: tool.inputSchema,
+        },
+      },
+    } as Tool)),
+  }
 }
 
 function validateConfig(config: BedrockConfig): void {
@@ -118,12 +151,14 @@ export async function askBedrock(
 export async function* streamBedrock(
   config: BedrockConfig,
   messages: ChatMessage[],
-  systemPrompt?: string
+  systemPrompt?: string,
+  tools?: BedrockTool[]
 ): AsyncGenerator<BedrockStreamChunk> {
   validateConfig(config)
 
   const client = createBedrockClient(config)
   const bedrockMessages = convertToChatMessages(messages)
+  const toolConfig = buildToolConfig(tools)
 
   const input = {
     modelId: config.modelId,
@@ -131,6 +166,7 @@ export async function* streamBedrock(
     ...(systemPrompt && {
       system: [{ text: systemPrompt }],
     }),
+    ...(toolConfig && { toolConfig }),
   }
 
   try {
@@ -141,14 +177,54 @@ export async function* streamBedrock(
       throw new Error('No stream returned from Bedrock')
     }
 
+    let currentToolUseId: string | undefined
+    let currentToolName: string | undefined
+    let currentToolInput = ''
+
     for await (const event of response.stream) {
       const chunk = event as ConverseStreamOutput
 
+      // Handle text content
       if (chunk.contentBlockDelta?.delta?.text) {
         yield {
           type: 'text-delta',
           text: chunk.contentBlockDelta.delta.text,
         }
+      }
+
+      // Handle tool use start
+      if (chunk.contentBlockStart?.start?.toolUse) {
+        const toolUse = chunk.contentBlockStart.start.toolUse
+        currentToolUseId = toolUse.toolUseId
+        currentToolName = toolUse.name
+        currentToolInput = ''
+      }
+
+      // Handle tool use input delta
+      if (chunk.contentBlockDelta?.delta?.toolUse?.input) {
+        currentToolInput += chunk.contentBlockDelta.delta.toolUse.input
+      }
+
+      // Handle tool use stop (complete)
+      if (chunk.contentBlockStop && currentToolUseId && currentToolName) {
+        try {
+          const parsedInput = currentToolInput ? JSON.parse(currentToolInput) : {}
+          yield {
+            type: 'tool-use',
+            toolUseId: currentToolUseId,
+            toolName: currentToolName,
+            toolInput: parsedInput,
+          }
+        } catch (parseError) {
+          yield {
+            type: 'error',
+            error: `Failed to parse tool input: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`,
+          }
+        }
+        // Reset for next tool
+        currentToolUseId = undefined
+        currentToolName = undefined
+        currentToolInput = ''
       }
 
       if (chunk.internalServerException || chunk.modelStreamErrorException) {
