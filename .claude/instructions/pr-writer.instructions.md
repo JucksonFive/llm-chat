@@ -44,9 +44,6 @@ Before doing anything, confirm with the caller that validation has passed. If it
     - **What** was changed (1-2 sentences)
     - **Why** the change was made (motivation, context)
     - **How** it was implemented (approach, notable decisions, trade-offs)
-    - End with:
-      ```
-      🤖 Generated with [Claude Code](https://claude.com/claude-code)
       ```
 - Report the PR URL after creation
 
