@@ -5,6 +5,7 @@ import { PROGRAMMER_AGENT_TEMPLATE } from '@/lib/agent-templates'
 import type { Agent } from '@/types'
 import { AVATAR_COLORS } from '@/lib/providers'
 import { useApiKeyStore } from '@/stores/api-key-store'
+import { apiFetch } from '@/lib/api-fetch'
 
 interface AgentState {
   agents: Agent[]
@@ -62,7 +63,7 @@ export const useAgentStore = create<AgentState>()(
           console.log(`[agent-store] Migrating ${agentsNeedingMigration.length} agents to have default tools`)
           await Promise.all(
             agentsNeedingMigration.map((agent) =>
-              fetch(`/api/db/agents/${agent.id}`, {
+              apiFetch(`/api/db/agents/${agent.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ builtInToolIds: DEFAULT_TOOLS }),
@@ -89,7 +90,7 @@ export const useAgentStore = create<AgentState>()(
 
       addAgent: async (data) => {
         const avatarColor = AVATAR_COLORS[get().agents.length % AVATAR_COLORS.length]
-        const res = await fetch('/api/db/agents', {
+        const res = await apiFetch('/api/db/agents', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -120,7 +121,7 @@ export const useAgentStore = create<AgentState>()(
         const agent = get().agents.find((a) => a.id === id)
         if (!agent) return
         const merged = { ...agent, ...updates }
-        await fetch(`/api/db/agents/${id}`, {
+        await apiFetch(`/api/db/agents/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(merged),
@@ -131,7 +132,7 @@ export const useAgentStore = create<AgentState>()(
       },
 
       deleteAgent: async (id) => {
-        await fetch(`/api/db/agents/${id}`, { method: 'DELETE' })
+        await apiFetch(`/api/db/agents/${id}`, { method: 'DELETE' })
         set((state) => ({
           agents: state.agents.filter((a) => a.id !== id),
           activeAgentId: state.activeAgentId === id ? null : state.activeAgentId,

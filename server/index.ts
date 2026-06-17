@@ -14,10 +14,15 @@ import { registerDbRoutes } from './db-routes.js'
 import { registerRagRoutes } from './rag/routes.js'
 import { streamBedrock } from './bedrock-service.js'
 import { findApiKeyForProvider, parseAwsCredentials, resolveApiKeyForAgent } from './api-keys.js'
+import { requireClientHeader } from './csrf.js'
 
 const app = express()
-app.use(cors())
+// Allow the custom client header through CORS (incl. preflight) so browsers
+// don't strip it from state-changing requests.
+app.use(cors({ allowedHeaders: ['Content-Type', 'Authorization', 'X-LLM-Chat-Client'] }))
 app.use(express.json({ limit: '50mb' }))
+
+app.use(requireClientHeader)
 
 function normalizeDeepSeekModel(model: string): string {
   switch (model) {

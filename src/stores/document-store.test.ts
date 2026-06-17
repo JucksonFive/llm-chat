@@ -70,7 +70,10 @@ describe('deleteDocument', () => {
 
     await useDocumentStore.getState().deleteDocument('a')
     expect(useDocumentStore.getState().documents.map((d) => d.id)).toEqual(['b'])
-    expect(fetchMock).toHaveBeenCalledWith('/api/rag/documents/a', { method: 'DELETE' })
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/rag/documents/a',
+      expect.objectContaining({ method: 'DELETE' }),
+    )
   })
 
   it('throws and leaves state untouched when the API responds with !ok', async () => {

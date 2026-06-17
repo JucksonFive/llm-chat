@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Memory } from '@/types'
+import { apiFetch } from '@/lib/api-fetch'
 
 interface MemoryState {
   memories: Memory[]
@@ -34,7 +35,7 @@ async function fetchRelevantLongTerm(
   if (longTermCount <= k) return null
   if (query.trim().length < MIN_SEMANTIC_QUERY_LENGTH) return null
   try {
-    const res = await fetch('/api/rag/memories/search', {
+    const res = await apiFetch('/api/rag/memories/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ agentId, query, k }),
@@ -74,14 +75,14 @@ export const useMemoryStore = create<MemoryState>()((set, get) => ({
       const existing = get().getShortTermMemories(agentId)
       if (existing.length >= MAX_SHORT_TERM) {
         const oldest = existing[0]
-        await fetch(`/api/db/memories/${oldest.id}`, { method: 'DELETE' })
+        await apiFetch(`/api/db/memories/${oldest.id}`, { method: 'DELETE' })
         set((state) => ({
           memories: state.memories.filter((m) => m.id !== oldest.id),
         }))
       }
     }
 
-    const res = await fetch('/api/db/memories', {
+    const res = await apiFetch('/api/db/memories', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ agentId, content, type }),
@@ -92,7 +93,7 @@ export const useMemoryStore = create<MemoryState>()((set, get) => ({
   },
 
   updateMemory: async (id, content) => {
-    await fetch(`/api/db/memories/${id}`, {
+    await apiFetch(`/api/db/memories/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content }),
@@ -103,7 +104,7 @@ export const useMemoryStore = create<MemoryState>()((set, get) => ({
   },
 
   deleteMemory: async (id) => {
-    await fetch(`/api/db/memories/${id}`, { method: 'DELETE' })
+    await apiFetch(`/api/db/memories/${id}`, { method: 'DELETE' })
     set((state) => ({
       memories: state.memories.filter((m) => m.id !== id),
     }))
@@ -204,7 +205,7 @@ export const useMemoryStore = create<MemoryState>()((set, get) => ({
   clearShortTermMemories: async (agentId) => {
     const shortTerm = get().getShortTermMemories(agentId)
     for (const m of shortTerm) {
-      await fetch(`/api/db/memories/${m.id}`, { method: 'DELETE' })
+      await apiFetch(`/api/db/memories/${m.id}`, { method: 'DELETE' })
     }
     set((state) => ({
       memories: state.memories.filter(

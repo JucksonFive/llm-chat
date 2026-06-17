@@ -53,11 +53,15 @@ describe('useApiKeyStore', () => {
 
     await useApiKeyStore.getState().setKey('agent-1', 'sk-aaa')
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/db/agents/agent-1/api-key', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apiKey: 'sk-aaa' }),
-    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/db/agents/agent-1/api-key',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ apiKey: 'sk-aaa' }),
+      }),
+    )
+    const init = fetchMock.mock.calls[0][1] as RequestInit
+    expect(new Headers(init.headers).get('X-LLM-Chat-Client')).toBe('1')
     expect(useApiKeyStore.getState().hasKey('agent-1')).toBe(true)
     expect(localStorage.getItem('llm-chat-api-keys')).toBeNull()
   })
@@ -68,7 +72,10 @@ describe('useApiKeyStore', () => {
 
     await useApiKeyStore.getState().removeKey('agent-1')
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/db/agents/agent-1/api-key', { method: 'DELETE' })
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/db/agents/agent-1/api-key',
+      expect.objectContaining({ method: 'DELETE' }),
+    )
     expect(useApiKeyStore.getState().hasKey('agent-1')).toBe(false)
     expect(useApiKeyStore.getState().hasKey('agent-2')).toBe(true)
   })

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { McpServerConfig } from '@/types'
+import { apiFetch } from '@/lib/api-fetch'
 
 interface McpState {
   servers: McpServerConfig[]
@@ -22,7 +23,7 @@ export const useMcpStore = create<McpState>()((set, get) => ({
   },
 
   addServer: async (data) => {
-    const res = await fetch('/api/db/mcp-servers', {
+    const res = await apiFetch('/api/db/mcp-servers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -36,7 +37,7 @@ export const useMcpStore = create<McpState>()((set, get) => ({
   updateServer: async (id, updates) => {
     const server = get().servers.find((s) => s.id === id)
     if (!server) return
-    await fetch(`/api/db/mcp-servers/${id}`, {
+    await apiFetch(`/api/db/mcp-servers/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...server, ...updates }),
@@ -47,7 +48,7 @@ export const useMcpStore = create<McpState>()((set, get) => ({
   },
 
   deleteServer: async (id) => {
-    await fetch(`/api/db/mcp-servers/${id}`, { method: 'DELETE' })
+    await apiFetch(`/api/db/mcp-servers/${id}`, { method: 'DELETE' })
     set((state) => ({
       servers: state.servers.filter((s) => s.id !== id),
     }))

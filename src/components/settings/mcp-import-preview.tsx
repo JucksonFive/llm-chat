@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import type { McpServerImport } from '@/types'
 import type { ValidationResult } from '@/lib/mcp-import-validator'
+import { apiFetch } from '@/lib/api-fetch'
 
 interface McpImportPreviewProps {
   config: McpServerImport
@@ -22,7 +23,7 @@ export function McpImportPreview({ config, validation, onInstall, onCancel }: Mc
     setTestResult(null)
 
     try {
-      const response = await fetch('/api/mcp/test', {
+      const response = await apiFetch('/api/mcp/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

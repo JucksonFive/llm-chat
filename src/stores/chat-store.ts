@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Conversation, Message, ToolCallInfo } from '@/types'
+import { apiFetch } from '@/lib/api-fetch'
 
 interface ChatState {
   conversations: Record<string, Conversation>
@@ -57,7 +58,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   },
 
   createConversation: async (agentId, projectId) => {
-    const res = await fetch('/api/db/conversations', {
+    const res = await apiFetch('/api/db/conversations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ agentId, projectId: projectId || null }),
@@ -80,7 +81,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   },
 
   deleteConversation: async (id) => {
-    await fetch(`/api/db/conversations/${id}`, { method: 'DELETE' })
+    await apiFetch(`/api/db/conversations/${id}`, { method: 'DELETE' })
     set((state) => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { [id]: _discarded, ...rest } = state.conversations
@@ -124,7 +125,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
 
   // Persist a message to the database
   persistMessage: async (conversationId, message) => {
-    await fetch(`/api/db/conversations/${conversationId}/messages`, {
+    await apiFetch(`/api/db/conversations/${conversationId}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -254,7 +255,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   },
 
   updateConversationTitle: async (id, title) => {
-    await fetch(`/api/db/conversations/${id}`, {
+    await apiFetch(`/api/db/conversations/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title }),

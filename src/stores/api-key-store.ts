@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Agent, ProviderId } from '@/types'
+import { apiFetch } from '@/lib/api-fetch'
 
 const LEGACY_STORAGE_NAME = 'llm-chat-api-keys'
 
@@ -53,7 +54,7 @@ export const useApiKeyStore = create<ApiKeyState>()((set, get) => ({
   hasKey: (agentId) => Boolean(get().keyStatus[agentId]),
 
   setKey: async (agentId, apiKey) => {
-    const res = await fetch(`/api/db/agents/${agentId}/api-key`, {
+    const res = await apiFetch(`/api/db/agents/${agentId}/api-key`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ apiKey }),
@@ -66,7 +67,7 @@ export const useApiKeyStore = create<ApiKeyState>()((set, get) => ({
   },
 
   removeKey: async (agentId) => {
-    const res = await fetch(`/api/db/agents/${agentId}/api-key`, { method: 'DELETE' })
+    const res = await apiFetch(`/api/db/agents/${agentId}/api-key`, { method: 'DELETE' })
     if (!res.ok) throw new Error('Failed to remove API key')
 
     set((state) => ({

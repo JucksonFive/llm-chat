@@ -10,6 +10,7 @@ import {
 import { useAgentStore } from '@/stores/agent-store'
 import { useMcpStore } from '@/stores/mcp-store'
 import type { McpResource, McpServerConfig } from '@/types'
+import { apiFetch } from '@/lib/api-fetch'
 import { ChevronDown, ChevronRight, Copy, Database, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -49,7 +50,7 @@ export function ResourcesPanel({ open, onOpenChange, onInsert }: ResourcesPanelP
   const loadResources = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/mcp/resources', {
+      const res = await apiFetch('/api/mcp/resources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ servers: mcpServers }),
@@ -67,7 +68,7 @@ export function ResourcesPanel({ open, onOpenChange, onInsert }: ResourcesPanelP
     if (resourceContent[uri]) return
     setLoadingContent(uri)
     try {
-      const res = await fetch('/api/mcp/resources/read', {
+      const res = await apiFetch('/api/mcp/resources/read', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ serverId, uri }),

@@ -222,16 +222,16 @@ describe('loadAgents', () => {
 
     // Verify PATCH calls were made
     expect(fetchMock).toHaveBeenCalledTimes(4)
-    expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/db/agents/a', {
+    expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/db/agents/a', expect.objectContaining({
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ builtInToolIds: ['web-search', 'web-fetch', 'calculator', 'datetime'] }),
-    })
-    expect(fetchMock).toHaveBeenNthCalledWith(3, '/api/db/agents/b', {
+    }))
+    expect(fetchMock).toHaveBeenNthCalledWith(3, '/api/db/agents/b', expect.objectContaining({
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ builtInToolIds: ['web-search', 'web-fetch', 'calculator', 'datetime'] }),
-    })
+    }))
+    // The migration PATCH requests carry the CSRF client header
+    expect(new Headers((fetchMock.mock.calls[1][1] as RequestInit).headers).get('X-LLM-Chat-Client')).toBe('1')
 
     // Verify agents have default tools after migration
     const agents = useAgentStore.getState().agents

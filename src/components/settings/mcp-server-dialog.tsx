@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/select'
 import { useMcpStore } from '@/stores/mcp-store'
 import type { McpServerConfig } from '@/types'
+import { apiFetch } from '@/lib/api-fetch'
 import { CheckCircle, Loader2, XCircle } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
@@ -123,7 +124,7 @@ export function McpServerDialog({ open, onOpenChange, editServerId }: McpServerD
         id: editingServer?.id ?? 'test-' + Date.now(),
         createdAt: Date.now(),
       }
-      const res = await fetch('/api/mcp/test', {
+      const res = await apiFetch('/api/mcp/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config),

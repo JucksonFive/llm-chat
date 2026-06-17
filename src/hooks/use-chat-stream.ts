@@ -12,6 +12,7 @@ import { speakText } from '@/stores/ui-store'
 import { streamChat } from '@/lib/llm-client'
 import { PROVIDERS } from '@/lib/providers'
 import { computeToolContext, resolveAvailableTools } from '@/lib/tool-resolver'
+import { apiFetch } from '@/lib/api-fetch'
 import type { McpServerConfig, Attachment } from '@/types'
 
 export function useChatStream() {
@@ -392,7 +393,7 @@ export function useChatStream() {
             .slice(-6)
             .map((m) => ({ role: m.role, content: m.content }))
 
-          fetch('/api/extract-memories', {
+          apiFetch('/api/extract-memories', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
