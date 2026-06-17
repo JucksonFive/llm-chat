@@ -11,6 +11,7 @@ A powerful multi-provider AI chat desktop application with advanced features lik
 - [Screenshots](#screenshots)
 - [Tech Stack](#tech-stack)
 - [Getting Started](#getting-started)
+- [Security (Local Deployment)](#security-local-deployment)
 - [MCP Integration](#mcp-integration)
 - [Built-in Tools](#built-in-tools)
 - [Supported Models](#supported-models)
@@ -242,6 +243,46 @@ Create a `.env` file in the project root (optional):
 | `VITE_API_URL` | No | http://localhost:3001 | Backend API URL for frontend |
 | `AWS_REGION` | No | us-east-1 | AWS region for Bedrock |
 | `AWS_PROFILE` | No | default | AWS profile for Bedrock credentials |
+| `HTTPS_ENABLED` | No | false | When `true`, the local Express server runs over HTTPS using a self-signed certificate stored in `~/.llm-chat/certs/`. See [Security](#security-local-deployment). |
+
+## Security (Local Deployment)
+
+LLM Chat is primarily a **localhost desktop application**. The following describes the security model when running locally (via `pnpm dev`, `pnpm dev:electron`, or a packaged Electron build). For internet-facing deployments, see [Production Deployment (Docker)](#production-deployment-docker), which terminates TLS at Caddy with automatic Let's Encrypt certificates.
+
+### Transport: HTTP on localhost
+
+By default the Express API server listens on **plain HTTP** at `http://localhost:3001`, and the Vite dev server proxies `/api` to it. This is standard for localhost applications: traffic stays on the loopback interface (`127.0.0.1`) and never leaves your machine. In the packaged Electron build, the renderer and the embedded server run within the same sandboxed process boundary, so there is no network exposure to other hosts.
+
+Because the transport is unencrypted on the loopback interface:
+
+- **API keys are transmitted over loopback during use.** Keys are stored client-side in browser `localStorage` and sent in the body of each `POST /api/chat` (and `/api/rag/memories/search`) request to the local server. They are never persisted in the server database. On a single-user machine this is low risk, but any process running as your user could in principle observe loopback traffic.
+- Conversation content and tool inputs/outputs likewise travel over the loopback interface in clear text.
+
+### Optional HTTPS mode (`HTTPS_ENABLED`)
+
+For defense-in-depth — for example, on a shared or multi-user machine — you can opt in to TLS on localhost by setting the `HTTPS_ENABLED` environment variable:
+
+```bash
+HTTPS_ENABLED=true pnpm dev
+```
+
+When enabled, the server:
+
+1. Generates a **self-signed certificate** (via the [`selfsigned`](https://www.npmjs.com/package/selfsigned) package) for `localhost` / `127.0.0.1` / `::1` on first start.
+2. Persists it to `~/.llm-chat/certs/` (`localhost-key.pem` mode `600`, `localhost-cert.pem`) and reuses it on subsequent starts.
+3. Starts the server with `https.createServer` instead of plain `app.listen`.
+
+This is **disabled by default** and requires explicit opt-in. Because the certificate is self-signed, your browser will show a "not trusted" warning the first time; this is expected for a locally generated cert. To remove HTTPS, unset `HTTPS_ENABLED`; delete the `~/.llm-chat/certs/` directory to force regeneration.
+
+### Recommendation: encrypt data at rest
+
+For an additional layer of protection, set `LLM_CHAT_MASTER_PASSWORD`. This enables **AES-256-GCM encryption** of the on-disk database (`~/.llm-chat/data.db`) using a scrypt-derived key, so conversations, memories, and stored agent secrets are encrypted at rest:
+
+```bash
+LLM_CHAT_MASTER_PASSWORD=your-secure-password pnpm dev
+```
+
+Keep this password safe — without it the encrypted database cannot be opened.
 
 ### Building for Distribution
 
