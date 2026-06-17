@@ -14,8 +14,10 @@ import { registerDbRoutes } from './db-routes.js'
 import { registerRagRoutes } from './rag/routes.js'
 import { streamBedrock } from './bedrock-service.js'
 import { findApiKeyForProvider, parseAwsCredentials, resolveApiKeyForAgent } from './api-keys.js'
+import { cspMiddleware } from './csp.js'
 
 const app = express()
+app.use(cspMiddleware())
 app.use(cors())
 app.use(express.json({ limit: '50mb' }))
 
