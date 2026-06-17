@@ -1,5 +1,6 @@
 import { tool, jsonSchema } from 'ai'
 import { fuseResults, rerankResults, rewriteQuery } from './web-search-rewrite.js'
+import { safeFetch } from '../lib/url-validator.js'
 
 const SEARXNG_URL = process.env.SEARXNG_URL || 'http://localhost:8888'
 
@@ -67,7 +68,10 @@ async function fetchPageContent(url: string, maxLength = 15000): Promise<string>
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 8000)
   try {
-    const response = await fetch(url, {
+    // Result URLs are untrusted (LLM/search-provided) and may redirect to
+    // internal hosts, so they go through SSRF-guarded fetch with manual
+    // redirect handling.
+    const response = await safeFetch(url, {
       signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
