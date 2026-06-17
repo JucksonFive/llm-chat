@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { codeExecutorTool } from './code-executor.js'
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
+import { codeExecutorTool, _resetSandboxCache } from './code-executor.js'
 import { readFileSync, unlinkSync, existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -259,15 +259,69 @@ describe('codeExecutorTool', () => {
 
     it('respects custom allowed commands from env var', async () => {
       process.env.CODE_EXECUTOR_ALLOWED_COMMANDS = 'whoami,id,ls'
-      // whoami was disallowed by default, should now be allowed (not in allowlist error)
+      // whoami is disallowed by default; with the custom allowlist it must no
+      // longer trigger the "not in allowlist" rejection. getAllowedCommands()
+      // reads the env var on every call, so the override is picked up live.
       const r = await exec('shell', 'whoami')
-      // Important: the tool caches the allowlist. Since getAllowedCommands() reads
-      // from env every call, we should see the custom allowlist in effect.
-      // But due to module caching, the tool might use the original set.
-      // We accept either behavior here — the key test is that the feature exists.
-      // If whoami is still rejected, it means the env var wasn't re-read.
-      // The env var feature is optional per "Consider making the allowlist configurable".
-      expect(r).toBeDefined()
+      expect(r.stderr).not.toMatch(/not in allowlist/)
+    })
+
+    it('still rejects commands not in the custom allowlist', async () => {
+      process.env.CODE_EXECUTOR_ALLOWED_COMMANDS = 'echo'
+      // 'ls' is in the default allowlist but NOT in this custom one.
+      const r = await exec('shell', 'ls')
+      expect(r.stderr).toMatch(/not in allowlist/)
+      expect(r.exitCode).toBe(1)
+    })
+  })
+
+  // -----------------------------------------------------------------------
+  // OS-level sandbox wrapping (best-effort; tests must not require firejail)
+  // -----------------------------------------------------------------------
+  describe('Sandbox wrapping', () => {
+    const originalSandbox = process.env.CODE_EXECUTOR_SANDBOX
+
+    beforeEach(() => {
+      _resetSandboxCache()
+    })
+
+    afterAll(() => {
+      if (originalSandbox !== undefined) {
+        process.env.CODE_EXECUTOR_SANDBOX = originalSandbox
+      } else {
+        delete process.env.CODE_EXECUTOR_SANDBOX
+      }
+      _resetSandboxCache()
+    })
+
+    it('runs commands without a sandbox when CODE_EXECUTOR_SANDBOX=none', async () => {
+      process.env.CODE_EXECUTOR_SANDBOX = 'none'
+      _resetSandboxCache()
+      const r = await exec('shell', 'echo sandbox-none-test')
+      expect(r.exitCode).toBe(0)
+      expect(r.stdout).toContain('sandbox-none-test')
+    })
+
+    it('records the active sandbox in the audit log', async () => {
+      process.env.CODE_EXECUTOR_SANDBOX = 'none'
+      _resetSandboxCache()
+      clearAuditLog()
+      await exec('shell', 'echo sandbox-audit-test')
+      const content = auditLogContent()
+      // With CODE_EXECUTOR_SANDBOX=none the label is "none".
+      expect(content).toMatch(/sandbox=none/)
+    })
+
+    it('falls back gracefully when a requested sandbox binary is absent', async () => {
+      // Request a sandbox that almost certainly is not installed in CI; the
+      // tool must fall back to direct execution rather than failing.
+      process.env.CODE_EXECUTOR_SANDBOX = 'firejail'
+      _resetSandboxCache()
+      const r = await exec('shell', 'echo sandbox-fallback-test')
+      // Either firejail ran it, or we fell back to direct execution — either
+      // way the command must succeed (not error out due to a missing binary).
+      expect(r.exitCode).toBe(0)
+      expect(r.stdout).toContain('sandbox-fallback-test')
     })
   })
 
