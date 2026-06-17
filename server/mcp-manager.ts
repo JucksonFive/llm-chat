@@ -20,6 +20,69 @@ interface McpConnection {
 
 const connections = new Map<string, McpConnection>()
 
+/**
+ * Environment variables that are safe to propagate to MCP stdio child processes.
+ * These are needed for the child process to locate executables, libraries, and
+ * write temp files, but contain no application secrets.
+ */
+export const SAFE_ENV_KEYS = [
+  'PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL',
+  'LANG', 'LC_ALL', 'LC_CTYPE',
+  'TMPDIR', 'TMP', 'TEMP',
+  'NODE_PATH', 'NODE_ENV',
+  'XDG_CACHE_HOME', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME',
+  // platform-specific dynamic linker paths
+  'DYLD_LIBRARY_PATH', 'LD_LIBRARY_PATH',
+] as const
+
+/**
+ * Patterns matching environment variable names that must never be forwarded to
+ * MCP child processes, even if they ever appear in SAFE_ENV_KEYS. Acts as a
+ * defense-in-depth deny-list on top of the allowlist.
+ */
+export const DENY_PATTERNS: RegExp[] = [
+  /_API_KEY$/i, /_SECRET/i, /_PASSWORD/i, /_TOKEN$/i,
+  /^AWS_/i, /^LLM_CHAT_/i, /_CREDENTIALS$/i,
+]
+
+function isDenied(key: string): boolean {
+  return DENY_PATTERNS.some((pattern) => pattern.test(key))
+}
+
+/**
+ * Builds the environment for an MCP stdio child process. Only an explicit
+ * allowlist of safe variables from the parent process are propagated, and any
+ * key matching a secret deny-pattern is dropped. User-supplied `configEnv`
+ * always takes precedence (and bypasses the allowlist, since it was set
+ * intentionally) but is still subject to the deny-list for safety.
+ */
+export function sanitizeEnv(
+  env: NodeJS.ProcessEnv,
+  configEnv?: Record<string, string>,
+): Record<string, string> {
+  const clean: Record<string, string> = {}
+
+  for (const key of SAFE_ENV_KEYS) {
+    const value = env[key]
+    if (value !== undefined && !isDenied(key)) {
+      clean[key] = value
+    }
+  }
+
+  // User-provided env vars override the safe defaults. These are explicitly set
+  // by the user in the MCP server config (e.g. an API token the MCP server
+  // itself needs), so neither the allowlist nor the deny-list applies to them.
+  if (configEnv) {
+    for (const [key, value] of Object.entries(configEnv)) {
+      if (value !== undefined) {
+        clean[key] = value
+      }
+    }
+  }
+
+  return clean
+}
+
 export async function connect(config: McpServerConfig): Promise<Client> {
   const existing = connections.get(config.id)
   if (existing) return existing.client
@@ -31,7 +94,7 @@ export async function connect(config: McpServerConfig): Promise<Client> {
     transport = new StdioClientTransport({
       command: config.command,
       args: config.args ?? [],
-      env: { ...process.env, ...(config.env ?? {}) } as Record<string, string>,
+      env: sanitizeEnv(process.env, config.env),
     })
   } else if (config.transport === 'sse') {
     if (!config.url) throw new Error(`MCP server "${config.name}": url is required for SSE transport`)

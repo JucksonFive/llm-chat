@@ -205,6 +205,12 @@ export function McpServerDialog({ open, onOpenChange, editServerId }: McpServerD
                   className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   rows={2}
                 />
+                <p className="text-xs text-muted-foreground">
+                  For security, the application&apos;s own secrets are never passed to MCP
+                  servers. Only a safe allowlist of system variables (PATH, HOME, LANG,
+                  TMPDIR, NODE_ENV, etc.) is propagated. To give the server an API key or
+                  other secret, set it explicitly here.
+                </p>
               </div>
             </>
           ) : (
