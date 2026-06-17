@@ -26,19 +26,19 @@ describe('encrypt / decrypt', () => {
     expect(a).not.toBe(b)
   })
 
-  it('returns the input as-is when decryption fails (cross-machine fallback)', () => {
-    // Truly garbled input should fall through to the catch and return the
-    // original ciphertext — supports migration from another machine.
-    expect(decrypt('not-base64::format')).toBe('not-base64::format')
-    expect(decrypt('plain text key')).toBe('plain text key')
+  it('returns null when the input is garbled (no longer leaks ciphertext)', () => {
+    // Truly garbled input should fall through to the catch and return null
+    // rather than the original ciphertext (which would leak downstream).
+    expect(decrypt('not-base64::format')).toBeNull()
+    expect(decrypt('plain text key')).toBeNull()
   })
 
-  it('handles a tampered tag by returning the original ciphertext', () => {
+  it('returns null when the auth tag is tampered with', () => {
     const enc = encrypt('hello')
     const parts = enc.split(':')
     parts[1] = Buffer.from('tampered-tag-bytes-padding').toString('base64')
     const tampered = parts.join(':')
-    // Auth check fails → catch returns the input unchanged.
-    expect(decrypt(tampered)).toBe(tampered)
+    // Auth check fails → null, not the input.
+    expect(decrypt(tampered)).toBeNull()
   })
 })
