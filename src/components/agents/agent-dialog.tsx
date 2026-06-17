@@ -19,13 +19,14 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { API_KEY_TRANSPORT_WARNING } from '@/lib/api-key-transport'
 import { SYSTEM_PROMPT_PRESETS } from '@/lib/default-system-prompt'
 import { PROVIDERS } from '@/lib/providers'
 import { useAgentStore } from '@/stores/agent-store'
 import { useApiKeyStore } from '@/stores/api-key-store'
 import { useMcpStore } from '@/stores/mcp-store'
 import type { Agent, BuiltInToolId, BuiltInToolMeta, ProviderId } from '@/types'
-import { Eye, EyeOff, Server, Trash2, Wrench } from 'lucide-react'
+import { Eye, EyeOff, Server, ShieldAlert, Trash2, Wrench } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
 interface AgentDialogProps {
@@ -365,6 +366,13 @@ function AgentForm({
               </Select>
               {errors.awsRegion && <p className="text-xs text-destructive">{errors.awsRegion}</p>}
             </div>
+            <p
+              role="note"
+              className="flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-700 dark:text-amber-400"
+            >
+              <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>{API_KEY_TRANSPORT_WARNING}</span>
+            </p>
           </>
         ) : provider.requiresApiKey && (
           <div className="grid gap-2">
@@ -401,6 +409,13 @@ function AgentForm({
                 A saved API key is available. Enter a new one only to replace it.
               </p>
             )}
+            <p
+              role="note"
+              className="flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-700 dark:text-amber-400"
+            >
+              <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>{API_KEY_TRANSPORT_WARNING}</span>
+            </p>
           </div>
         )}
 
