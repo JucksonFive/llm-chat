@@ -15,6 +15,8 @@ import { registerRagRoutes } from './rag/routes.js'
 import { streamBedrock } from './bedrock-service.js'
 import { findApiKeyForProvider, parseAwsCredentials, resolveApiKeyForAgent } from './api-keys.js'
 import { requireClientHeader } from './csrf.js'
+import { isHttpsEnabled, ensureTlsCredentials } from './tls.js'
+import https from 'node:https'
 
 const app = express()
 // Allow the custom client header through CORS (incl. preflight) so browsers
@@ -789,6 +791,23 @@ if (process.env.ELECTRON_DIST_PATH) {
 
 export async function startServer(port = 3001): Promise<number> {
   await initDb()
+
+  // Optional HTTPS mode (opt-in via HTTPS_ENABLED). Uses a self-signed cert
+  // stored in ~/.llm-chat/certs. Default remains plain HTTP on localhost.
+  if (isHttpsEnabled()) {
+    const { key, cert } = await ensureTlsCredentials()
+    const httpsServer = https.createServer({ key, cert }, app)
+    return new Promise((resolve, reject) => {
+      httpsServer.listen(port, () => {
+        const addr = httpsServer.address()
+        const actualPort = typeof addr === 'object' && addr ? addr.port : port
+        console.log(`LLM Chat server running on https://localhost:${actualPort} (self-signed cert)`)
+        resolve(actualPort)
+      })
+      httpsServer.on('error', reject)
+    })
+  }
+
   return new Promise((resolve, reject) => {
     const server = app.listen(port, () => {
       const addr = server.address()
