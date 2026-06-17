@@ -54,8 +54,12 @@ Run these commands from the repository root:
 Validation rule:
 - Treat task completion as pending until these checks have been run locally and their outcome is reported.
 
-### Post-Validation Git Workflow
-Once all validation checks (lint, test, build, build:electron) pass, delegate to the **pr-writer** agent to handle committing, pushing, and PR creation. Launch it with the Agent tool (`subagent_type: "pr-writer"`) and provide a brief summary of what was changed and why.
+### Post-Validation Testing
+Once all validation checks (lint, test, build, build:electron) pass, delegate to the **vitest-writer** agent to write comprehensive tests. Launch it with the Agent tool (`subagent_type: "vitest-writer"`) and provide:
+- Summary of implementation changes
+- Files that were modified or created
+- Key functionality that needs test coverage
+- Edge cases and error conditions to test
 
 ## Persistent Agent Memory
 
