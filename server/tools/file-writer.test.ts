@@ -19,12 +19,19 @@ async function write(input: { path: string; content: string; append?: boolean })
 }
 
 let dir: string
+const ORIGINAL_FULL_ACCESS = process.env.ALLOW_FULL_FS_ACCESS
 
 beforeEach(async () => {
+  // These tests exercise raw file IO against temp dirs outside the workspace,
+  // so opt into full filesystem access. Workspace boundary enforcement is
+  // covered by server/lib/workspace.test.ts.
+  process.env.ALLOW_FULL_FS_ACCESS = 'true'
   dir = await mkdtemp(path.join(tmpdir(), 'file-writer-'))
 })
 
 afterEach(async () => {
+  if (ORIGINAL_FULL_ACCESS === undefined) delete process.env.ALLOW_FULL_FS_ACCESS
+  else process.env.ALLOW_FULL_FS_ACCESS = ORIGINAL_FULL_ACCESS
   await rm(dir, { recursive: true, force: true })
 })
 

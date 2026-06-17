@@ -1,13 +1,13 @@
 import { tool, jsonSchema } from 'ai'
 import { readFile, stat } from 'node:fs/promises'
-import path from 'node:path'
+import { auditFileOperation, prepareWorkspacePath } from '../lib/workspace.js'
 
 export const fileReaderTool = tool({
-  description: 'Read a file from the local filesystem. Returns the text content of the file.',
+  description: 'Read a file from the local filesystem (restricted to the workspace unless full filesystem access is enabled). Returns the text content of the file.',
   inputSchema: jsonSchema<{ path: string; encoding?: string; maxLines?: number }>({
     type: 'object',
     properties: {
-      path: { type: 'string', description: 'Absolute path to the file to read' },
+      path: { type: 'string', description: 'Path to the file to read (relative to the workspace, or absolute)' },
       encoding: {
         type: 'string',
         enum: ['utf-8', 'ascii', 'latin1'],
@@ -18,9 +18,14 @@ export const fileReaderTool = tool({
     required: ['path'],
   }),
   execute: async ({ path: filePath, encoding = 'utf-8', maxLines }) => {
-    try {
-      const resolved = path.resolve(filePath)
+    const prepared = prepareWorkspacePath(filePath)
+    if ('error' in prepared) {
+      auditFileOperation('read', filePath, 'denied', prepared.error)
+      return { error: prepared.error }
+    }
+    const resolved = prepared.resolved
 
+    try {
       const stats = await stat(resolved)
       if (!stats.isFile()) {
         return { error: `"${resolved}" is not a regular file` }
@@ -39,6 +44,7 @@ export const fileReaderTool = tool({
         }
       }
 
+      auditFileOperation('read', resolved, 'ok')
       return {
         path: resolved,
         size: stats.size,
@@ -46,6 +52,7 @@ export const fileReaderTool = tool({
         content,
       }
     } catch (err) {
+      auditFileOperation('read', resolved, 'error', err instanceof Error ? err.message : undefined)
       if (err instanceof Error && 'code' in err) {
         const code = (err as NodeJS.ErrnoException).code
         if (code === 'ENOENT') return { error: `File not found: ${filePath}` }
