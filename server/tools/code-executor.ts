@@ -4,6 +4,7 @@ import { execFile } from 'node:child_process'
 import { appendFileSync, mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { logSecurityEvent } from '../lib/audit-log.js'
 
 // ---------------------------------------------------------------------------
 // Command allowlist — restricts shell execution to a safe subset of binaries.
@@ -76,6 +77,19 @@ function getAuditLogPath(): string {
 }
 
 function auditLog(language: string, code: string, exitCode: number, stderr?: string): void {
+  // Structured security audit log (JSONL). Truncate the command so we never
+  // persist large payloads; do not log stdout/stderr content beyond a snippet.
+  logSecurityEvent(
+    'shell.execute',
+    {
+      language,
+      exitCode,
+      command: code.slice(0, 500),
+      stderrSnippet: stderr ? stderr.slice(0, 200) : undefined,
+    },
+    exitCode === 0 ? 'info' : 'warning',
+  )
+
   const timestamp = new Date().toISOString()
   const stderrSnippet = stderr ? ` stderr="${stderr.slice(0, 200)}"` : ''
   const line = `[${timestamp}] language=${language} exit=${exitCode}${stderrSnippet} code="${code.replace(/"/g, '\\"')}"\n`

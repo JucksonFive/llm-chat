@@ -1,6 +1,7 @@
 import { tool, jsonSchema } from 'ai'
 import { writeFile, mkdir } from 'node:fs/promises'
 import path from 'node:path'
+import { logSecurityEvent } from '../lib/audit-log.js'
 
 export const fileWriterTool = tool({
   description: 'Write content to a file on the local filesystem. Creates parent directories if they do not exist. Can create new files or overwrite/append to existing ones.',
@@ -31,12 +32,29 @@ export const fileWriterTool = tool({
         await writeFile(resolved, content, 'utf-8')
       }
 
+      logSecurityEvent('file.write', {
+        path: resolved,
+        size: contentBytes,
+        operation: append ? 'append' : 'overwrite',
+        success: true,
+      })
+
       return {
         path: resolved,
         size: contentBytes,
         mode: append ? 'appended' : 'written',
       }
     } catch (err) {
+      logSecurityEvent(
+        'file.write',
+        {
+          path: filePath,
+          operation: append ? 'append' : 'overwrite',
+          success: false,
+          error: err instanceof Error ? err.message : 'unknown',
+        },
+        'warning',
+      )
       if (err instanceof Error && 'code' in err) {
         const code = (err as NodeJS.ErrnoException).code
         if (code === 'EACCES') return { error: `Permission denied: ${filePath}` }

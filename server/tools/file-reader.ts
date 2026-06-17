@@ -1,6 +1,7 @@
 import { tool, jsonSchema } from 'ai'
 import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
+import { logSecurityEvent } from '../lib/audit-log.js'
 
 export const fileReaderTool = tool({
   description: 'Read a file from the local filesystem. Returns the text content of the file.',
@@ -39,6 +40,8 @@ export const fileReaderTool = tool({
         }
       }
 
+      logSecurityEvent('file.read', { path: resolved, size: stats.size, success: true })
+
       return {
         path: resolved,
         size: stats.size,
@@ -46,6 +49,11 @@ export const fileReaderTool = tool({
         content,
       }
     } catch (err) {
+      logSecurityEvent(
+        'file.read',
+        { path: filePath, success: false, error: err instanceof Error ? err.message : 'unknown' },
+        'warning',
+      )
       if (err instanceof Error && 'code' in err) {
         const code = (err as NodeJS.ErrnoException).code
         if (code === 'ENOENT') return { error: `File not found: ${filePath}` }
