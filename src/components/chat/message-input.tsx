@@ -10,6 +10,7 @@ import { useChatStream } from '@/hooks/use-chat-stream'
 import { ResourcesPanel } from '@/components/mcp/resources-panel'
 import { PromptsPanel } from '@/components/mcp/prompts-panel'
 import { cn } from '@/lib/utils'
+import { apiFetch } from '@/lib/api-fetch'
 import type { McpServerConfig, Attachment } from '@/types'
 
 export function MessageInput() {
@@ -56,7 +57,7 @@ export function MessageInput() {
 
       if (isPdf) {
         try {
-          const res = await fetch('/api/extract-pdf', {
+          const res = await apiFetch('/api/extract-pdf', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ dataUrl }),

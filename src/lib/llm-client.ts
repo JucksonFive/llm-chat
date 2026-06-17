@@ -1,4 +1,5 @@
 import type { ProviderId, McpServerConfig } from '@/types'
+import { apiFetch } from '@/lib/api-fetch'
 
 type MessageContent = string | Array<{ type: 'text'; text: string } | { type: 'image'; image: string }>
 
@@ -54,7 +55,7 @@ export async function streamChat({
   try {
     resetTimeout()
 
-    const response = await fetch('/api/chat', {
+    const response = await apiFetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ agentId, providerId, model, systemPrompt, messages, mcpServers, builtInToolIds }),

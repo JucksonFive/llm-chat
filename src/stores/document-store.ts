@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { IndexedDocument } from '@/types'
+import { apiFetch } from '@/lib/api-fetch'
 
 interface DocumentState {
   documents: IndexedDocument[]
@@ -26,7 +27,7 @@ export const useDocumentStore = create<DocumentState>()((set) => ({
   },
 
   deleteDocument: async (id) => {
-    const res = await fetch(`/api/rag/documents/${id}`, { method: 'DELETE' })
+    const res = await apiFetch(`/api/rag/documents/${id}`, { method: 'DELETE' })
     if (!res.ok) throw new Error('Failed to delete document')
     set((state) => ({ documents: state.documents.filter((d) => d.id !== id) }))
   },

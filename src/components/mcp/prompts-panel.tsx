@@ -12,6 +12,7 @@ import {
 import { useAgentStore } from '@/stores/agent-store'
 import { useMcpStore } from '@/stores/mcp-store'
 import type { McpPrompt, McpServerConfig } from '@/types'
+import { apiFetch } from '@/lib/api-fetch'
 import { ChevronDown, ChevronRight, FileText, Loader2, Play } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -52,7 +53,7 @@ export function PromptsPanel({ open, onOpenChange, onUsePrompt }: PromptsPanelPr
   const loadPrompts = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/mcp/prompts', {
+      const res = await apiFetch('/api/mcp/prompts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ servers: mcpServers }),
@@ -86,7 +87,7 @@ export function PromptsPanel({ open, onOpenChange, onUsePrompt }: PromptsPanelPr
         }
       }
 
-      const res = await fetch('/api/mcp/prompts/get', {
+      const res = await apiFetch('/api/mcp/prompts/get', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

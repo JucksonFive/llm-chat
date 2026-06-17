@@ -8,6 +8,7 @@ import { McpImportPreview } from './mcp-import-preview'
 import { validateMcpImport, parseImportPayload } from '@/lib/mcp-import-validator'
 import { useMcpStore } from '@/stores/mcp-store'
 import type { McpServerImport } from '@/types'
+import { apiFetch } from '@/lib/api-fetch'
 
 interface McpImportTabsProps {
   onSuccess?: () => void
@@ -299,7 +300,7 @@ export function NpxInstallTab({ onSuccess }: McpImportTabsProps) {
 
     setPhase('connecting')
     try {
-      const res = await fetch('/api/mcp/test', {
+      const res = await apiFetch('/api/mcp/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

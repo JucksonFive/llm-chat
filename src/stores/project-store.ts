@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Project } from '@/types'
+import { apiFetch } from '@/lib/api-fetch'
 
 interface ProjectState {
   projects: Project[]
@@ -31,7 +32,7 @@ export const useProjectStore = create<ProjectState>()(
       },
 
       addProject: async (name, description) => {
-        const res = await fetch('/api/db/projects', {
+        const res = await apiFetch('/api/db/projects', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name, description }),
@@ -55,7 +56,7 @@ export const useProjectStore = create<ProjectState>()(
         const project = get().projects.find((p) => p.id === id)
         if (!project) return
         const merged = { ...project, ...updates }
-        await fetch(`/api/db/projects/${id}`, {
+        await apiFetch(`/api/db/projects/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: merged.name, description: merged.description }),
@@ -68,7 +69,7 @@ export const useProjectStore = create<ProjectState>()(
       },
 
       deleteProject: async (id) => {
-        await fetch(`/api/db/projects/${id}`, { method: 'DELETE' })
+        await apiFetch(`/api/db/projects/${id}`, { method: 'DELETE' })
         set((state) => ({
           projects: state.projects.filter((p) => p.id !== id),
           activeProjectId: state.activeProjectId === id ? null : state.activeProjectId,
