@@ -1,5 +1,6 @@
 import express from 'express'
 import cors from 'cors'
+import { buildCorsOptions } from './cors-config.js'
 import { streamText, generateText, stepCountIs } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createAnthropic } from '@ai-sdk/anthropic'
@@ -16,7 +17,7 @@ import { streamBedrock } from './bedrock-service.js'
 import { findApiKeyForProvider, parseAwsCredentials, resolveApiKeyForAgent } from './api-keys.js'
 
 const app = express()
-app.use(cors())
+app.use(cors(buildCorsOptions()))
 app.use(express.json({ limit: '50mb' }))
 
 function normalizeDeepSeekModel(model: string): string {
