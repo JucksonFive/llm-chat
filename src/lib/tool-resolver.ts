@@ -45,7 +45,6 @@ export function computeToolContext(messages: Message[], providerId: ProviderId):
  * Determine which tools should be available based on agent settings and context.
  *
  * Strategy:
- * - If provider doesn't support tools (Bedrock) → return empty list
  * - If agentToolIds is empty → use all default-enabled tools
  * - If agentToolIds is non-empty → it's the user's explicit choice of which tools to enable
  * - Conditional tools (pdf-reader, search-document) are added on top whenever their
@@ -53,19 +52,16 @@ export function computeToolContext(messages: Message[], providerId: ProviderId):
  *   even if the user never enabled those tools manually.
  *
  * This means:
- * - Bedrock = no tools
  * - Empty agentToolIds = defaults + conditionals
  * - Non-empty agentToolIds = user's selection + conditionals
+ *
+ * Bedrock supports tools via the Converse API toolConfig (see server/bedrock-service.ts),
+ * so it is resolved the same way as every other provider.
  */
 export function resolveAvailableTools(
   agentToolIds: readonly BuiltInToolId[],
   context: ToolContext
 ): BuiltInToolId[] {
-  // Bedrock doesn't support tools yet
-  if (context.providerId === 'bedrock') {
-    return []
-  }
-
   const availableIds: Set<BuiltInToolId> = new Set()
 
   if (agentToolIds.length === 0) {

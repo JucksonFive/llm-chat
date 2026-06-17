@@ -59,13 +59,16 @@ describe('tool-resolver', () => {
   describe('resolveAvailableTools', () => {
     const openaiContext = { hasUploadedPdf: false, hasIndexedDocument: false, workspaceAccessEnabled: false, providerId: 'openai' as const }
 
-    it('returns empty list for Bedrock provider', () => {
+    it('resolves tools for Bedrock like any other provider (Converse API supports tools)', () => {
       const agentToolIds: BuiltInToolId[] = []
       const context = { ...openaiContext, providerId: 'bedrock' as const }
 
       const available = resolveAvailableTools(agentToolIds, context)
 
-      expect(available).toEqual([])
+      expect(available).toContain('web-search')
+      expect(available).toContain('web-fetch')
+      expect(available).toContain('calculator')
+      expect(available).toContain('datetime')
     })
 
     it('includes default-enabled tools when agent has empty tool list', () => {
