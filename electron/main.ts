@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, shell } from 'electron'
+import { app, BrowserWindow, Menu, session, shell } from 'electron'
 import { execSync } from 'child_process'
 import path from 'path'
 import fs from 'fs'
@@ -94,6 +94,41 @@ async function startExpressServer() {
   console.log(`Express server started on port ${serverPort}`)
 }
 
+// Content-Security-Policy applied to the renderer as defense-in-depth.
+// Mirrors server/csp.ts. In dev we relax script-src/connect-src so Vite's
+// HMR client (inline scripts, eval, ws://localhost) keeps working; in
+// production we use the strict policy. Overridable via CSP_HEADER env var.
+function resolveCspHeader(): string {
+  if (process.env.CSP_HEADER && process.env.CSP_HEADER.trim()) {
+    return process.env.CSP_HEADER.trim()
+  }
+  if (isDev) {
+    return (
+      "default-src 'self'; " +
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+      "style-src 'self' 'unsafe-inline'; " +
+      "img-src 'self' data: https:; " +
+      "connect-src 'self' http://localhost:* ws://localhost:*"
+    )
+  }
+  return (
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+    "img-src 'self' data: https:; connect-src 'self' http://localhost:*"
+  )
+}
+
+function applyCsp() {
+  const policy = resolveCspHeader()
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [policy],
+      },
+    })
+  })
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -173,6 +208,7 @@ function createMenu() {
 app.whenReady().then(async () => {
   await startSearXNG()
   await startExpressServer()
+  applyCsp()
   createMenu()
   createWindow()
 

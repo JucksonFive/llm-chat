@@ -18,8 +18,10 @@ import { findApiKeyForProvider, parseAwsCredentials, resolveApiKeyForAgent } fro
 import { requireClientHeader } from './csrf.js'
 import { isHttpsEnabled, ensureTlsCredentials } from './tls.js'
 import https from 'node:https'
+import { cspMiddleware } from './csp.js'
 
 const app = express()
+app.use(cspMiddleware())
 // Use origin allowlist (buildCorsOptions) and also allow the custom client
 // header through CORS preflight so browsers don't strip it from
 // state-changing requests.
