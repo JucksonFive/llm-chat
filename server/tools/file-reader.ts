@@ -1,6 +1,7 @@
 import { tool, jsonSchema } from 'ai'
 import { readFile, stat } from 'node:fs/promises'
 import { auditFileOperation, prepareWorkspacePath } from '../lib/workspace.js'
+import { logSecurityEvent } from '../lib/audit-log.js'
 
 export const fileReaderTool = tool({
   description: 'Read a file from the local filesystem (restricted to the workspace unless full filesystem access is enabled). Returns the text content of the file.',
@@ -45,6 +46,8 @@ export const fileReaderTool = tool({
       }
 
       auditFileOperation('read', resolved, 'ok')
+      logSecurityEvent('file.read', { path: resolved, size: stats.size, success: true })
+
       return {
         path: resolved,
         size: stats.size,
@@ -53,6 +56,11 @@ export const fileReaderTool = tool({
       }
     } catch (err) {
       auditFileOperation('read', resolved, 'error', err instanceof Error ? err.message : undefined)
+      logSecurityEvent(
+        'file.read',
+        { path: filePath, success: false, error: err instanceof Error ? err.message : 'unknown' },
+        'warning',
+      )
       if (err instanceof Error && 'code' in err) {
         const code = (err as NodeJS.ErrnoException).code
         if (code === 'ENOENT') return { error: `File not found: ${filePath}` }

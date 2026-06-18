@@ -5,6 +5,7 @@ import path from 'node:path'
 import { run, query, queryOne, ATTACHMENTS_DIR } from './db.js'
 import { clearAgentApiKey, hasAgentApiKey, setAgentApiKey } from './api-keys.js'
 import { deleteBySource } from './rag/vector-store.js'
+import { logSecurityEvent } from './lib/audit-log.js'
 
 export function registerDbRoutes(app: Express) {
 
@@ -45,8 +46,10 @@ app.post('/api/db/agents', (req, res) => {
       createdAt: Date.now(),
     },
   )
+  logSecurityEvent('agent.created', { agentId: id, providerId, model })
   if (typeof apiKey === 'string' && apiKey.trim()) {
     setAgentApiKey(id, apiKey)
+    logSecurityEvent('api_key.set', { agentId: id, providerId })
   }
   res.json({ id, hasApiKey: hasAgentApiKey(id) })
 })
@@ -59,11 +62,13 @@ app.put('/api/db/agents/:id/api-key', (req, res) => {
   }
 
   setAgentApiKey(req.params.id, apiKey)
+  logSecurityEvent('api_key.set', { agentId: req.params.id })
   res.json({ ok: true, hasApiKey: hasAgentApiKey(req.params.id) })
 })
 
 app.delete('/api/db/agents/:id/api-key', (req, res) => {
   clearAgentApiKey(req.params.id)
+  logSecurityEvent('api_key.cleared', { agentId: req.params.id })
   res.json({ ok: true, hasApiKey: false })
 })
 
@@ -86,14 +91,17 @@ app.put('/api/db/agents/:id', (req, res) => {
   )
   if (typeof apiKey === 'string' && apiKey.trim()) {
     setAgentApiKey(req.params.id, apiKey)
+    logSecurityEvent('api_key.set', { agentId: req.params.id })
   } else if (clearApiKey === true) {
     clearAgentApiKey(req.params.id)
+    logSecurityEvent('api_key.cleared', { agentId: req.params.id })
   }
   res.json({ ok: true, hasApiKey: hasAgentApiKey(req.params.id) })
 })
 
 app.delete('/api/db/agents/:id', (req, res) => {
   run('DELETE FROM agents WHERE id=$id', { id: req.params.id })
+  logSecurityEvent('agent.deleted', { agentId: req.params.id })
   res.json({ ok: true })
 })
 
@@ -398,6 +406,7 @@ app.post('/api/db/mcp-servers', (req, res) => {
       createdAt: Date.now(),
     },
   )
+  logSecurityEvent('mcp_server.added', { mcpServerId: id, name, transport })
   res.json({ id })
 })
 
@@ -420,6 +429,7 @@ app.put('/api/db/mcp-servers/:id', (req, res) => {
 
 app.delete('/api/db/mcp-servers/:id', (req, res) => {
   run('DELETE FROM mcp_servers WHERE id=$id', { id: req.params.id })
+  logSecurityEvent('mcp_server.removed', { mcpServerId: req.params.id })
   res.json({ ok: true })
 })
 

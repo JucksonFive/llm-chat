@@ -14,6 +14,7 @@ import { initDb, closeDb, flush } from './db.js'
 import { registerDbRoutes } from './db-routes.js'
 import { registerRagRoutes } from './rag/routes.js'
 import { streamBedrock } from './bedrock-service.js'
+import { logSecurityEvent } from './lib/audit-log.js'
 import { findApiKeyForProvider, parseAwsCredentials, resolveApiKeyForAgent } from './api-keys.js'
 import { requireClientHeader } from './csrf.js'
 import { isHttpsEnabled, ensureTlsCredentials } from './tls.js'
@@ -173,6 +174,15 @@ app.post('/api/chat', async (req, res) => {
     
     const normalizedModel = providerId === 'deepseek' ? normalizeDeepSeekModel(model) : model
     const hasRequestedTools = Boolean((mcpServers?.length ?? 0) > 0 || (builtInToolIds?.length ?? 0) > 0)
+
+    logSecurityEvent('chat.request', {
+      agentId,
+      providerId,
+      model: normalizedModel,
+      messageCount: Array.isArray(messages) ? messages.length : 0,
+      builtInToolCount: builtInToolIds?.length ?? 0,
+      mcpServerCount: mcpServers?.length ?? 0,
+    })
     const effectiveModel = providerId === 'deepseek' && normalizedModel === 'deepseek-v4-pro' && hasRequestedTools
       ? 'deepseek-v4-flash'
       : normalizedModel
