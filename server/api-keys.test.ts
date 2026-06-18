@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -88,6 +88,43 @@ describe('agent API key storage', () => {
 
     expect(findApiKeyForProvider('openai')).toBe('sk-first')
     expect(resolveApiKeyForAgent('missing-agent', 'anthropic')).toBe('sk-anthropic')
+  })
+
+  it('returns "" and warns when a stored key cannot be decrypted (no master password)', () => {
+    insertAgent('corrupt-1', 'openai')
+    // Simulate a corrupt / cross-machine ciphertext stored in the DB.
+    run('UPDATE agents SET api_key_encrypted=$enc WHERE id=$id', {
+      id: 'corrupt-1',
+      enc: 'not-base64::garbage',
+    })
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    expect(getAgentApiKey('corrupt-1')).toBe('')
+    expect(findApiKeyForProvider('openai')).toBe('')
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to decrypt API key for agent corrupt-1'),
+    )
+
+    warn.mockRestore()
+  })
+
+  it('throws a DecryptionError when a key fails to decrypt and a master password is set', async () => {
+    const { DecryptionError } = await import('./api-keys.js')
+    insertAgent('corrupt-2', 'openai')
+    run('UPDATE agents SET api_key_encrypted=$enc WHERE id=$id', {
+      id: 'corrupt-2',
+      enc: 'not-base64::garbage',
+    })
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    process.env.LLM_CHAT_MASTER_PASSWORD = 'secret-master-pw'
+    try {
+      expect(() => getAgentApiKey('corrupt-2')).toThrow(DecryptionError)
+    } finally {
+      delete process.env.LLM_CHAT_MASTER_PASSWORD
+      warn.mockRestore()
+    }
   })
 
   it('parses stored Bedrock credentials from the encrypted credential value', () => {

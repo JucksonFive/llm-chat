@@ -178,7 +178,19 @@ export function encrypt(plaintext: string): string {
   return `${iv.toString('base64')}:${tag.toString('base64')}:${encrypted.toString('base64')}`
 }
 
-export function decrypt(ciphertext: string): string {
+/**
+ * Decrypt a ciphertext produced by {@link encrypt}.
+ *
+ * Returns:
+ * - `''` for empty input (no value stored)
+ * - the decrypted plaintext on success
+ * - `null` on failure (corrupt data, tampering, or a key from another machine)
+ *
+ * NOTE: this previously returned the raw ciphertext on failure, which silently
+ * leaked garbage downstream (e.g. used as an API key). Callers MUST handle the
+ * `null` case explicitly.
+ */
+export function decrypt(ciphertext: string): string | null {
   if (!ciphertext) return ''
   const [ivB64, tagB64, encB64] = ciphertext.split(':')
   if (!ivB64 || !tagB64 || !encB64) {
@@ -198,9 +210,10 @@ export function decrypt(ciphertext: string): string {
       // Try the next candidate key.
     }
   }
-  // If decryption fails with every key (e.g. migrated from another machine, or
-  // a wrong master password), return as-is to preserve previous behavior.
-  return ciphertext
+  // Decryption failed with every key (corrupt data, tampering, or a key from
+  // another machine). Return null so callers can surface/log the failure
+  // instead of silently propagating the ciphertext.
+  return null
 }
 
 /**

@@ -59,17 +59,20 @@ describe('encrypt / decrypt (machine-key fallback)', () => {
     expect(a).not.toBe(b)
   })
 
-  it('returns the input as-is when decryption fails (cross-machine fallback)', () => {
+  it('returns the input as-is for legacy plaintext values (not in iv:tag:enc format)', () => {
+    // Legacy/plaintext values that don't match the iv:tag:enc format are returned as-is
+    // for backward compatibility (e.g. keys stored before encryption was added).
     expect(decrypt('not-base64::format')).toBe('not-base64::format')
     expect(decrypt('plain text key')).toBe('plain text key')
   })
 
-  it('handles a tampered tag by returning the original ciphertext', () => {
+  it('returns null when the auth tag is tampered with', () => {
     const enc = encrypt('hello')
     const parts = enc.split(':')
     parts[1] = Buffer.from('tampered-tag-bytes-padding').toString('base64')
     const tampered = parts.join(':')
-    expect(decrypt(tampered)).toBe(tampered)
+    // Auth check fails → null, not the input (no longer leaks ciphertext).
+    expect(decrypt(tampered)).toBeNull()
   })
 
   it('persists a random salt file at ~/.llm-chat/.keysalt with 0600 perms', () => {

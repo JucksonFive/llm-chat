@@ -1,5 +1,44 @@
 import { encrypt, decrypt } from './crypto.js'
+import { isEncryptionEnabled } from './db-encryption.js'
 import { query, queryOne, run } from './db.js'
+
+/**
+ * Error thrown when a stored API key cannot be decrypted while the user has
+ * opted into encryption (LLM_CHAT_MASTER_PASSWORD set). Routes can catch this
+ * and turn it into a user-visible error instead of silently failing.
+ */
+export class DecryptionError extends Error {
+  constructor(agentId: string) {
+    super(
+      `Failed to decrypt the stored API key for agent ${agentId}. ` +
+        'The key may be corrupted or was encrypted on another machine. ' +
+        'Please re-enter the API key in the agent settings.',
+    )
+    this.name = 'DecryptionError'
+  }
+}
+
+/**
+ * Decrypt a stored API key, handling the `null` failure case.
+ *
+ * On failure logs a warning and returns `''` (no key) so the app keeps working.
+ * If encryption is enabled (LLM_CHAT_MASTER_PASSWORD is set), a failure is
+ * treated as a hard error and {@link DecryptionError} is thrown so the route
+ * can surface a user-visible message.
+ */
+function decryptApiKey(encrypted: string, agentId: string): string {
+  const decrypted = decrypt(encrypted)
+  if (decrypted === null) {
+    console.warn(
+      `[crypto] Failed to decrypt API key for agent ${agentId} — key may be corrupted or from another machine`,
+    )
+    if (isEncryptionEnabled()) {
+      throw new DecryptionError(agentId)
+    }
+    return ''
+  }
+  return decrypted
+}
 
 export interface AwsCredentials {
   accessKeyId: string
@@ -48,7 +87,7 @@ export function getAgentApiKey(agentId: string): string {
     'SELECT api_key_encrypted FROM agents WHERE id=$agentId',
     { agentId },
   )
-  return row?.api_key_encrypted ? decrypt(row.api_key_encrypted) : ''
+  return row?.api_key_encrypted ? decryptApiKey(row.api_key_encrypted, agentId) : ''
 }
 
 export function findApiKeyForProvider(providerId: string): string {
@@ -61,7 +100,7 @@ export function findApiKeyForProvider(providerId: string): string {
   )
 
   for (const row of rows) {
-    const apiKey = decrypt(row.api_key_encrypted)
+    const apiKey = decryptApiKey(row.api_key_encrypted, row.id)
     if (apiKey) return apiKey
   }
 
