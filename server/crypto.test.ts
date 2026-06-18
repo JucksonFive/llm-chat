@@ -60,10 +60,16 @@ describe('encrypt / decrypt (machine-key fallback)', () => {
   })
 
   it('returns the input as-is for legacy plaintext values (not in iv:tag:enc format)', () => {
-    // Legacy/plaintext values that don't match the iv:tag:enc format are returned as-is
-    // for backward compatibility (e.g. keys stored before encryption was added).
-    expect(decrypt('not-base64::format')).toBe('not-base64::format')
+    // Values that don't have exactly 3 colon-separated parts are treated as legacy
+    // plaintext (e.g. plain API keys stored before encryption was added).
     expect(decrypt('plain text key')).toBe('plain text key')
+    expect(decrypt('sk-abc123')).toBe('sk-abc123')
+  })
+
+  it('returns null when the three-part format has empty segments (corrupt)', () => {
+    // A three-part value with empty segment(s) is corrupt, not legacy.
+    expect(decrypt('not-base64::format')).toBeNull()
+    expect(decrypt('not-base64::garbage')).toBeNull()
   })
 
   it('returns null when the auth tag is tampered with', () => {
@@ -103,10 +109,10 @@ describe('encrypt / decrypt (master password)', () => {
 
     process.env.LLM_CHAT_MASTER_PASSWORD = 'Different1Password'
     __resetCryptoCachesForTests()
-    // A wrong master password must NOT silently recover the plaintext.
+    // A wrong master password must NOT silently recover the plaintext — returns null instead.
     const out = decrypt(enc)
     expect(out).not.toBe('secret-value')
-    expect(out).toBe(enc)
+    expect(out).toBeNull()
   })
 
   it('does not fall back to the machine key when a master password is set', () => {

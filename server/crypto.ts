@@ -192,10 +192,15 @@ export function encrypt(plaintext: string): string {
  */
 export function decrypt(ciphertext: string): string | null {
   if (!ciphertext) return ''
-  const [ivB64, tagB64, encB64] = ciphertext.split(':')
-  if (!ivB64 || !tagB64 || !encB64) {
-    // Not our format — likely a plaintext/legacy value. Return as-is.
+  const parts = ciphertext.split(':')
+  if (parts.length !== 3) {
+    // Not our iv:tag:enc format — likely a plaintext/legacy value. Return as-is.
     return ciphertext
+  }
+  const [ivB64, tagB64, encB64] = parts
+  if (!ivB64 || !tagB64 || !encB64) {
+    // Looks like our three-part format but has empty segments — corrupt, not legacy.
+    return null
   }
   const iv = Buffer.from(ivB64, 'base64')
   const tag = Buffer.from(tagB64, 'base64')
