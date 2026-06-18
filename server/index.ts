@@ -19,6 +19,7 @@ import { requireClientHeader } from './csrf.js'
 import { isHttpsEnabled, ensureTlsCredentials } from './tls.js'
 import https from 'node:https'
 import { cspMiddleware } from './csp.js'
+import { chatLimiter, dbLimiter, extractMemoriesLimiter, mcpTestLimiter } from './rate-limit.js'
 
 const app = express()
 app.use(cspMiddleware())
@@ -29,6 +30,13 @@ app.use(cors({ ...buildCorsOptions(), allowedHeaders: ['Content-Type', 'Authoriz
 app.use(express.json({ limit: '50mb' }))
 
 app.use(requireClientHeader)
+
+// Rate limiting: protect expensive / abuse-prone endpoints. Applied before the
+// route handlers (and before registerDbRoutes) so they cover every matching path.
+app.use('/api/db', dbLimiter)
+app.use('/api/chat', chatLimiter)
+app.use('/api/mcp/test', mcpTestLimiter)
+app.use('/api/extract-memories', extractMemoriesLimiter)
 
 function normalizeDeepSeekModel(model: string): string {
   switch (model) {
