@@ -1,4 +1,5 @@
 import { tool, jsonSchema } from 'ai'
+import { BlockedUrlError, safeFetch } from '../lib/url-validator.js'
 
 export const webFetchTool = tool({
   description: 'Fetch content from a URL. Returns the text content of the page with HTML tags stripped.',
@@ -15,7 +16,7 @@ export const webFetchTool = tool({
     const timeout = setTimeout(() => controller.abort(), 15000)
 
     try {
-      const response = await fetch(url, {
+      const response = await safeFetch(url, {
         signal: controller.signal,
         headers: {
           'User-Agent': 'LLM-Chat/1.0 (Desktop App)',
@@ -53,6 +54,9 @@ export const webFetchTool = tool({
 
       return { url, contentType, length: content.length, content }
     } catch (err) {
+      if (err instanceof BlockedUrlError) {
+        return { error: `Blocked for security reasons: ${err.message}` }
+      }
       if (err instanceof DOMException && err.name === 'AbortError') {
         return { error: 'Request timed out after 15 seconds' }
       }
