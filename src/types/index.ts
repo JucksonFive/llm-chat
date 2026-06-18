@@ -119,6 +119,10 @@ export interface McpPreset {
   url?: string
   envPlaceholders?: { key: string; label: string; description: string; required: boolean }[]
   homepage?: string
+  /** Canonical source/repository URL surfaced as a "View source" link. Falls back to `homepage`. */
+  sourceUrl?: string
+  /** Optional preset-specific warning that overrides the default transport warning. */
+  warning?: string
 }
 
 export interface McpServerImport {

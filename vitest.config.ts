@@ -13,6 +13,6 @@ export default defineConfig({
     // with `// @vitest-environment jsdom` for store tests that need
     // `localStorage` (zustand persist).
     environment: 'node',
-    include: ['server/**/*.test.ts', 'src/**/*.test.ts'],
+    include: ['server/**/*.test.{ts,tsx}', 'src/**/*.test.{ts,tsx}'],
   },
 })

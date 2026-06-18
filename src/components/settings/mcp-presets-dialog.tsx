@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -15,6 +17,8 @@ import { Check, Download, Loader2 } from 'lucide-react'
 import { useMcpStore } from '@/stores/mcp-store'
 import { toast } from 'sonner'
 import { FileImportTab, UrlImportTab, NpxInstallTab } from './mcp-import-tabs'
+import { getPresetWarning } from './mcp-preset-warning'
+import { PresetWarningContent } from './mcp-preset-warning-content'
 import type { McpPreset } from '@/types'
 
 interface McpPresetsDialogProps {
@@ -42,6 +46,7 @@ export function McpPresetsDialog({ open, onOpenChange, defaultTab = 'browse' }: 
   const [loading, setLoading] = useState(false)
   const [installingId, setInstallingId] = useState<string | null>(null)
   const [envInputs, setEnvInputs] = useState<Record<string, Record<string, string>>>({})
+  const [pendingPreset, setPendingPreset] = useState<McpPreset | null>(null)
 
   const installedPresetIds = servers
     .filter((s) => s.presetId)
@@ -97,6 +102,26 @@ export function McpPresetsDialog({ open, onOpenChange, defaultTab = 'browse' }: 
 
     toast.success(`${preset.name} installed`)
     setInstallingId(null)
+  }
+
+  // Step 1: user clicks "Install" -> show the security warning modal first.
+  const requestInstall = (preset: McpPreset) => {
+    setPendingPreset(preset)
+  }
+
+  // Step 2: user explicitly confirms the warning. Continue to env config when the
+  // preset needs secrets, otherwise install immediately.
+  const confirmPendingInstall = () => {
+    const preset = pendingPreset
+    if (!preset) return
+    setPendingPreset(null)
+
+    const hasEnvPlaceholders = (preset.envPlaceholders ?? []).length > 0
+    if (hasEnvPlaceholders) {
+      setInstallingId(preset.id)
+    } else {
+      handleInstall(preset)
+    }
   }
 
   const grouped = presets.reduce<Record<string, McpPreset[]>>((acc, p) => {
@@ -167,13 +192,7 @@ export function McpPresetsDialog({ open, onOpenChange, defaultTab = 'browse' }: 
                                 size="sm"
                                 variant="outline"
                                 className="text-xs h-7 shrink-0"
-                                onClick={() => {
-                                  if (hasEnvPlaceholders && !isConfiguring) {
-                                    setInstallingId(preset.id)
-                                  } else {
-                                    handleInstall(preset)
-                                  }
-                                }}
+                                onClick={() => requestInstall(preset)}
                               >
                                 <Download className="h-3 w-3 mr-1" />
                                 Install
@@ -250,6 +269,45 @@ export function McpPresetsDialog({ open, onOpenChange, defaultTab = 'browse' }: 
           </TabsContent>
         </Tabs>
       </DialogContent>
+
+      <Dialog
+        open={pendingPreset !== null}
+        onOpenChange={(o) => {
+          if (!o) setPendingPreset(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          {pendingPreset && (() => {
+            const warning = getPresetWarning(pendingPreset)
+            const isHigh = warning.severity === 'high'
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle>{warning.title}</DialogTitle>
+                  <DialogDescription>
+                    Review what installing <span className="font-medium">{pendingPreset.name}</span> will do.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <PresetWarningContent warning={warning} presetName={pendingPreset.name} />
+
+                <DialogFooter className="gap-2 sm:gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setPendingPreset(null)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={isHigh ? 'destructive' : 'default'}
+                    onClick={confirmPendingInstall}
+                  >
+                    {isHigh ? 'I trust this — install' : 'Install'}
+                  </Button>
+                </DialogFooter>
+              </>
+            )
+          })()}
+        </DialogContent>
+      </Dialog>
     </Dialog>
   )
 }
