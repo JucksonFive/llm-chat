@@ -1,21 +1,26 @@
 import { tool, jsonSchema } from 'ai'
 import { readFile, stat } from 'node:fs/promises'
-import path from 'node:path'
+import { auditFileOperation, prepareWorkspacePath } from '../lib/workspace.js'
 
 export const pdfReaderTool = tool({
-  description: 'Read and extract text content from a PDF file. Returns the text content of the PDF.',
+  description: 'Read and extract text content from a PDF file (restricted to the workspace unless full filesystem access is enabled). Returns the text content of the PDF.',
   inputSchema: jsonSchema<{ path: string; maxPages?: number }>({
     type: 'object',
     properties: {
-      path: { type: 'string', description: 'Absolute path to the PDF file' },
+      path: { type: 'string', description: 'Path to the PDF file (relative to the workspace, or absolute)' },
       maxPages: { type: 'number', description: 'Maximum number of pages to read (default: all)' },
     },
     required: ['path'],
   }),
   execute: async ({ path: filePath }) => {
-    try {
-      const resolved = path.resolve(filePath)
+    const prepared = prepareWorkspacePath(filePath)
+    if ('error' in prepared) {
+      auditFileOperation('read-pdf', filePath, 'denied', prepared.error)
+      return { error: prepared.error }
+    }
+    const resolved = prepared.resolved
 
+    try {
       const stats = await stat(resolved)
       if (!stats.isFile()) {
         return { error: `"${resolved}" is not a regular file` }
@@ -35,6 +40,7 @@ export const pdfReaderTool = tool({
         content = content.slice(0, 200000) + '\n\n[Truncated: content exceeds 200k characters]'
       }
 
+      auditFileOperation('read-pdf', resolved, 'ok')
       return {
         path: resolved,
         pages: textResult.pages.length,
@@ -42,6 +48,7 @@ export const pdfReaderTool = tool({
         content,
       }
     } catch (err) {
+      auditFileOperation('read-pdf', resolved, 'error', err instanceof Error ? err.message : undefined)
       if (err instanceof Error && 'code' in err) {
         const code = (err as NodeJS.ErrnoException).code
         if (code === 'ENOENT') return { error: `File not found: ${filePath}` }

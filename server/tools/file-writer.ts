@@ -1,22 +1,28 @@
 import { tool, jsonSchema } from 'ai'
 import { writeFile, mkdir } from 'node:fs/promises'
 import path from 'node:path'
+import { auditFileOperation, prepareWorkspacePath } from '../lib/workspace.js'
 
 export const fileWriterTool = tool({
-  description: 'Write content to a file on the local filesystem. Creates parent directories if they do not exist. Can create new files or overwrite/append to existing ones.',
+  description: 'Write content to a file on the local filesystem (restricted to the workspace unless full filesystem access is enabled). Creates parent directories if they do not exist. Can create new files or overwrite/append to existing ones.',
   inputSchema: jsonSchema<{ path: string; content: string; append?: boolean }>({
     type: 'object',
     properties: {
-      path: { type: 'string', description: 'Absolute path to the file to write' },
+      path: { type: 'string', description: 'Path to the file to write (relative to the workspace, or absolute)' },
       content: { type: 'string', description: 'The content to write to the file' },
       append: { type: 'boolean', description: 'If true, append to the file instead of overwriting (default false)' },
     },
     required: ['path', 'content'],
   }),
   execute: async ({ path: filePath, content, append = false }) => {
-    try {
-      const resolved = path.resolve(filePath)
+    const prepared = prepareWorkspacePath(filePath)
+    if ('error' in prepared) {
+      auditFileOperation(append ? 'append' : 'write', filePath, 'denied', prepared.error)
+      return { error: prepared.error }
+    }
+    const resolved = prepared.resolved
 
+    try {
       const contentBytes = Buffer.byteLength(content, 'utf-8')
       if (contentBytes > 10 * 1024 * 1024) {
         return { error: `Content too large: ${(contentBytes / 1024 / 1024).toFixed(1)}MB (max 10MB)` }
@@ -31,12 +37,14 @@ export const fileWriterTool = tool({
         await writeFile(resolved, content, 'utf-8')
       }
 
+      auditFileOperation(append ? 'append' : 'write', resolved, 'ok', `${contentBytes} bytes`)
       return {
         path: resolved,
         size: contentBytes,
         mode: append ? 'appended' : 'written',
       }
     } catch (err) {
+      auditFileOperation(append ? 'append' : 'write', resolved, 'error', err instanceof Error ? err.message : undefined)
       if (err instanceof Error && 'code' in err) {
         const code = (err as NodeJS.ErrnoException).code
         if (code === 'EACCES') return { error: `Permission denied: ${filePath}` }
