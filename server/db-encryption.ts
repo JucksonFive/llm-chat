@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import { validatePasswordStrength } from './crypto.js'
 
 // File format for encrypted DB dump:
 // [MAGIC(4) "LCE1"] [SALT(16)] [IV(12)] [TAG(16)] [CIPHERTEXT...]
@@ -11,9 +12,22 @@ const IV_LEN = 12
 const TAG_LEN = 16
 const ALGO = 'aes-256-gcm'
 
+let warnedWeakPassword = false
+
 function getPassword(): string | null {
   const pw = process.env.LLM_CHAT_MASTER_PASSWORD
   if (!pw || !pw.trim()) return null
+  if (!warnedWeakPassword) {
+    const strength = validatePasswordStrength(pw)
+    if (!strength.valid) {
+      warnedWeakPassword = true
+      console.warn(
+        '[db-encryption] LLM_CHAT_MASTER_PASSWORD is weak: ' +
+          `${strength.errors.join(', ')}. The DB will still be encrypted with ` +
+          'it, but a stronger password is strongly recommended.',
+      )
+    }
+  }
   return pw
 }
 
