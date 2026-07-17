@@ -1,72 +1,99 @@
 import { tool, jsonSchema } from 'ai'
+import type { Tool } from 'ai'
 import { readFile, stat } from 'node:fs/promises'
 import { auditFileOperation, prepareWorkspacePath } from '../lib/workspace.js'
 import { logSecurityEvent } from '../lib/audit-log.js'
+import { loadProjectWorkspace } from '../lib/sandbox-service.js'
 
-export const fileReaderTool = tool({
-  description: 'Read a file from the local filesystem (restricted to the workspace unless full filesystem access is enabled). Returns the text content of the file.',
-  inputSchema: jsonSchema<{ path: string; encoding?: string; maxLines?: number }>({
-    type: 'object',
-    properties: {
-      path: { type: 'string', description: 'Path to the file to read (relative to the workspace, or absolute)' },
-      encoding: {
-        type: 'string',
-        enum: ['utf-8', 'ascii', 'latin1'],
-        description: 'File encoding (default utf-8)',
+export interface FileReaderOptions {
+  /** The active project ID (injected, not exposed to the LLM). If provided,
+   *  the project's workspace path is used as the filesystem boundary. */
+  projectId?: string
+  /** Permission profile for this execution. */
+  permissionProfile?: string
+}
+
+/**
+ * Create a file reader tool scoped to the given project context.
+ * When no projectId is provided, falls back to the global WORKSPACE_ROOT.
+ */
+export function createFileReaderTool(options: FileReaderOptions = {}): Tool {
+  const { projectId } = options
+
+  // Resolve workspace root from project if available
+  const workspaceRoot = projectId
+    ? loadProjectWorkspace(projectId)?.workspacePath
+    : undefined
+
+  return tool({
+    description: 'Read a file from the local filesystem (restricted to the workspace unless full filesystem access is enabled). Returns the text content of the file.',
+    inputSchema: jsonSchema<{ path: string; encoding?: string; maxLines?: number }>({
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Path to the file to read (relative to the workspace, or absolute)' },
+        encoding: {
+          type: 'string',
+          enum: ['utf-8', 'ascii', 'latin1'],
+          description: 'File encoding (default utf-8)',
+        },
+        maxLines: { type: 'number', description: 'Maximum number of lines to return' },
       },
-      maxLines: { type: 'number', description: 'Maximum number of lines to return' },
-    },
-    required: ['path'],
-  }),
-  execute: async ({ path: filePath, encoding = 'utf-8', maxLines }) => {
-    const prepared = prepareWorkspacePath(filePath)
-    if ('error' in prepared) {
-      auditFileOperation('read', filePath, 'denied', prepared.error)
-      return { error: prepared.error }
-    }
-    const resolved = prepared.resolved
-
-    try {
-      const stats = await stat(resolved)
-      if (!stats.isFile()) {
-        return { error: `"${resolved}" is not a regular file` }
+      required: ['path'],
+    }),
+    execute: async ({ path: filePath, encoding = 'utf-8', maxLines }) => {
+      const prepared = prepareWorkspacePath(filePath, workspaceRoot)
+      if ('error' in prepared) {
+        auditFileOperation('read', filePath, 'denied', prepared.error)
+        return { error: prepared.error }
       }
+      const resolved = prepared.resolved
 
-      if (stats.size > 10 * 1024 * 1024) {
-        return { error: `File too large: ${(stats.size / 1024 / 1024).toFixed(1)}MB (max 10MB)` }
-      }
-
-      let content = await readFile(resolved, { encoding: encoding as BufferEncoding })
-
-      if (maxLines) {
-        const lines = content.split('\n')
-        if (lines.length > maxLines) {
-          content = lines.slice(0, maxLines).join('\n') + `\n\n[Truncated: showing ${maxLines} of ${lines.length} lines]`
+      try {
+        const stats = await stat(resolved)
+        if (!stats.isFile()) {
+          return { error: `"${resolved}" is not a regular file` }
         }
-      }
 
-      auditFileOperation('read', resolved, 'ok')
-      logSecurityEvent('file.read', { path: resolved, size: stats.size, success: true })
+        if (stats.size > 10 * 1024 * 1024) {
+          return { error: `File too large: ${(stats.size / 1024 / 1024).toFixed(1)}MB (max 10MB)` }
+        }
 
-      return {
-        path: resolved,
-        size: stats.size,
-        lines: content.split('\n').length,
-        content,
+        let content = await readFile(resolved, { encoding: encoding as BufferEncoding })
+
+        if (maxLines) {
+          const lines = content.split('\n')
+          if (lines.length > maxLines) {
+            content = lines.slice(0, maxLines).join('\n') + `\n\n[Truncated: showing ${maxLines} of ${lines.length} lines]`
+          }
+        }
+
+        auditFileOperation('read', resolved, 'ok')
+        logSecurityEvent('file.read', { path: resolved, size: stats.size, success: true, projectId: projectId ?? null })
+
+        return {
+          path: resolved,
+          size: stats.size,
+          lines: content.split('\n').length,
+          content,
+        }
+      } catch (err) {
+        auditFileOperation('read', resolved, 'error', err instanceof Error ? err.message : undefined)
+        logSecurityEvent(
+          'file.read',
+          { path: filePath, success: false, error: err instanceof Error ? err.message : 'unknown' },
+          'warning',
+        )
+        if (err instanceof Error && 'code' in err) {
+          const code = (err as NodeJS.ErrnoException).code
+          if (code === 'ENOENT') return { error: `File not found: ${filePath}` }
+          if (code === 'EACCES') return { error: `Permission denied: ${filePath}` }
+        }
+        return { error: err instanceof Error ? err.message : 'Failed to read file' }
       }
-    } catch (err) {
-      auditFileOperation('read', resolved, 'error', err instanceof Error ? err.message : undefined)
-      logSecurityEvent(
-        'file.read',
-        { path: filePath, success: false, error: err instanceof Error ? err.message : 'unknown' },
-        'warning',
-      )
-      if (err instanceof Error && 'code' in err) {
-        const code = (err as NodeJS.ErrnoException).code
-        if (code === 'ENOENT') return { error: `File not found: ${filePath}` }
-        if (code === 'EACCES') return { error: `Permission denied: ${filePath}` }
-      }
-      return { error: err instanceof Error ? err.message : 'Failed to read file' }
-    }
-  },
-})
+    },
+  })
+}
+
+// Static backward-compatible instance
+export const fileReaderTool = createFileReaderTool()
+

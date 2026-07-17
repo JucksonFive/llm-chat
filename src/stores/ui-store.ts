@@ -1,12 +1,15 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import type { PermissionProfile } from '@/types'
 
 interface UIState {
   theme: 'dark' | 'light'
   autoSpeak: boolean
+  permissionProfile: PermissionProfile
   toggleTheme: () => void
   setTheme: (theme: 'dark' | 'light') => void
   toggleAutoSpeak: () => void
+  setPermissionProfile: (profile: PermissionProfile) => void
 }
 
 /** Strip markdown / code / latex for cleaner TTS output */
@@ -37,6 +40,7 @@ export const useUIStore = create<UIState>()(
     (set) => ({
       theme: 'dark',
       autoSpeak: false,
+      permissionProfile: 'workspace-write' as PermissionProfile,
 
       toggleTheme: () => {
         set((state) => {
@@ -52,7 +56,12 @@ export const useUIStore = create<UIState>()(
       },
 
       toggleAutoSpeak: () => set((state) => ({ autoSpeak: !state.autoSpeak })),
+
+      setPermissionProfile: (profile) => set({ permissionProfile: profile }),
     }),
-    { name: 'llm-chat-ui' }
+    {
+      name: 'llm-chat-ui',
+      partialize: (state) => ({ theme: state.theme, autoSpeak: state.autoSpeak }),
+    }
   )
 )

@@ -25,6 +25,9 @@ function makeProject(overrides: Partial<Project> = {}): Project {
     id: 'p1',
     name: 'P',
     description: '',
+    workspacePath: '',
+    workspaceKind: '',
+    preferredRuntime: '',
     createdAt: 1,
     updatedAt: 1,
     ...overrides,
@@ -73,6 +76,24 @@ describe('addProject', () => {
     fetchMock.mockResolvedValueOnce({ json: async () => ({ id: 'srv-2' }) })
     const project = await useProjectStore.getState().addProject('Only name')
     expect(project.description).toBe('')
+  })
+
+  it('accepts and persists workspace fields', async () => {
+    fetchMock.mockResolvedValueOnce({ json: async () => ({ id: 'srv-3' }) })
+    const project = await useProjectStore.getState().addProject('WS Project', 'desc', {
+      workspacePath: '/home/user/code',
+      workspaceKind: 'wsl',
+      preferredRuntime: 'wsl-pwsh',
+    })
+    expect(project.workspacePath).toBe('/home/user/code')
+    expect(project.workspaceKind).toBe('wsl')
+    expect(project.preferredRuntime).toBe('wsl-pwsh')
+
+    // Verify the request body included the new fields
+    const callBody = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(callBody.workspacePath).toBe('/home/user/code')
+    expect(callBody.workspaceKind).toBe('wsl')
+    expect(callBody.preferredRuntime).toBe('wsl-pwsh')
   })
 })
 

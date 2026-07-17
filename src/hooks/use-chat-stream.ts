@@ -6,14 +6,13 @@ import { useApiKeyStore } from '@/stores/api-key-store'
 import { useMemoryStore } from '@/stores/memory-store'
 import { useMcpStore } from '@/stores/mcp-store'
 import { useProjectStore } from '@/stores/project-store'
-import { useUIStore } from '@/stores/ui-store'
+import { useUIStore, speakText } from '@/stores/ui-store'
 import { useResearchStore } from '@/stores/research-store'
-import { speakText } from '@/stores/ui-store'
 import { streamChat } from '@/lib/llm-client'
 import { PROVIDERS } from '@/lib/providers'
 import { computeToolContext, resolveAvailableTools } from '@/lib/tool-resolver'
 import { apiFetch } from '@/lib/api-fetch'
-import type { McpServerConfig, Attachment } from '@/types'
+import type { McpServerConfig, Attachment, ToolRiskLevel } from '@/types'
 
 export function useChatStream() {
   const abortRef = useRef<AbortController | null>(null)
@@ -170,6 +169,9 @@ export function useChatStream() {
     let insideThink = false
     let tagBuffer = ''
 
+    const projectId = useProjectStore.getState().activeProjectId
+    const permissionProfile = useUIStore.getState().permissionProfile
+
     streamChat({
       agentId: agent.id,
       providerId: agent.providerId,
@@ -178,6 +180,8 @@ export function useChatStream() {
       messages: historyMessages,
       mcpServers: mcpServers.length > 0 ? mcpServers : undefined,
       builtInToolIds: builtInToolIds.length > 0 ? builtInToolIds : undefined,
+      projectId,
+      permissionProfile,
       signal: controller.signal,
       onToken: (token) => {
         const store = useChatStore.getState()
@@ -359,6 +363,18 @@ export function useChatStream() {
           useResearchStore.getState().clearResearch(activeResearchRef.current)
           activeResearchRef.current = null
         }
+      },
+      onToolApprovalRequest: ({ approvalId, toolCallId, riskLevel }) => {
+        useChatStore.getState().updateToolCallInLastMessage(conversationId!, toolCallId, {
+          status: 'awaiting-approval',
+          approvalId,
+          riskLevel: riskLevel as ToolRiskLevel,
+        })
+      },
+      onToolDenied: ({ toolCallId }) => {
+        useChatStore.getState().updateToolCallInLastMessage(conversationId!, toolCallId, {
+          status: 'denied',
+        })
       },
       onDone: () => {
         // Flush any remaining tag buffer

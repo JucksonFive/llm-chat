@@ -1,12 +1,24 @@
-import { app, BrowserWindow, Menu, session, shell } from 'electron'
+import { app, BrowserWindow, Menu, session, shell, dialog, ipcMain } from 'electron'
 import { execSync } from 'child_process'
 import path from 'path'
 import fs from 'fs'
+import crypto from 'crypto'
 
 let mainWindow: BrowserWindow | null = null
 let serverPort = 3001
 
 const isDev = !app.isPackaged
+
+// Short-lived folder selection tokens (60s expiry). The renderer receives a
+// token after the user picks a workspace folder; the server validates it before
+// persisting the path. This prevents the renderer from injecting arbitrary
+// workspace paths.
+const folderTokens = new Map<string, { path: string; expires: number }>()
+const FOLDER_TOKEN_TTL_MS = 60_000
+
+// IPC secret shared with the Express server so it can verify folder tokens.
+// Generated once per app launch.
+const ipcSecret = crypto.randomBytes(32).toString('hex')
 
 // Fix PATH on macOS — apps launched from Finder have a limited PATH
 if (process.platform === 'darwin') {
@@ -81,6 +93,7 @@ async function startExpressServer() {
   process.env.ELECTRON_PROD = 'true'
   process.env.ELECTRON = 'true'
   process.env.ELECTRON_DIST_PATH = path.join(__dirname, '..', 'dist')
+  process.env.ELECTRON_IPC_SECRET = ipcSecret
 
   // Load the separately bundled server
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -204,6 +217,30 @@ function createMenu() {
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
+
+// ── IPC: secure workspace folder selection ──────────────────────────────
+
+ipcMain.handle('select-workspace-folder', async () => {
+  if (!mainWindow) return null
+
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory'],
+    title: 'Select Project Workspace',
+  })
+
+  if (result.canceled || result.filePaths.length === 0) return null
+
+  const folderPath = result.filePaths[0]
+  const token = crypto.randomUUID()
+  folderTokens.set(token, { path: folderPath, expires: Date.now() + FOLDER_TOKEN_TTL_MS })
+
+  // Clean up expired tokens
+  for (const [key, val] of folderTokens) {
+    if (val.expires < Date.now()) folderTokens.delete(key)
+  }
+
+  return { token, path: folderPath }
+})
 
 app.whenReady().then(async () => {
   await startSearXNG()

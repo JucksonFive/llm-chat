@@ -9,6 +9,7 @@ import { useMcpStore } from '@/stores/mcp-store'
 import { useChatStream } from '@/hooks/use-chat-stream'
 import { ResourcesPanel } from '@/components/mcp/resources-panel'
 import { PromptsPanel } from '@/components/mcp/prompts-panel'
+import { PermissionProfileSelector } from '@/components/chat/permission-profile'
 import { cn } from '@/lib/utils'
 import { apiFetch } from '@/lib/api-fetch'
 import type { McpServerConfig, Attachment } from '@/types'
@@ -240,38 +241,41 @@ export function MessageInput() {
           </div>
         )}
         <div className="max-w-3xl mx-auto space-y-2">
-          {hasMcpServers && (
-            <div className="flex gap-1">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs text-muted-foreground"
-                    onClick={() => setResourcesOpen(true)}
-                  >
-                    <Database className="h-3.5 w-3.5 mr-1" />
-                    Resources
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Browse MCP resources</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs text-muted-foreground"
-                    onClick={() => setPromptsOpen(true)}
-                  >
-                    <FileText className="h-3.5 w-3.5 mr-1" />
-                    Prompts
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Browse MCP prompts</TooltipContent>
-              </Tooltip>
-            </div>
-          )}
+          <div className="flex gap-1 items-center">
+            {hasMcpServers && (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs text-muted-foreground"
+                      onClick={() => setResourcesOpen(true)}
+                    >
+                      <Database className="h-3.5 w-3.5 mr-1" />
+                      Resources
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Browse MCP resources</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs text-muted-foreground"
+                      onClick={() => setPromptsOpen(true)}
+                    >
+                      <FileText className="h-3.5 w-3.5 mr-1" />
+                      Prompts
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Browse MCP prompts</TooltipContent>
+                </Tooltip>
+              </>
+            )}
+            <PermissionProfileSelector />
+          </div>
 
           {attachments.length > 0 && (
             <div className="flex gap-2 flex-wrap">

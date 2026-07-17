@@ -57,7 +57,7 @@ describe('tool-resolver', () => {
   })
 
   describe('resolveAvailableTools', () => {
-    const openaiContext = { hasUploadedPdf: false, hasIndexedDocument: false, workspaceAccessEnabled: false, providerId: 'openai' as const }
+    const openaiContext = { hasUploadedPdf: false, hasIndexedDocument: false, workspaceAccessEnabled: false, activeProjectId: null as string | null, providerId: 'openai' as const }
 
     it('resolves tools for Bedrock like any other provider (Converse API supports tools)', () => {
       const agentToolIds: BuiltInToolId[] = []
