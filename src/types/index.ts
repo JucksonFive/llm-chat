@@ -155,6 +155,7 @@ export type McpImportPayload = McpServerImport | McpServerImport[]
 export type WorkspaceKind = 'windows' | 'wsl'
 export type PreferredRuntime = 'windows-powershell' | 'wsl-pwsh'
 export type PermissionProfile = 'workspace-write' | 'read-only' | 'full-access'
+export type ChatMode = 'chat' | 'plan'
 
 export interface Project {
   id: string

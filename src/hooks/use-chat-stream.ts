@@ -11,6 +11,11 @@ import { useResearchStore } from '@/stores/research-store'
 import { streamChat } from '@/lib/llm-client'
 import { PROVIDERS } from '@/lib/providers'
 import { computeToolContext, resolveAvailableTools } from '@/lib/tool-resolver'
+import {
+  applyChatModeToSystemPrompt,
+  filterToolsForChatMode,
+  permissionProfileForChatMode,
+} from '@/lib/chat-mode'
 import { apiFetch } from '@/lib/api-fetch'
 import type { McpServerConfig, Attachment, ToolRiskLevel } from '@/types'
 
@@ -73,7 +78,11 @@ export function useChatStream() {
     })
     const dateContext = `\n\nCurrent date: ${dateString}`
 
-    const systemPrompt = agent.systemPrompt + memoryPrompt + dateContext
+    const chatMode = useUIStore.getState().chatMode
+    const systemPrompt = applyChatModeToSystemPrompt(
+      agent.systemPrompt + memoryPrompt + dateContext,
+      chatMode,
+    )
 
     // Mark memories as used and track count for the assistant message
     if (usedMemoryIds.length > 0) {
@@ -100,7 +109,10 @@ export function useChatStream() {
 
     // Resolve available built-in tools based on agent settings and context
     const toolContext = computeToolContext(conv.messages, agent.providerId)
-    const builtInToolIds = resolveAvailableTools(agent.builtInToolIds ?? [], toolContext)
+    const builtInToolIds = filterToolsForChatMode(
+      resolveAvailableTools(agent.builtInToolIds ?? [], toolContext),
+      chatMode,
+    )
 
     type MessageContent = string | Array<{ type: 'text'; text: string } | { type: 'image'; image: string }>
     const historyMessages: { role: string; content: MessageContent }[] = []
@@ -170,7 +182,10 @@ export function useChatStream() {
     let tagBuffer = ''
 
     const projectId = useProjectStore.getState().activeProjectId
-    const permissionProfile = useUIStore.getState().permissionProfile
+    const permissionProfile = permissionProfileForChatMode(
+      useUIStore.getState().permissionProfile,
+      chatMode,
+    )
 
     streamChat({
       agentId: agent.id,

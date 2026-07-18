@@ -1,15 +1,18 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { PermissionProfile } from '@/types'
+import type { ChatMode, PermissionProfile } from '@/types'
 
 interface UIState {
   theme: 'dark' | 'light'
   autoSpeak: boolean
   permissionProfile: PermissionProfile
+  chatMode: ChatMode
   toggleTheme: () => void
   setTheme: (theme: 'dark' | 'light') => void
   toggleAutoSpeak: () => void
   setPermissionProfile: (profile: PermissionProfile) => void
+  setChatMode: (mode: ChatMode) => void
+  togglePlanMode: () => void
 }
 
 /** Strip markdown / code / latex for cleaner TTS output */
@@ -41,6 +44,7 @@ export const useUIStore = create<UIState>()(
       theme: 'dark',
       autoSpeak: false,
       permissionProfile: 'workspace-write' as PermissionProfile,
+      chatMode: 'chat' as ChatMode,
 
       toggleTheme: () => {
         set((state) => {
@@ -58,10 +62,21 @@ export const useUIStore = create<UIState>()(
       toggleAutoSpeak: () => set((state) => ({ autoSpeak: !state.autoSpeak })),
 
       setPermissionProfile: (profile) => set({ permissionProfile: profile }),
+
+      setChatMode: (mode) => set({ chatMode: mode }),
+
+      togglePlanMode: () => set((state) => ({
+        chatMode: state.chatMode === 'plan' ? 'chat' : 'plan',
+      })),
     }),
     {
       name: 'llm-chat-ui',
-      partialize: (state) => ({ theme: state.theme, autoSpeak: state.autoSpeak }),
+      partialize: (state) => ({
+        theme: state.theme,
+        autoSpeak: state.autoSpeak,
+        permissionProfile: state.permissionProfile,
+        chatMode: state.chatMode,
+      }),
     }
   )
 )

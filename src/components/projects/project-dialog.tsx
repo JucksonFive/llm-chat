@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useProjectStore } from '@/stores/project-store'
 import { Folder, Trash2, Monitor, Terminal } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { WorkspaceKind, PreferredRuntime } from '@/types'
 
 interface ProjectDialogProps {
@@ -31,17 +31,14 @@ export function ProjectDialog({ open, onOpenChange, editProjectId }: ProjectDial
   const [preferredRuntime, setPreferredRuntime] = useState<PreferredRuntime | ''>(editingProject?.preferredRuntime ?? '')
   const [selectingFolder, setSelectingFolder] = useState(false)
 
-  // Reset state when the dialog switches to a different project.
-  const [prevEditId, setPrevEditId] = useState<string | null>(editProjectId)
-  if (prevEditId !== editProjectId) {
-    setPrevEditId(editProjectId)
+  useEffect(() => {
+    if (!open) return
     setName(editingProject?.name ?? '')
     setDescription(editingProject?.description ?? '')
     setWorkspacePath(editingProject?.workspacePath ?? '')
     setWorkspaceKind(editingProject?.workspaceKind ?? '')
     setPreferredRuntime(editingProject?.preferredRuntime ?? '')
-  }
-
+  }, [open, editProjectId, editingProject])
   const handleSelectFolder = async () => {
     setSelectingFolder(true)
     try {
@@ -49,7 +46,10 @@ export function ProjectDialog({ open, onOpenChange, editProjectId }: ProjectDial
       if (result) {
         setWorkspacePath(result.path)
         // Auto-detect workspace kind from path
-        if (!workspaceKind && result.path.startsWith('/mnt/') || result.path.startsWith('\\\\wsl')) {
+        if (
+          !workspaceKind &&
+          (result.path.startsWith('/mnt/') || result.path.startsWith('\\\\wsl'))
+        ) {
           setWorkspaceKind('wsl')
           setPreferredRuntime('wsl-pwsh')
         } else if (!workspaceKind) {
