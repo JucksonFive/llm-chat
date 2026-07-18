@@ -18,6 +18,7 @@ const REASONING_PATTERNS = [
   /-r1\b/i,                // deepseek-r1
   /-r[2-9]\b/i,            // deepseek-r2
   /reflection/i,           // reflection models
+  /^kimi-k(?:3|2\.(?:6|7))/i, // current Kimi reasoning models
 ]
 
 const VISION_PATTERNS = [
@@ -33,6 +34,7 @@ const VISION_PATTERNS = [
   /gemini/i,               // gemini models have vision
   /llava/i,                // llava
   /pixtral/i,              // mistral pixtral
+  /^kimi-k(?:3|2\.(?:6|7))/i, // current Kimi multimodal models
 ]
 
 const LARGE_CONTEXT_MAP: Array<{ pattern: RegExp; size: string }> = [
@@ -48,6 +50,8 @@ const LARGE_CONTEXT_MAP: Array<{ pattern: RegExp; size: string }> = [
   { pattern: /gemini-2/i, size: '2M' },
   { pattern: /deepseek-v[2-9]/i, size: '128K' },
   { pattern: /deepseek-r[1-9]/i, size: '128K' },
+  { pattern: /^kimi-k3$/i, size: '1M' },
+  { pattern: /^kimi-k2\.(?:6|7)/i, size: '256K' },
   { pattern: /128k/i, size: '128K' },
   { pattern: /200k/i, size: '200K' },
   { pattern: /1m/i, size: '1M' },

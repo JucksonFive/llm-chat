@@ -42,6 +42,14 @@ export const PROVIDERS: Record<ProviderId, ProviderMeta> = {
     color: '#4d6bfe',
     requiresApiKey: true,
   },
+  kimi: {
+    id: 'kimi',
+    name: 'Kimi',
+    models: ['kimi-k3', 'kimi-k2.7-code', 'kimi-k2.7-code-highspeed', 'kimi-k2.6'],
+    icon: 'Moon',
+    color: '#6366f1',
+    requiresApiKey: true,
+  },
   bedrock: {
     id: 'bedrock',
     name: 'AWS Bedrock',

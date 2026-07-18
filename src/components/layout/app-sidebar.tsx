@@ -40,6 +40,7 @@ import {
   Gem,
   HardDrive,
   MessageSquarePlus,
+  Moon,
   Pencil,
   Plus,
   Search,
@@ -56,6 +57,7 @@ const PROVIDER_ICONS: Record<ProviderId, ElementType> = {
   google: Gem,
   ollama: HardDrive,
   deepseek: Waves,
+  kimi: Moon,
   bedrock: Cloud,
 }
 

@@ -8,6 +8,7 @@ describe('PROVIDERS', () => {
       'bedrock',
       'deepseek',
       'google',
+      'kimi',
       'ollama',
       'openai',
     ])
@@ -32,9 +33,18 @@ describe('PROVIDERS', () => {
   it('marks ollama and bedrock as not requiring API keys (bedrock uses optional credentials)', () => {
     expect(PROVIDERS.ollama.requiresApiKey).toBe(false)
     expect(PROVIDERS.bedrock.requiresApiKey).toBe(false)
-    for (const id of ['openai', 'anthropic', 'google', 'deepseek'] as const) {
+    for (const id of ['openai', 'anthropic', 'google', 'deepseek', 'kimi'] as const) {
       expect(PROVIDERS[id].requiresApiKey).toBe(true)
     }
+  })
+
+  it('exposes the current Kimi model family', () => {
+    expect(PROVIDERS.kimi.models).toEqual([
+      'kimi-k3',
+      'kimi-k2.7-code',
+      'kimi-k2.7-code-highspeed',
+      'kimi-k2.6',
+    ])
   })
 
   it('marks ollama as supporting free-text models', () => {

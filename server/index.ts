@@ -426,6 +426,13 @@ app.post('/api/chat', async (req, res) => {
           name: 'deepseek',
         }).chat(effectiveModel)
         break
+      case 'kimi':
+        llmModel = createOpenAI({
+          baseURL: 'https://api.moonshot.ai/v1',
+          apiKey,
+          name: 'kimi',
+        }).chat(effectiveModel)
+        break
       default:
         res.status(400).json({ error: 'Unknown provider' })
         return
@@ -453,7 +460,9 @@ app.post('/api/chat', async (req, res) => {
 
     // For non-reasoning models, inject step-by-step thinking discipline
     let finalSystemPrompt = systemPrompt || undefined
-    const isReasoningModel = providerId === 'anthropic' || /^(o3|o4|o3-mini|o4-mini|deepseek-v4-pro)/.test(effectiveModel)
+    const isReasoningModel = providerId === 'anthropic'
+      || providerId === 'kimi'
+      || /^(o3|o4|o3-mini|o4-mini|deepseek-v4-pro)/.test(effectiveModel)
     if (finalSystemPrompt && !isReasoningModel) {
       finalSystemPrompt += `\n\n## Mandatory thinking process
 For every non-trivial question, you MUST begin your response with a <think>...</think> block before giving your actual answer. This block is your internal reasoning space. Inside it:
@@ -804,6 +813,17 @@ app.post('/api/extract-memories', async (req, res) => {
           return
         }
         llmModel = createOpenAI({ baseURL: 'https://api.deepseek.com', apiKey, name: 'deepseek' }).chat('deepseek-v4-flash')
+        break
+      case 'kimi':
+        if (!apiKey) {
+          res.json({ memories: { short: [], long: [] } })
+          return
+        }
+        llmModel = createOpenAI({
+          baseURL: 'https://api.moonshot.ai/v1',
+          apiKey,
+          name: 'kimi',
+        }).chat(model)
         break
       case 'bedrock':
         // Bedrock doesn't support memory extraction yet

@@ -23,7 +23,7 @@ A powerful multi-provider AI chat desktop application with Plan mode, deep resea
 ## Features
 
 ### 🤖 Multi-Provider AI Support
-- **Six major providers** — OpenAI, Anthropic (Claude), Google Gemini, DeepSeek, AWS Bedrock, Ollama (local)
+- **Seven major providers** — OpenAI, Anthropic (Claude), Google Gemini, DeepSeek, Kimi, AWS Bedrock, Ollama (local)
 - **Agent management** — Create unlimited agents with different providers, models, and system prompts
 - **Per-agent API credentials** — Add or replace a provider key from **LLM Chat ▾ → Edit active agent**
 - **Live model switching** — Change models on the fly from the header without opening settings
@@ -629,6 +629,7 @@ Enable these tools per agent in the agent settings. Most require no external ser
 | **Anthropic** | Yes | claude-sonnet-4, claude-opus-4, claude-haiku-4.5 | Long context, artifacts |
 | **Google** | Yes | gemini-2.5-pro, gemini-2.5-flash, gemini-2.0-flash | Massive context (2M tokens) |
 | **DeepSeek** | Yes | deepseek-v4-pro, deepseek-v4-flash, deepseek-r1 | Cost-effective, reasoning |
+| **Kimi** | Yes | kimi-k3, kimi-k2.7-code, kimi-k2.7-code-highspeed, kimi-k2.6 | Reasoning, vision, tool calling, up to 1M context |
 | **AWS Bedrock** | AWS Credentials | Claude 3.5, Amazon Nova models | Enterprise, AWS integration |
 | **Ollama** | No (local) | Any Ollama model | Privacy, no API costs |
 
@@ -640,6 +641,7 @@ Models automatically receive capability badges based on their features:
 Models with extended thinking/reasoning capabilities:
 - OpenAI: `o1`, `o1-mini`, `o3-mini`
 - DeepSeek: `deepseek-r1`
+- Kimi: `kimi-k3`, `kimi-k2.7-code`, `kimi-k2.6`
 - Claude: Models with "thinking" in the name
 
 Features:

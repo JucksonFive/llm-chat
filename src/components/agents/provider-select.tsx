@@ -5,7 +5,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Brain, Sparkles, Gem, HardDrive, Waves, Cloud } from 'lucide-react'
+import { Brain, Sparkles, Gem, HardDrive, Waves, Moon, Cloud } from 'lucide-react'
 import { PROVIDER_LIST } from '@/lib/providers'
 import type { ProviderId } from '@/types'
 
@@ -15,6 +15,7 @@ const ICONS: Record<ProviderId, React.ElementType> = {
   google: Gem,
   ollama: HardDrive,
   deepseek: Waves,
+  kimi: Moon,
   bedrock: Cloud,
 }
 
