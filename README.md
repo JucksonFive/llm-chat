@@ -608,6 +608,28 @@ Enable these tools per agent in the agent settings. Most require no external ser
 | **Index Document** | OpenAI API Key | Index documents (PDFs, text) for RAG retrieval with embeddings |
 | **Search Document** | OpenAI API Key | Search across indexed documents using cosine similarity |
 
+### Kimi Official Tools
+
+Kimi agents can additionally enable Moonshot's hosted Formula tools. Their schemas are loaded
+from Kimi when a chat starts, and tool executions use the Kimi API key stored for that agent.
+See the [Kimi Official Tools documentation](https://platform.kimi.ai/docs/guide/use-official-tools).
+Moonshot currently marks the Formula Web Search tool as under update and does not recommend
+using it in the near term, so all Kimi Official Tools remain disabled by default.
+
+| Tool | Description |
+|------|-------------|
+| **Web Search** | Current web search and source retrieval |
+| **Rethink** | Intelligent idea organization and reconsideration |
+| **Memory** | Persistent conversation history and preference storage |
+| **Code Runner** | Hosted Python execution |
+| **Date** | Date and time processing |
+| **Convert** | Unit and currency conversion |
+| **Random Choice** | Random selection |
+| **Excel** | Excel and CSV analysis |
+| **Quick JS** | Sandboxed JavaScript execution with QuickJS |
+| **Fetch** | URL extraction and Markdown conversion |
+| **Base64** | Base64 encoding and decoding |
+
 ### Enabling Tools
 
 1. Open **LLM Chat ▾ → Edit active agent**

@@ -117,6 +117,10 @@ function AgentForm({
   const matchedPreset = SYSTEM_PROMPT_PRESETS.find((preset) => preset.prompt === systemPrompt)
   const hasSavedApiKey = Boolean(editingAgent && providerId === editingAgent.providerId && hasKey(editingAgent.id))
   const hasProviderApiKey = hasApiKeyForProvider(providerId)
+  const standardBuiltInTools = builtInToolList.filter((tool) => !tool.providerIds?.length)
+  const providerBuiltInTools = builtInToolList.filter((tool) =>
+    tool.providerIds?.includes(providerId),
+  )
 
   const effectiveModel = isCustomModel ? model : (models.includes(model) ? model : models[0])
 
@@ -467,7 +471,7 @@ function AgentForm({
             Tools marked "Default" are automatically available. Toggle to override.
           </p>
           <div className="space-y-2 rounded-lg border border-border/50 p-3">
-            {builtInToolList.map((tool) => {
+            {standardBuiltInTools.map((tool) => {
               const riskBadgeColor =
                 tool.riskLevel === 'safe' ? 'bg-green-500/10 text-green-600 dark:text-green-400' :
                 tool.riskLevel === 'costly' ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' :
@@ -506,6 +510,55 @@ function AgentForm({
             })}
           </div>
         </div>
+
+        {providerBuiltInTools.length > 0 && (
+          <div className="grid gap-2">
+            <Label className="flex items-center gap-1.5">
+              <Wrench className="h-3.5 w-3.5" />
+              Kimi Official Tools
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Plug-and-play tools executed by Kimi Formula with this agent&apos;s Moonshot API key.
+            </p>
+            <div className="space-y-2 rounded-lg border border-indigo-500/20 bg-indigo-500/[0.03] p-3">
+              {providerBuiltInTools.map((tool) => {
+                const riskBadgeColor =
+                  tool.riskLevel === 'safe' ? 'bg-green-500/10 text-green-600 dark:text-green-400' :
+                  tool.riskLevel === 'costly' ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' :
+                  'bg-red-500/10 text-red-600 dark:text-red-400'
+
+                return (
+                  <div key={tool.id} className="flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm">{tool.name}</span>
+                        <span className="rounded bg-indigo-500/10 px-1.5 py-0.5 text-[9px] font-medium text-indigo-600 dark:text-indigo-400">
+                          Official
+                        </span>
+                        <span className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${riskBadgeColor}`}>
+                          {tool.riskLevel === 'safe' ? 'Safe' : 'Remote'}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">
+                        {tool.description}
+                      </span>
+                    </div>
+                    <Switch
+                      checked={selectedBuiltInTools.includes(tool.id)}
+                      onCheckedChange={(checked) => {
+                        setSelectedBuiltInTools((prev) =>
+                          checked
+                            ? [...prev, tool.id]
+                            : prev.filter((id) => id !== tool.id)
+                        )
+                      }}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {mcpServers.length > 0 && (
           <div className="grid gap-2">

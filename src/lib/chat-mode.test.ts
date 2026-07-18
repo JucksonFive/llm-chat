@@ -34,6 +34,15 @@ describe('chat mode', () => {
     ])
   })
 
+  it('allows read-only Kimi Official Tools in plan mode', () => {
+    expect(
+      filterToolsForChatMode(
+        ['kimi-web-search', 'kimi-date', 'kimi-memory', 'kimi-code-runner'],
+        'plan',
+      ),
+    ).toEqual(['kimi-web-search', 'kimi-date'])
+  })
+
   it('forces read-only permissions only while planning', () => {
     expect(permissionProfileForChatMode('full-access', 'plan')).toBe('read-only')
     expect(permissionProfileForChatMode('workspace-write', 'chat')).toBe('workspace-write')

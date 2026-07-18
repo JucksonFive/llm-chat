@@ -6,6 +6,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { buildToolsFromMcpServers } from './tool-bridge.js'
+import { buildKimiOfficialTools } from './kimi-official-tools.js'
 import * as mcpManager from './mcp-manager.js'
 import { getBuiltInTools, getBuiltInToolList } from './tools/index.js'
 import type { BuiltInToolId } from './tools/index.js'
@@ -447,7 +448,11 @@ app.post('/api/chat', async (req, res) => {
       ? getBuiltInTools(builtInToolIds as BuiltInToolId[], toolApiKey, projectContext)
       : {}
 
-    const tools = { ...builtIn, ...mcpTools }
+    const kimiOfficial = providerId === 'kimi' && builtInToolIds?.length
+      ? await buildKimiOfficialTools(builtInToolIds, apiKey)
+      : {}
+
+    const tools = { ...builtIn, ...kimiOfficial, ...mcpTools }
     const hasTools = Object.keys(tools).length > 0
 
     console.log(`[chat] provider=${providerId} model=${normalizedModel} effectiveModel=${effectiveModel} messages=${messages.length} tools=${Object.keys(tools).join(',') || 'none'} builtInToolIds=${JSON.stringify(builtInToolIds)}`)

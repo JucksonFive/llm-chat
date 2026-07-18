@@ -20,6 +20,14 @@ const PLAN_MODE_TOOLS = new Set<BuiltInToolId>([
   'datetime',
   'deep-research',
   'search-document',
+  'kimi-web-search',
+  'kimi-rethink',
+  'kimi-date',
+  'kimi-convert',
+  'kimi-random-choice',
+  'kimi-excel',
+  'kimi-fetch',
+  'kimi-base64',
 ])
 
 export function applyChatModeToSystemPrompt(systemPrompt: string, mode: ChatMode): string {

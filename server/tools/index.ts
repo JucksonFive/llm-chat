@@ -11,6 +11,10 @@ import { deepResearchTool, createDeepResearchTool } from './deep-research.js'
 import { createIndexDocumentTool } from './document-indexer.js'
 import { createSearchDocumentTool } from './document-search.js'
 import { createPowershellExecutorTool } from './powershell-executor.js'
+import {
+  KIMI_OFFICIAL_TOOL_CATALOG,
+  type KimiOfficialToolId,
+} from '../kimi-official-tools.js'
 import type { Tool } from 'ai'
 
 export type BuiltInToolId =
@@ -27,6 +31,7 @@ export type BuiltInToolId =
   | 'deep-research'
   | 'index-document'
   | 'search-document'
+  | KimiOfficialToolId
 
 export type ToolRiskLevel = 'safe' | 'costly' | 'destructive'
 export type ToolExecutionPolicy = 'auto' | 'approvalRequired' | 'disabled'
@@ -51,6 +56,7 @@ export interface BuiltInToolMeta {
   enabledByDefault: boolean
   riskLevel: ToolRiskLevel
   executionPolicy: ToolExecutionPolicy
+  providerIds?: string[]
 }
 
 export interface ToolSettings {
@@ -64,10 +70,25 @@ type ToolEntry = {
   enabledByDefault: boolean
   riskLevel: ToolRiskLevel
   executionPolicy: ToolExecutionPolicy
+  providerIds?: string[]
   conditionallyEnabled?: (context: ToolContext) => boolean
   tool?: Tool
   factory?: (apiKey: string, context?: ProjectToolContext) => Tool | undefined
 }
+
+const KIMI_OFFICIAL_TOOL_ENTRIES = Object.fromEntries(
+  KIMI_OFFICIAL_TOOL_CATALOG.map((entry) => [
+    entry.id,
+    {
+      name: entry.name,
+      description: entry.description,
+      enabledByDefault: false,
+      riskLevel: entry.riskLevel,
+      executionPolicy: 'auto',
+      providerIds: ['kimi'],
+    } satisfies ToolEntry,
+  ]),
+) as Record<KimiOfficialToolId, ToolEntry>
 
 const BUILT_IN_TOOLS: Record<BuiltInToolId, ToolEntry> = {
   'web-fetch': {
@@ -186,6 +207,7 @@ const BUILT_IN_TOOLS: Record<BuiltInToolId, ToolEntry> = {
     conditionallyEnabled: (ctx) => ctx.hasIndexedDocument,
     factory: createSearchDocumentTool,
   },
+  ...KIMI_OFFICIAL_TOOL_ENTRIES,
 }
 
 export function getBuiltInToolList(): BuiltInToolMeta[] {
@@ -196,6 +218,7 @@ export function getBuiltInToolList(): BuiltInToolMeta[] {
     enabledByDefault: meta.enabledByDefault,
     riskLevel: meta.riskLevel,
     executionPolicy: meta.executionPolicy,
+    providerIds: meta.providerIds,
   }))
 }
 

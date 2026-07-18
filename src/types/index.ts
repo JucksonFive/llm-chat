@@ -14,6 +14,17 @@ export type BuiltInToolId =
   | 'deep-research'
   | 'index-document'
   | 'search-document'
+  | 'kimi-web-search'
+  | 'kimi-rethink'
+  | 'kimi-memory'
+  | 'kimi-code-runner'
+  | 'kimi-date'
+  | 'kimi-convert'
+  | 'kimi-random-choice'
+  | 'kimi-excel'
+  | 'kimi-quickjs'
+  | 'kimi-fetch'
+  | 'kimi-base64'
 
 export type ToolRiskLevel = 'safe' | 'costly' | 'destructive'
 export type ToolExecutionPolicy = 'auto' | 'approvalRequired' | 'disabled'
@@ -25,6 +36,7 @@ export interface BuiltInToolMeta {
   enabledByDefault: boolean
   riskLevel: ToolRiskLevel
   executionPolicy: ToolExecutionPolicy
+  providerIds?: ProviderId[]
 }
 
 export interface ProviderMeta {
