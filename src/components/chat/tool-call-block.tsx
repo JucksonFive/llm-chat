@@ -92,6 +92,20 @@ export function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
       text: 'text-red-600 dark:text-red-400',
       badge: 'bg-red-500/10 text-red-600 dark:text-red-400',
     },
+    'awaiting-approval': {
+      icon: <Loader2 className="h-3 w-3 animate-spin" />,
+      bg: 'bg-amber-500/5',
+      border: 'border-amber-500/30',
+      text: 'text-amber-600 dark:text-amber-400',
+      badge: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    },
+    denied: {
+      icon: <X className="h-3 w-3" />,
+      bg: 'bg-red-500/5',
+      border: 'border-red-500/20',
+      text: 'text-red-600 dark:text-red-400',
+      badge: 'bg-red-500/10 text-red-600 dark:text-red-400',
+    },
   }[toolCall.status]
 
   const showProgressBar = toolCall.status === 'calling' && elapsed > 5000
@@ -117,7 +131,12 @@ export function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
         </div>
         <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full ${statusConfig.badge} text-[10px] font-medium`}>
           {statusConfig.icon}
-          <span>{toolCall.status === 'calling' ? 'running' : toolCall.status}</span>
+          <span>
+            {toolCall.status === 'calling' ? 'running'
+              : toolCall.status === 'awaiting-approval' ? 'needs approval'
+              : toolCall.status === 'denied' ? 'denied'
+              : toolCall.status}
+          </span>
         </div>
         <ChevronDown
           className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}

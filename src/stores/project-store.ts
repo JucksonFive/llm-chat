@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Project } from '@/types'
+import type { Project, WorkspaceKind, PreferredRuntime } from '@/types'
 import { apiFetch } from '@/lib/api-fetch'
 
 interface ProjectState {
@@ -8,8 +8,12 @@ interface ProjectState {
   activeProjectId: string | null
   loaded: boolean
   loadProjects: () => Promise<void>
-  addProject: (name: string, description?: string) => Promise<Project>
-  updateProject: (id: string, updates: Partial<Pick<Project, 'name' | 'description'>>) => Promise<void>
+  addProject: (name: string, description?: string, workspace?: {
+    workspacePath?: string
+    workspaceKind?: WorkspaceKind | ''
+    preferredRuntime?: PreferredRuntime | ''
+  }) => Promise<Project>
+  updateProject: (id: string, updates: Partial<Pick<Project, 'name' | 'description' | 'workspacePath' | 'workspaceKind' | 'preferredRuntime'>>) => Promise<void>
   deleteProject: (id: string) => Promise<void>
   setActiveProject: (id: string | null) => void
 }
@@ -31,17 +35,26 @@ export const useProjectStore = create<ProjectState>()(
         set({ projects, activeProjectId, loaded: true })
       },
 
-      addProject: async (name, description) => {
+      addProject: async (name, description, workspace) => {
         const res = await apiFetch('/api/db/projects', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, description }),
+          body: JSON.stringify({
+            name,
+            description,
+            workspacePath: workspace?.workspacePath || '',
+            workspaceKind: workspace?.workspaceKind || '',
+            preferredRuntime: workspace?.preferredRuntime || '',
+          }),
         })
         const { id } = await res.json()
         const project: Project = {
           id,
           name,
           description: description || '',
+          workspacePath: workspace?.workspacePath || '',
+          workspaceKind: workspace?.workspaceKind || '',
+          preferredRuntime: workspace?.preferredRuntime || '',
           createdAt: Date.now(),
           updatedAt: Date.now(),
         }
@@ -59,7 +72,13 @@ export const useProjectStore = create<ProjectState>()(
         await apiFetch(`/api/db/projects/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: merged.name, description: merged.description }),
+          body: JSON.stringify({
+            name: merged.name,
+            description: merged.description,
+            workspacePath: merged.workspacePath,
+            workspaceKind: merged.workspaceKind,
+            preferredRuntime: merged.preferredRuntime,
+          }),
         })
         set((state) => ({
           projects: state.projects.map((p) =>

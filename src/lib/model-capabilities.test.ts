@@ -24,6 +24,12 @@ describe('getModelCapabilities', () => {
       expect(getModelCapabilities('claude-3-5-sonnet-thinking').reasoning).toBe(true)
     })
 
+    it('detects current Kimi models as reasoning models', () => {
+      expect(getModelCapabilities('kimi-k3').reasoning).toBe(true)
+      expect(getModelCapabilities('kimi-k2.7-code').reasoning).toBe(true)
+      expect(getModelCapabilities('kimi-k2.6').reasoning).toBe(true)
+    })
+
     it('does not detect regular models as reasoning', () => {
       expect(getModelCapabilities('gpt-4o').reasoning).toBe(false)
       expect(getModelCapabilities('gpt-3.5-turbo').reasoning).toBe(false)
@@ -53,6 +59,12 @@ describe('getModelCapabilities', () => {
       expect(getModelCapabilities('pixtral-12b').vision).toBe(true)
       expect(getModelCapabilities('llava-13b').vision).toBe(true)
     })
+
+    it('detects current Kimi models as vision-capable', () => {
+      expect(getModelCapabilities('kimi-k3').vision).toBe(true)
+      expect(getModelCapabilities('kimi-k2.7-code-highspeed').vision).toBe(true)
+      expect(getModelCapabilities('kimi-k2.6').vision).toBe(true)
+    })
   })
 
   describe('large context detection', () => {
@@ -78,6 +90,12 @@ describe('getModelCapabilities', () => {
       const gemini2 = getModelCapabilities('gemini-2.0-flash')
       expect(gemini2.largeContext).toBe(true)
       expect(gemini2.contextSize).toBe('2M')
+    })
+
+    it('detects current Kimi context windows', () => {
+      expect(getModelCapabilities('kimi-k3').contextSize).toBe('1M')
+      expect(getModelCapabilities('kimi-k2.7-code').contextSize).toBe('256K')
+      expect(getModelCapabilities('kimi-k2.6').contextSize).toBe('256K')
     })
   })
 

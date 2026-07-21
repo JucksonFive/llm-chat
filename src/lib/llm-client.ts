@@ -11,12 +11,16 @@ interface StreamChatParams {
   messages: { role: string; content: MessageContent }[]
   mcpServers?: McpServerConfig[]
   builtInToolIds?: string[]
+  projectId?: string | null
+  permissionProfile?: string
   signal?: AbortSignal
   onToken: (token: string) => void
   onReasoning: (token: string) => void
   onToolCall: (data: { toolCallId: string; toolName: string; args: Record<string, unknown> }) => void
   onToolResult: (data: { toolCallId: string; toolName: string; result: unknown }) => void
   onToolError: (data: { toolCallId: string; toolName: string; error: string }) => void
+  onToolApprovalRequest?: (data: { approvalId: string; toolCallId: string; toolName: string; args: Record<string, unknown>; riskLevel: string }) => void
+  onToolDenied?: (data: { toolCallId: string; toolName: string }) => void
   onDone: () => void
   onError: (error: Error) => void
 }
@@ -29,12 +33,16 @@ export async function streamChat({
   messages,
   mcpServers,
   builtInToolIds,
+  projectId,
+  permissionProfile,
   signal,
   onToken,
   onReasoning,
   onToolCall,
   onToolResult,
   onToolError,
+  onToolApprovalRequest,
+  onToolDenied,
   onDone,
   onError,
 }: StreamChatParams) {
@@ -58,7 +66,7 @@ export async function streamChat({
     const response = await apiFetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agentId, providerId, model, systemPrompt, messages, mcpServers, builtInToolIds }),
+      body: JSON.stringify({ agentId, providerId, model, systemPrompt, messages, mcpServers, builtInToolIds, projectId, permissionProfile }),
       signal,
     })
 
@@ -126,6 +134,21 @@ export async function streamChat({
                 toolCallId: parsed.toolCallId,
                 toolName: parsed.toolName,
                 error: parsed.error,
+              })
+              break
+            case 'tool-approval-request':
+              onToolApprovalRequest?.({
+                approvalId: parsed.approvalId,
+                toolCallId: parsed.toolCallId,
+                toolName: parsed.toolName,
+                args: parsed.args,
+                riskLevel: parsed.riskLevel || 'costly',
+              })
+              break
+            case 'tool-denied':
+              onToolDenied?.({
+                toolCallId: parsed.toolCallId,
+                toolName: parsed.toolName,
               })
               break
             default:

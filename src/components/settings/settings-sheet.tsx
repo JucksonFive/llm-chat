@@ -22,10 +22,11 @@ import { toast } from 'sonner'
 interface SettingsSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  initialTab?: 'appearance' | 'data' | 'mcp' | 'documents'
 }
 
-export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
-  const [activeTab, setActiveTab] = useState('appearance')
+export function SettingsSheet({ open, onOpenChange, initialTab = 'appearance' }: SettingsSheetProps) {
+  const [activeTab, setActiveTab] = useState<string>(initialTab)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
   const handleExport = () => {

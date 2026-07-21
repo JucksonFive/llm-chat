@@ -5,7 +5,12 @@ import { cleanTextForSpeech, speakText, useUIStore } from './ui-store'
 function reset() {
   localStorage.clear()
   document.documentElement.classList.remove('dark')
-  useUIStore.setState({ theme: 'dark', autoSpeak: false })
+  useUIStore.setState({
+    theme: 'dark',
+    autoSpeak: false,
+    permissionProfile: 'workspace-write',
+    chatMode: 'chat',
+  })
 }
 
 beforeEach(reset)
@@ -105,9 +110,10 @@ describe('useUIStore', () => {
     document.documentElement.classList.remove('dark')
   })
 
-  it('starts with dark theme and autoSpeak off', () => {
+  it('starts with dark theme, autoSpeak off, and chat mode active', () => {
     expect(useUIStore.getState().theme).toBe('dark')
     expect(useUIStore.getState().autoSpeak).toBe(false)
+    expect(useUIStore.getState().chatMode).toBe('chat')
   })
 
   it('toggleTheme flips theme and updates document class', () => {
@@ -135,5 +141,16 @@ describe('useUIStore', () => {
     expect(useUIStore.getState().autoSpeak).toBe(true)
     useUIStore.getState().toggleAutoSpeak()
     expect(useUIStore.getState().autoSpeak).toBe(false)
+  })
+
+  it('toggles plan mode and can set the mode explicitly', () => {
+    useUIStore.getState().togglePlanMode()
+    expect(useUIStore.getState().chatMode).toBe('plan')
+
+    useUIStore.getState().togglePlanMode()
+    expect(useUIStore.getState().chatMode).toBe('chat')
+
+    useUIStore.getState().setChatMode('plan')
+    expect(useUIStore.getState().chatMode).toBe('plan')
   })
 })

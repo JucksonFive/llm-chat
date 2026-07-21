@@ -35,7 +35,7 @@ function markDirty() {
   dirty = true
 }
 
-const SCHEMA_VERSION = 8
+const SCHEMA_VERSION = 9
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS agents (
@@ -228,6 +228,21 @@ export async function initDb(): Promise<Database> {
     )`)
     db.exec('CREATE INDEX IF NOT EXISTS idx_documents_path ON documents(path)')
   } catch { /* table may already exist */ }
+
+  // v9: project workspace fields for sandboxed PowerShell execution and
+  // project-scoped file tools. Old projects get empty defaults (local tools
+  // remain disabled until a workspace folder is selected).
+  if (currentVersion < 9) {
+    try {
+      db.exec('ALTER TABLE projects ADD COLUMN workspace_path TEXT NOT NULL DEFAULT \'\'')
+    } catch { /* column may already exist */ }
+    try {
+      db.exec('ALTER TABLE projects ADD COLUMN workspace_kind TEXT NOT NULL DEFAULT \'\'')
+    } catch { /* column may already exist */ }
+    try {
+      db.exec('ALTER TABLE projects ADD COLUMN preferred_runtime TEXT NOT NULL DEFAULT \'\'')
+    } catch { /* column may already exist */ }
+  }
 
   if (currentVersion < SCHEMA_VERSION) {
     db.run(`PRAGMA user_version = ${SCHEMA_VERSION}`)

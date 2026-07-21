@@ -113,6 +113,9 @@ app.get('/api/db/projects', (_req, res) => {
     id: p.id,
     name: p.name,
     description: p.description,
+    workspacePath: p.workspace_path || '',
+    workspaceKind: p.workspace_kind || '',
+    preferredRuntime: p.preferred_runtime || '',
     createdAt: p.created_at,
     updatedAt: p.updated_at,
   }))
@@ -120,24 +123,42 @@ app.get('/api/db/projects', (_req, res) => {
 })
 
 app.post('/api/db/projects', (req, res) => {
-  const { name, description } = req.body
+  const { name, description, workspacePath, workspaceKind, preferredRuntime } = req.body
   const id = crypto.randomUUID()
   const now = Date.now()
   run(
-    'INSERT INTO projects (id, name, description, created_at, updated_at) VALUES ($id, $name, $description, $now, $now)',
-    { id, name, description: description || '', now },
+    `INSERT INTO projects (id, name, description, workspace_path, workspace_kind, preferred_runtime, created_at, updated_at)
+     VALUES ($id, $name, $description, $workspacePath, $workspaceKind, $preferredRuntime, $now, $now)`,
+    {
+      id,
+      name,
+      description: description || '',
+      workspacePath: workspacePath || '',
+      workspaceKind: workspaceKind || '',
+      preferredRuntime: preferredRuntime || '',
+      now,
+    },
   )
   res.json({ id })
 })
 
 app.put('/api/db/projects/:id', (req, res) => {
-  const { name, description } = req.body
-  run('UPDATE projects SET name=$name, description=$description, updated_at=$now WHERE id=$id', {
-    id: req.params.id,
-    name,
-    description: description || '',
-    now: Date.now(),
-  })
+  const { name, description, workspacePath, workspaceKind, preferredRuntime } = req.body
+  run(
+    `UPDATE projects SET name=$name, description=$description,
+     workspace_path=$workspacePath, workspace_kind=$workspaceKind,
+     preferred_runtime=$preferredRuntime, updated_at=$now
+     WHERE id=$id`,
+    {
+      id: req.params.id,
+      name,
+      description: description || '',
+      workspacePath: workspacePath || '',
+      workspaceKind: workspaceKind || '',
+      preferredRuntime: preferredRuntime || '',
+      now: Date.now(),
+    },
+  )
   res.json({ ok: true })
 })
 

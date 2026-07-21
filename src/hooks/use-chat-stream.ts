@@ -6,14 +6,18 @@ import { useApiKeyStore } from '@/stores/api-key-store'
 import { useMemoryStore } from '@/stores/memory-store'
 import { useMcpStore } from '@/stores/mcp-store'
 import { useProjectStore } from '@/stores/project-store'
-import { useUIStore } from '@/stores/ui-store'
+import { useUIStore, speakText } from '@/stores/ui-store'
 import { useResearchStore } from '@/stores/research-store'
-import { speakText } from '@/stores/ui-store'
 import { streamChat } from '@/lib/llm-client'
 import { PROVIDERS } from '@/lib/providers'
 import { computeToolContext, resolveAvailableTools } from '@/lib/tool-resolver'
+import {
+  applyChatModeToSystemPrompt,
+  filterToolsForChatMode,
+  permissionProfileForChatMode,
+} from '@/lib/chat-mode'
 import { apiFetch } from '@/lib/api-fetch'
-import type { McpServerConfig, Attachment } from '@/types'
+import type { McpServerConfig, Attachment, ToolRiskLevel } from '@/types'
 
 export function useChatStream() {
   const abortRef = useRef<AbortController | null>(null)
@@ -74,7 +78,11 @@ export function useChatStream() {
     })
     const dateContext = `\n\nCurrent date: ${dateString}`
 
-    const systemPrompt = agent.systemPrompt + memoryPrompt + dateContext
+    const chatMode = useUIStore.getState().chatMode
+    const systemPrompt = applyChatModeToSystemPrompt(
+      agent.systemPrompt + memoryPrompt + dateContext,
+      chatMode,
+    )
 
     // Mark memories as used and track count for the assistant message
     if (usedMemoryIds.length > 0) {
@@ -101,7 +109,10 @@ export function useChatStream() {
 
     // Resolve available built-in tools based on agent settings and context
     const toolContext = computeToolContext(conv.messages, agent.providerId)
-    const builtInToolIds = resolveAvailableTools(agent.builtInToolIds ?? [], toolContext)
+    const builtInToolIds = filterToolsForChatMode(
+      resolveAvailableTools(agent.builtInToolIds ?? [], toolContext),
+      chatMode,
+    )
 
     type MessageContent = string | Array<{ type: 'text'; text: string } | { type: 'image'; image: string }>
     const historyMessages: { role: string; content: MessageContent }[] = []
@@ -170,6 +181,12 @@ export function useChatStream() {
     let insideThink = false
     let tagBuffer = ''
 
+    const projectId = useProjectStore.getState().activeProjectId
+    const permissionProfile = permissionProfileForChatMode(
+      useUIStore.getState().permissionProfile,
+      chatMode,
+    )
+
     streamChat({
       agentId: agent.id,
       providerId: agent.providerId,
@@ -178,6 +195,8 @@ export function useChatStream() {
       messages: historyMessages,
       mcpServers: mcpServers.length > 0 ? mcpServers : undefined,
       builtInToolIds: builtInToolIds.length > 0 ? builtInToolIds : undefined,
+      projectId,
+      permissionProfile,
       signal: controller.signal,
       onToken: (token) => {
         const store = useChatStore.getState()
@@ -359,6 +378,18 @@ export function useChatStream() {
           useResearchStore.getState().clearResearch(activeResearchRef.current)
           activeResearchRef.current = null
         }
+      },
+      onToolApprovalRequest: ({ approvalId, toolCallId, riskLevel }) => {
+        useChatStore.getState().updateToolCallInLastMessage(conversationId!, toolCallId, {
+          status: 'awaiting-approval',
+          approvalId,
+          riskLevel: riskLevel as ToolRiskLevel,
+        })
+      },
+      onToolDenied: ({ toolCallId }) => {
+        useChatStore.getState().updateToolCallInLastMessage(conversationId!, toolCallId, {
+          status: 'denied',
+        })
       },
       onDone: () => {
         // Flush any remaining tag buffer

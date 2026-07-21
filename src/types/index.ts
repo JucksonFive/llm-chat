@@ -1,9 +1,10 @@
-export type ProviderId = 'openai' | 'anthropic' | 'google' | 'ollama' | 'deepseek' | 'bedrock'
+export type ProviderId = 'openai' | 'anthropic' | 'google' | 'ollama' | 'deepseek' | 'kimi' | 'bedrock'
 
 export type BuiltInToolId =
   | 'web-fetch'
   | 'web-search'
   | 'code-executor'
+  | 'powershell-executor'
   | 'file-reader'
   | 'file-writer'
   | 'calculator'
@@ -13,6 +14,17 @@ export type BuiltInToolId =
   | 'deep-research'
   | 'index-document'
   | 'search-document'
+  | 'kimi-web-search'
+  | 'kimi-rethink'
+  | 'kimi-memory'
+  | 'kimi-code-runner'
+  | 'kimi-date'
+  | 'kimi-convert'
+  | 'kimi-random-choice'
+  | 'kimi-excel'
+  | 'kimi-quickjs'
+  | 'kimi-fetch'
+  | 'kimi-base64'
 
 export type ToolRiskLevel = 'safe' | 'costly' | 'destructive'
 export type ToolExecutionPolicy = 'auto' | 'approvalRequired' | 'disabled'
@@ -24,6 +36,7 @@ export interface BuiltInToolMeta {
   enabledByDefault: boolean
   riskLevel: ToolRiskLevel
   executionPolicy: ToolExecutionPolicy
+  providerIds?: ProviderId[]
 }
 
 export interface ProviderMeta {
@@ -49,14 +62,20 @@ export interface Agent {
   builtInToolIds: BuiltInToolId[]
 }
 
+export type ToolCallStatus = 'calling' | 'complete' | 'error' | 'awaiting-approval' | 'denied'
+
 export interface ToolCallInfo {
   id: string
   toolName: string
   args: Record<string, unknown>
   result?: unknown
   error?: string
-  status: 'calling' | 'complete' | 'error'
+  status: ToolCallStatus
   startTime?: number
+  /** Approval ID for awaiting-approval state. */
+  approvalId?: string
+  /** Risk level for approval UI display. */
+  riskLevel?: ToolRiskLevel
 }
 
 export interface Attachment {
@@ -145,10 +164,18 @@ export interface McpServerImport {
 
 export type McpImportPayload = McpServerImport | McpServerImport[]
 
+export type WorkspaceKind = 'windows' | 'wsl'
+export type PreferredRuntime = 'windows-powershell' | 'wsl-pwsh'
+export type PermissionProfile = 'workspace-write' | 'read-only' | 'full-access'
+export type ChatMode = 'chat' | 'plan'
+
 export interface Project {
   id: string
   name: string
   description: string
+  workspacePath: string
+  workspaceKind: WorkspaceKind | ''
+  preferredRuntime: PreferredRuntime | ''
   createdAt: number
   updatedAt: number
 }

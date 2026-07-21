@@ -1,8 +1,8 @@
 import { webFetchTool } from './web-fetch.js'
 import { createWebSearchTool, webSearchTool } from './web-search.js'
 import { codeExecutorTool } from './code-executor.js'
-import { fileReaderTool } from './file-reader.js'
-import { fileWriterTool } from './file-writer.js'
+import { fileReaderTool, createFileReaderTool } from './file-reader.js'
+import { fileWriterTool, createFileWriterTool } from './file-writer.js'
 import { calculatorTool } from './calculator.js'
 import { pdfReaderTool } from './pdf-reader.js'
 import { datetimeTool } from './datetime.js'
@@ -10,12 +10,18 @@ import { createImageGeneratorTool } from './image-generator.js'
 import { deepResearchTool, createDeepResearchTool } from './deep-research.js'
 import { createIndexDocumentTool } from './document-indexer.js'
 import { createSearchDocumentTool } from './document-search.js'
+import { createPowershellExecutorTool } from './powershell-executor.js'
+import {
+  KIMI_OFFICIAL_TOOL_CATALOG,
+  type KimiOfficialToolId,
+} from '../kimi-official-tools.js'
 import type { Tool } from 'ai'
 
 export type BuiltInToolId =
   | 'web-fetch'
   | 'web-search'
   | 'code-executor'
+  | 'powershell-executor'
   | 'file-reader'
   | 'file-writer'
   | 'calculator'
@@ -25,6 +31,7 @@ export type BuiltInToolId =
   | 'deep-research'
   | 'index-document'
   | 'search-document'
+  | KimiOfficialToolId
 
 export type ToolRiskLevel = 'safe' | 'costly' | 'destructive'
 export type ToolExecutionPolicy = 'auto' | 'approvalRequired' | 'disabled'
@@ -33,6 +40,13 @@ export interface ToolContext {
   readonly hasUploadedPdf: boolean
   readonly hasIndexedDocument: boolean
   readonly workspaceAccessEnabled: boolean
+  readonly activeProjectId?: string
+  readonly permissionProfile?: string
+}
+
+export interface ProjectToolContext {
+  projectId?: string
+  permissionProfile?: string
 }
 
 export interface BuiltInToolMeta {
@@ -42,6 +56,7 @@ export interface BuiltInToolMeta {
   enabledByDefault: boolean
   riskLevel: ToolRiskLevel
   executionPolicy: ToolExecutionPolicy
+  providerIds?: string[]
 }
 
 export interface ToolSettings {
@@ -55,10 +70,25 @@ type ToolEntry = {
   enabledByDefault: boolean
   riskLevel: ToolRiskLevel
   executionPolicy: ToolExecutionPolicy
+  providerIds?: string[]
   conditionallyEnabled?: (context: ToolContext) => boolean
   tool?: Tool
-  factory?: (apiKey: string) => Tool
+  factory?: (apiKey: string, context?: ProjectToolContext) => Tool | undefined
 }
+
+const KIMI_OFFICIAL_TOOL_ENTRIES = Object.fromEntries(
+  KIMI_OFFICIAL_TOOL_CATALOG.map((entry) => [
+    entry.id,
+    {
+      name: entry.name,
+      description: entry.description,
+      enabledByDefault: false,
+      riskLevel: entry.riskLevel,
+      executionPolicy: 'auto',
+      providerIds: ['kimi'],
+    } satisfies ToolEntry,
+  ]),
+) as Record<KimiOfficialToolId, ToolEntry>
 
 const BUILT_IN_TOOLS: Record<BuiltInToolId, ToolEntry> = {
   'web-fetch': {
@@ -80,11 +110,23 @@ const BUILT_IN_TOOLS: Record<BuiltInToolId, ToolEntry> = {
   },
   'code-executor': {
     name: 'Code Executor',
-    description: 'Execute JavaScript, Python, or shell code',
+    description: 'Execute JavaScript, Python, or shell code (deprecated — use powershell-executor for project-bound execution)',
     enabledByDefault: false,
     riskLevel: 'destructive',
     executionPolicy: 'approvalRequired',
     tool: codeExecutorTool,
+  },
+  'powershell-executor': {
+    name: 'PowerShell Executor',
+    description: 'Execute PowerShell scripts in a sandbox tied to the project workspace (build, test, git, file ops)',
+    enabledByDefault: false,
+    riskLevel: 'destructive',
+    executionPolicy: 'approvalRequired',
+    conditionallyEnabled: (ctx) => ctx.workspaceAccessEnabled && !!ctx.activeProjectId,
+    factory: (_apiKey: string, context?: ProjectToolContext) =>
+      context?.projectId
+        ? createPowershellExecutorTool({ projectId: context.projectId, permissionProfile: context.permissionProfile })
+        : undefined,
   },
   'file-reader': {
     name: 'File Reader',
@@ -93,6 +135,8 @@ const BUILT_IN_TOOLS: Record<BuiltInToolId, ToolEntry> = {
     riskLevel: 'costly',
     executionPolicy: 'approvalRequired',
     tool: fileReaderTool,
+    factory: (_apiKey: string, context?: ProjectToolContext) =>
+      createFileReaderTool({ projectId: context?.projectId, permissionProfile: context?.permissionProfile }),
   },
   'file-writer': {
     name: 'File Writer',
@@ -101,6 +145,8 @@ const BUILT_IN_TOOLS: Record<BuiltInToolId, ToolEntry> = {
     riskLevel: 'destructive',
     executionPolicy: 'approvalRequired',
     tool: fileWriterTool,
+    factory: (_apiKey: string, context?: ProjectToolContext) =>
+      createFileWriterTool({ projectId: context?.projectId, permissionProfile: context?.permissionProfile }),
   },
   'calculator': {
     name: 'Calculator',
@@ -161,6 +207,7 @@ const BUILT_IN_TOOLS: Record<BuiltInToolId, ToolEntry> = {
     conditionallyEnabled: (ctx) => ctx.hasIndexedDocument,
     factory: createSearchDocumentTool,
   },
+  ...KIMI_OFFICIAL_TOOL_ENTRIES,
 }
 
 export function getBuiltInToolList(): BuiltInToolMeta[] {
@@ -171,6 +218,7 @@ export function getBuiltInToolList(): BuiltInToolMeta[] {
     enabledByDefault: meta.enabledByDefault,
     riskLevel: meta.riskLevel,
     executionPolicy: meta.executionPolicy,
+    providerIds: meta.providerIds,
   }))
 }
 
@@ -208,20 +256,37 @@ export function getAvailableToolIds(
   return availableIds
 }
 
-export function getBuiltInTools(enabledIds: BuiltInToolId[], apiKey?: string): Record<string, Tool> {
+export function getBuiltInTools(
+  enabledIds: BuiltInToolId[],
+  apiKey?: string,
+  projectContext?: ProjectToolContext,
+): Record<string, Tool> {
   const result: Record<string, Tool> = {}
   for (const id of enabledIds) {
     const entry = BUILT_IN_TOOLS[id]
     if (entry) {
-      // Prefer the factory when an API key is available so the tool can use
-      // LLM-backed features (rewrites, reranks, image generation). Fall back
-      // to the static instance otherwise so the tool still works without a key.
-      const t = (entry.factory && apiKey ? entry.factory(apiKey) : undefined) ?? entry.tool
-      if (t) {
+      // Resolve the tool. Priority:
+      // 1. Factory + API key → full-featured tool (e.g. LLM-rewritten search)
+      // 2. Factory + no API key + project context → project-scoped tools
+      //    (e.g. powershell-executor) that don't need an API key
+      // 3. Factory + API key only → skip (needs API key for LLM features)
+      // 4. Static tool instance → always available fallback
+      let tool: Tool | undefined
+      if (entry.factory && apiKey) {
+        tool = entry.factory(apiKey, projectContext)
+      } else if (entry.factory && projectContext?.projectId) {
+        // Project-scoped tools may not need an API key; pass empty string
+        // and let the factory decide based on the project context.
+        tool = entry.factory('', projectContext) ?? undefined
+      }
+      if (!tool) {
+        tool = entry.tool
+      }
+      if (tool) {
         // Tool name must match what we tell the model in the system prompt.
         // AI SDK tool names typically use snake_case; we expose the id as-is
         // with hyphens converted to underscores (e.g. `web-search` -> `web_search`).
-        result[id.replace(/-/g, '_')] = t
+        result[id.replace(/-/g, '_')] = tool
       }
     }
   }

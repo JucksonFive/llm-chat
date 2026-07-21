@@ -15,6 +15,7 @@ import { BrainCircuit, Volume2, VolumeX, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getModelCapabilities } from '@/lib/model-capabilities'
 import { useAgentStore } from '@/stores/agent-store'
+import { useChatStore } from '@/stores/chat-store'
 import { useMemoryStore } from '@/stores/memory-store'
 import { useUIStore } from '@/stores/ui-store'
 import { MemoryPanel } from '@/components/memory/memory-panel'
@@ -24,6 +25,10 @@ import type { ProviderId } from '@/types'
 export function Header() {
   const { agents, activeAgentId, updateAgent } = useAgentStore()
   const activeAgent = agents.find((a) => a.id === activeAgentId)
+  const activeConversationId = useChatStore((s) => s.activeConversationId)
+  const activeConversation = useChatStore((s) =>
+    activeConversationId ? s.conversations[activeConversationId] : null
+  )
   const provider = activeAgent ? PROVIDERS[activeAgent.providerId] : null
   const allMemories = useMemoryStore((s) => s.memories)
   const getRecentlyUsedMemories = useMemoryStore((s) => s.getRecentlyUsedMemories)
@@ -55,13 +60,15 @@ export function Header() {
 
   return (
     <>
-      <header className="flex h-14 shrink-0 items-center gap-2 sm:gap-3 border-b border-border/50 bg-background/80 px-2 sm:px-4 backdrop-blur-xl">
+      <header className="flex h-[52px] shrink-0 items-center gap-2 border-b border-border/50 bg-background/90 px-2 backdrop-blur-xl sm:gap-3 sm:px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="h-5" />
         {activeAgent && provider ? (
           <>
             <div className="flex items-center gap-2 flex-1 min-w-0 overflow-x-auto">
-              <span className="font-medium text-sm truncate hidden sm:inline">{activeAgent.name}</span>
+              <span className="hidden max-w-64 truncate text-sm font-medium sm:inline">
+                {activeConversation?.title ?? activeAgent.name}
+              </span>
               <Select value={activeAgent.providerId} onValueChange={handleProviderChange}>
                 <SelectTrigger
                   className="h-7 w-auto gap-1 border-border/50 text-xs font-medium px-2 shrink-0"

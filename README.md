@@ -1,6 +1,6 @@
 # LLM Chat
 
-A powerful multi-provider AI chat desktop application with advanced features like deep research, MCP tool integration, semantic memory, and custom agent workflows. Built with React, Express, and Electron.
+A powerful multi-provider AI chat desktop application with Plan mode, deep research, MCP plugins, semantic memory, custom agent workflows, and Codex-style project navigation. Built with React, Express, and Electron.
 
 ![Main Interface](image-3.png)
 *Main chat interface with streaming responses and tool integration*
@@ -23,8 +23,9 @@ A powerful multi-provider AI chat desktop application with advanced features lik
 ## Features
 
 ### 🤖 Multi-Provider AI Support
-- **Six major providers** — OpenAI, Anthropic (Claude), Google Gemini, DeepSeek, AWS Bedrock, Ollama (local)
+- **Seven major providers** — OpenAI, Anthropic (Claude), Google Gemini, DeepSeek, Kimi, AWS Bedrock, Ollama (local)
 - **Agent management** — Create unlimited agents with different providers, models, and system prompts
+- **Per-agent API credentials** — Add or replace a provider key from **LLM Chat ▾ → Edit active agent**
 - **Live model switching** — Change models on the fly from the header without opening settings
 - **Capability detection** — Automatic badges for ✨ Reasoning, 🖼️ Vision, and 📚 Large context windows
 - **Streaming responses** — Real-time token streaming with Server-Sent Events
@@ -33,6 +34,9 @@ A powerful multi-provider AI chat desktop application with advanced features lik
 *Configure agents with different providers, models, and custom system prompts*
 
 ### 🔬 Advanced AI Capabilities
+- **Plan mode** — Ask the model for an implementation-ready plan without changing local state
+  - Toggle it from the composer **+** menu; an amber **Plan** pill shows when it is active
+  - Adds planning instructions, forces read-only workspace permissions, and filters out mutating/executing built-in tools
 - **Deep research workflow** — Multi-step web research powered by LangGraph state machine
   - Live progress panel showing: planning → searching → fetching → analyzing → synthesizing → reporting
   - Source discovery with URL tracking and elapsed time
@@ -70,6 +74,8 @@ A powerful multi-provider AI chat desktop application with advanced features lik
 
 ### 🔌 MCP (Model Context Protocol) Integration
 - **Native MCP support** — Connect external tools and data sources
+- **Composer plugin picker** — Enable or disable configured MCP servers for the active agent directly from **+ → Plugins**
+- **Plugin management shortcut** — Open the MCP settings with **+ → Manage plugins**
 - **Import/export functionality** — File upload, URL fetch, or paste JSON
   - Validates server configurations before import
   - Preview with connection status for each server
@@ -100,7 +106,8 @@ A powerful multi-provider AI chat desktop application with advanced features lik
   - Attachment type filtering
   - Tool usage filtering
 - **Sidebar conversation search** — Instant filter by title or content (in-memory)
-- **Projects** — Organize conversations into logical groupings
+- **Codex-style project sidebar** — Project folders expand to show their chats inline, with compact active-state highlighting and per-item action menus
+- **Agent switcher** — Select, create, or edit agents from the **LLM Chat ▾** menu at the top of the sidebar
 
 ![Global Search](./docs/images/global-search.png)
 *Global message search with content highlighting*
@@ -113,6 +120,7 @@ A powerful multi-provider AI chat desktop application with advanced features lik
   - Voice input/output, attachments, search, memory, tools
   - Quick start guide
 - **Keyboard shortcuts** — Press `?` to see all shortcuts
+- **Unified composer menu** — The **+** button contains files, workspace folders, Plan mode, plugins, MCP resources, and MCP prompts
 - **Mobile responsive** — Touch-friendly controls
   - 48px tap targets
   - Tabbed settings
@@ -142,9 +150,9 @@ A powerful multi-provider AI chat desktop application with advanced features lik
 - **Database encryption** — Optional AES-256-GCM encryption at rest
   - Scrypt key derivation (cached per process)
   - Stable salt to avoid repeated 100ms derivation on auto-save
-- **Client-side API keys** — Keys stored only in browser localStorage
-  - Never persisted server-side
-  - Passed per-request in body
+- **Encrypted API credentials** — Provider keys are stored in each agent's encrypted SQLite credential field
+  - The browser keeps only per-agent presence flags, not secret values
+  - Legacy browser-local keys are migrated to the encrypted server-side store and removed from localStorage
 - **Data portability** — Export/import all data
   - Agents, conversations, settings, memories
   - JSON format for easy backup
@@ -206,13 +214,22 @@ A powerful multi-provider AI chat desktop application with advanced features lik
    - Express API server runs on port 3001
    - Docker Compose automatically starts SearXNG for web search
 
-3. **Add your API keys**
-   - Open the app in your browser
-   - Go to Settings → click on an agent
-   - Add API keys for your preferred providers (OpenAI, Anthropic, etc.)
-   - Keys are stored locally in browser localStorage only
+3. **Add your API key**
+   - Open **LLM Chat ▾** at the top of the sidebar
+   - Select **Edit active agent** (or **New agent** when creating one)
+   - Enter the provider credential in the **API Key** field and save
+   - Credentials are encrypted in SQLite; the browser retains only a saved/not-saved flag
    
    **For AWS Bedrock**: Configure AWS credentials via AWS CLI or environment variables. See [Bedrock Setup Guide](./docs/bedrock-setup.md) for details.
+
+### Everyday Usage
+
+- **Switch or configure an agent** — Open **LLM Chat ▾** in the sidebar. This menu contains agent selection, **New agent**, and **Edit active agent**.
+- **Organize chats** — Add a project from the sidebar, expand its folder, and select a chat underneath it. **New chat** uses the currently active project.
+- **Add context and capabilities** — Open the composer **+** menu to attach files, configure a workspace folder, toggle Plan mode, or select MCP plugins.
+- **Use Plan mode** — Choose **+ → Plan mode**. While active, the composer shows a **Plan** pill and requests a read-only implementation plan.
+- **Manage plugins** — Choose **+ → Manage plugins** to configure MCP servers, then enable individual servers under **+ → Plugins** for the active agent.
+- **Change workspace permissions** — Use the workspace control beside the **+** button to select a project and choose read-only, workspace-write, or full-access permissions.
 
 ### Development Modes
 
@@ -255,7 +272,7 @@ By default the Express API server listens on **plain HTTP** at `http://localhost
 
 Because the transport is unencrypted on the loopback interface:
 
-- **API keys are transmitted over loopback during use.** Keys are stored client-side in browser `localStorage` and sent in the body of each `POST /api/chat` (and `/api/rag/memories/search`) request to the local server. They are never persisted in the server database. On a single-user machine this is low risk, but any process running as your user could in principle observe loopback traffic.
+- **API keys cross loopback only when you save or replace them.** The browser sends the credential to the local API, which encrypts it in the agent's SQLite credential field. Chat requests send the agent ID; the server resolves and decrypts the credential when contacting the selected provider. On a single-user machine this is low risk, but another process running as your user could in principle observe unencrypted loopback traffic while a credential is being saved.
 - Conversation content and tool inputs/outputs likewise travel over the loopback interface in clear text.
 
 ### Optional HTTPS mode (`HTTPS_ENABLED`)
@@ -338,26 +355,32 @@ docker compose -f docker-compose.prod.yml up -d --build
 ### First-Time Setup
 
 1. **Create your first agent**
-   - Click "New Agent" in the sidebar
-   - Select a provider (e.g., OpenAI)
-   - Choose a model (e.g., gpt-4o)
-   - Add your API key
-   - Optionally customize the system prompt
+   - Open **LLM Chat ▾** at the top of the sidebar and choose **New agent**
+   - Select a provider and model
+   - Enter the provider credential in the **API Key** field
+   - Optionally customize the system prompt and built-in tools
 
 2. **Start a conversation**
-   - Select the agent from the sidebar
-   - Type a message in the input box
-   - Press Enter to send
+   - Select the agent from **LLM Chat ▾**
+   - Optionally add or select a project in the sidebar
+   - Click **New chat**, type a message, and press Enter
 
-3. **Explore features**
-   - Press `?` to see keyboard shortcuts
+3. **Explore the composer**
+   - Open **+** to attach files, configure a workspace, toggle Plan mode, or select plugins
    - Try voice input with the microphone button
    - Drag and drop images or PDFs
-   - Enable tools in agent settings for enhanced capabilities
+   - Use the workspace control to adjust filesystem permissions
 
 ## MCP Integration
 
-Model Context Protocol (MCP) allows agents to connect to external tools and data sources. LLM Chat provides multiple ways to add MCP servers.
+Model Context Protocol (MCP) allows agents to connect to external tools and data sources. LLM Chat presents configured MCP servers as **plugins** in the composer.
+
+### Using Plugins from the Composer
+
+1. Open **+ → Manage plugins** to add or configure MCP servers. The same settings are available from the sidebar footer under **Settings → MCP**.
+2. Return to the composer and open **+ → Plugins**.
+3. Check the MCP servers that should be available to the active agent. The selection is saved to that agent.
+4. Enabled servers are passed to the model automatically. When available, MCP **Resources** and **Prompts** also appear in the **+** menu.
 
 ### Import MCP Servers
 
@@ -365,7 +388,7 @@ Model Context Protocol (MCP) allows agents to connect to external tools and data
 *Three ways to import MCP servers: file upload, URL fetch, or npx command*
 
 #### From File
-1. Go to Settings → MCP Servers
+1. Open **+ → Manage plugins**, or go to **Settings → MCP**
 2. Click "Import" → "From File" tab
 3. Upload a JSON configuration file
 4. Review connection status in preview
@@ -416,7 +439,7 @@ Pre-configured servers for common use cases:
 | **Everything** | None | Demo server showcasing all MCP capabilities |
 
 To use a preset:
-1. Go to Settings → MCP Servers
+1. Open **+ → Manage plugins**, or go to **Settings → MCP**
 2. Click "Add from Preset"
 3. Select a preset
 4. Fill in required configuration (API keys, paths)
@@ -503,7 +526,7 @@ src/                            # React frontend
     research-store.ts           # Deep-research progress
     memory-store.ts             # Memories with last-used tracking
     mcp-store.ts                # MCP server connections
-    api-key-store.ts            # Client-side API keys
+    api-key-store.ts            # Server-backed credential status and legacy migration
     project-store.ts            # Projects
     document-store.ts           # Indexed RAG documents
     ui-store.ts                 # Theme, auto-speak
@@ -585,10 +608,32 @@ Enable these tools per agent in the agent settings. Most require no external ser
 | **Index Document** | OpenAI API Key | Index documents (PDFs, text) for RAG retrieval with embeddings |
 | **Search Document** | OpenAI API Key | Search across indexed documents using cosine similarity |
 
+### Kimi Official Tools
+
+Kimi agents can additionally enable Moonshot's hosted Formula tools. Their schemas are loaded
+from Kimi when a chat starts, and tool executions use the Kimi API key stored for that agent.
+See the [Kimi Official Tools documentation](https://platform.kimi.ai/docs/guide/use-official-tools).
+Moonshot currently marks the Formula Web Search tool as under update and does not recommend
+using it in the near term, so all Kimi Official Tools remain disabled by default.
+
+| Tool | Description |
+|------|-------------|
+| **Web Search** | Current web search and source retrieval |
+| **Rethink** | Intelligent idea organization and reconsideration |
+| **Memory** | Persistent conversation history and preference storage |
+| **Code Runner** | Hosted Python execution |
+| **Date** | Date and time processing |
+| **Convert** | Unit and currency conversion |
+| **Random Choice** | Random selection |
+| **Excel** | Excel and CSV analysis |
+| **Quick JS** | Sandboxed JavaScript execution with QuickJS |
+| **Fetch** | URL extraction and Markdown conversion |
+| **Base64** | Base64 encoding and decoding |
+
 ### Enabling Tools
 
-1. Go to Settings → select an agent
-2. Scroll to "Tools" section
+1. Open **LLM Chat ▾ → Edit active agent**
+2. Scroll to the **Tools** section
 3. Toggle the tools you want to enable
 4. Some tools require additional configuration (API keys, Docker services)
 5. Tools appear in the agent's context and can be called automatically
@@ -606,6 +651,7 @@ Enable these tools per agent in the agent settings. Most require no external ser
 | **Anthropic** | Yes | claude-sonnet-4, claude-opus-4, claude-haiku-4.5 | Long context, artifacts |
 | **Google** | Yes | gemini-2.5-pro, gemini-2.5-flash, gemini-2.0-flash | Massive context (2M tokens) |
 | **DeepSeek** | Yes | deepseek-v4-pro, deepseek-v4-flash, deepseek-r1 | Cost-effective, reasoning |
+| **Kimi** | Yes | kimi-k3, kimi-k2.7-code, kimi-k2.7-code-highspeed, kimi-k2.6 | Reasoning, vision, tool calling, up to 1M context |
 | **AWS Bedrock** | AWS Credentials | Claude 3.5, Amazon Nova models | Enterprise, AWS integration |
 | **Ollama** | No (local) | Any Ollama model | Privacy, no API costs |
 
@@ -617,6 +663,7 @@ Models automatically receive capability badges based on their features:
 Models with extended thinking/reasoning capabilities:
 - OpenAI: `o1`, `o1-mini`, `o3-mini`
 - DeepSeek: `deepseek-r1`
+- Kimi: `kimi-k3`, `kimi-k2.7-code`, `kimi-k2.6`
 - Claude: Models with "thinking" in the name
 
 Features:
@@ -767,9 +814,10 @@ server/
 ### Memory & RAG
 
 **API key security**:
-- Keys stored **only** in browser `localStorage`
-- Server never persists keys — passed per-request in body
-- Applies to `/api/chat` and `/api/rag/memories/search` endpoints
+- Provider credentials are encrypted before being stored in the agent's SQLite `api_key_encrypted` field
+- The browser stores only per-agent presence flags and never rehydrates raw secret values
+- Legacy `localStorage` credentials are migrated to the server-side encrypted store and removed from the browser
+- Chat and RAG requests identify the agent; the server resolves the appropriate provider credential
 
 **Lazy embedding strategy**:
 - Memories embedded on **first search**, not on creation
@@ -833,10 +881,10 @@ server/
 - Encrypts entire `~/.llm-chat/data.db` file at rest
 
 **API key isolation**:
-- Keys never leave browser `localStorage`
-- Not persisted in server database
-- Passed in request body only
-- Each agent can have different keys
+- Each agent has its own encrypted credential field
+- Raw credentials are not exposed back to the browser after saving
+- Provider-level fallback can reuse the first available key for another agent using the same provider
+- Setting `LLM_CHAT_MASTER_PASSWORD` strengthens encryption with a user-supplied key; otherwise the local machine-derived fallback is used
 
 **Content Security Policy (CSP)**:
 - Restricts inline scripts in production builds
@@ -906,7 +954,7 @@ This is currently a private project. If you have access:
 ### Common Issues
 
 **"Failed to connect to OpenAI/Anthropic/etc."**
-- Check API key is entered correctly in agent settings
+- Open **LLM Chat ▾ → Edit active agent** and verify the **API Key** field is saved
 - Verify account has credits/active subscription
 - Check network connection and firewall rules
 

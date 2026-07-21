@@ -1,6 +1,10 @@
 interface ElectronAPI {
   platform: string
   isElectron: boolean
+  selectWorkspaceFolder: () => Promise<{
+    token: string
+    path: string
+  } | null>
 }
 
 // Web Speech API types (not included in all TS lib versions)

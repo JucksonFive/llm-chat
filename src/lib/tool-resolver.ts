@@ -1,10 +1,12 @@
 import type { BuiltInToolId, Message, ProviderId } from '@/types'
 import { useDocumentStore } from '@/stores/document-store'
+import { useProjectStore } from '@/stores/project-store'
 
 export interface ToolContext {
   hasUploadedPdf: boolean
   hasIndexedDocument: boolean
   workspaceAccessEnabled: boolean
+  activeProjectId: string | null
   providerId: ProviderId
 }
 
@@ -30,13 +32,18 @@ export function computeToolContext(messages: Message[], providerId: ProviderId):
 
   const hasIndexedDocument = useDocumentStore.getState().documents.length > 0
 
-  // For now, workspace access is not implemented — default to false
-  const workspaceAccessEnabled = false
+  // Workspace access is enabled when the active project has a workspace path configured.
+  const activeProjectId = useProjectStore.getState().activeProjectId
+  const activeProject = activeProjectId
+    ? useProjectStore.getState().projects.find((p) => p.id === activeProjectId)
+    : null
+  const workspaceAccessEnabled = !!activeProject?.workspacePath
 
   return {
     hasUploadedPdf,
     hasIndexedDocument,
     workspaceAccessEnabled,
+    activeProjectId,
     providerId,
   }
 }

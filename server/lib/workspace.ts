@@ -107,16 +107,65 @@ export function validateWorkspaceAccess(resolved: string): WorkspaceAccessResult
 /**
  * Convenience helper: resolve + validate in one call.
  * Returns the resolved path on success or an error object on denial.
+ *
+ * When a workspaceRoot is provided (from a project's workspacePath), path
+ * resolution uses that root instead of the global WORKSPACE_ROOT env var.
+ * This is the preferred path for project-scoped file operations.
  */
 export function prepareWorkspacePath(
   filePath: string,
+  workspaceRoot?: string,
 ): { resolved: string } | { error: string } {
-  const resolved = resolveWorkspace(filePath)
-  const access = validateWorkspaceAccess(resolved)
+  const resolved = workspaceRoot
+    ? resolveProjectPath(filePath, workspaceRoot)
+    : resolveWorkspace(filePath)
+  const access = workspaceRoot
+    ? validateProjectAccess(resolved, workspaceRoot)
+    : validateWorkspaceAccess(resolved)
   if (!access.ok) {
     return { error: access.error ?? 'Access denied' }
   }
   return { resolved }
+}
+
+/**
+ * Resolve a file path against a project workspace root.
+ * Relative paths are anchored to the workspace root.
+ * Absolute paths are resolved as-is then validated against the boundary.
+ */
+export function resolveProjectPath(filePath: string, workspaceRoot: string): string {
+  return path.isAbsolute(filePath)
+    ? path.resolve(filePath)
+    : path.resolve(workspaceRoot, filePath)
+}
+
+/**
+ * Validate that a resolved path is within the project workspace boundary.
+ * Same deny-list as global workspace validation, but scoped to the project
+ * root instead of the global WORKSPACE_ROOT.
+ */
+export function validateProjectAccess(
+  resolved: string,
+  workspaceRoot: string,
+): WorkspaceAccessResult {
+  // Deny-list applies regardless — these are always sensitive.
+  const base = path.basename(resolved)
+  if (DENY_LIST.some((re) => re.test(base))) {
+    return { ok: false, error: `Access denied: "${base}" is a protected file` }
+  }
+
+  const relative = path.relative(workspaceRoot, resolved)
+  if (relative === '') {
+    return { ok: true }
+  }
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    return {
+      ok: false,
+      error: `Access denied: "${resolved}" is outside the project workspace (${workspaceRoot})`,
+    }
+  }
+
+  return { ok: true }
 }
 
 /** Append-only audit log for file tool operations (best-effort). */

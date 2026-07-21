@@ -52,6 +52,24 @@ describe('getBuiltInToolList', () => {
     const ids = getBuiltInToolList().map((t) => t.id)
     expect(new Set(ids).size).toBe(ids.length)
   })
+
+  it('exposes Kimi Official Tools only for the Kimi provider', () => {
+    const kimiTools = getBuiltInToolList().filter((tool) => tool.providerIds?.includes('kimi'))
+    expect(kimiTools.map((tool) => tool.id)).toEqual([
+      'kimi-web-search',
+      'kimi-rethink',
+      'kimi-memory',
+      'kimi-code-runner',
+      'kimi-date',
+      'kimi-convert',
+      'kimi-random-choice',
+      'kimi-excel',
+      'kimi-quickjs',
+      'kimi-fetch',
+      'kimi-base64',
+    ])
+    expect(kimiTools.every((tool) => !tool.enabledByDefault)).toBe(true)
+  })
 })
 
 describe('getBuiltInTools', () => {
@@ -82,6 +100,10 @@ describe('getBuiltInTools', () => {
   it('mixes static and factory tools correctly', () => {
     const result = getBuiltInTools(['calculator', 'image-generator'], 'sk-test')
     expect(Object.keys(result).sort()).toEqual(['calculator', 'image_generator'])
+  })
+
+  it('leaves Kimi Official Tools to the Formula builder', () => {
+    expect(getBuiltInTools(['kimi-date'], 'moonshot-key')).toEqual({})
   })
 })
 
